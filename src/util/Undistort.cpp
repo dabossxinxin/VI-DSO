@@ -20,10 +20,6 @@
 * You should have received a copy of the GNU General Public License
 * along with DSO. If not, see <http://www.gnu.org/licenses/>.
 */
-
-
-
-
 #include <sstream>
 #include <fstream>
 #include <iostream>
@@ -36,17 +32,8 @@
 #include "IOWrapper/ImageRW.h"
 #include "util/Undistort.h"
 
-
 namespace dso
 {
-
-
-
-
-
-
-
-
 PhotometricUndistorter::PhotometricUndistorter(
 		std::string file,
 		std::string noiseImage,
@@ -74,15 +61,11 @@ PhotometricUndistorter::PhotometricUndistorter(
 		return;
 	}
 
-
-
 	{
 		std::string line;
 		std::getline( f, line );
 		std::istringstream l1i( line );
 		std::vector<float> Gvec = std::vector<float>( std::istream_iterator<float>(l1i), std::istream_iterator<float>() );
-
-
 
         GDepth = Gvec.size();
 
@@ -113,8 +96,6 @@ PhotometricUndistorter::PhotometricUndistorter(
 	{
         for(int i=0;i<GDepth;i++) G[i]=255.0f*i/(float)(GDepth-1);
 	}
-
-
 
 	printf("Reading Vignette Image from %s\n",vignetteImage.c_str());
 	MinimalImage<unsigned short>* vm16 = IOWrap::readImageBW_16U(vignetteImage.c_str());
@@ -177,13 +158,13 @@ PhotometricUndistorter::PhotometricUndistorter(
 	printf("Successfully read photometric calibration!\n");
 	valid = true;
 }
+
 PhotometricUndistorter::~PhotometricUndistorter()
 {
 	if(vignetteMap != 0) delete[] vignetteMap;
 	if(vignetteMapInv != 0) delete[] vignetteMapInv;
 	delete output;
 }
-
 
 void PhotometricUndistorter::unMapFloatImage(float* image)
 {
@@ -250,12 +231,9 @@ void PhotometricUndistorter::processFrame(T* image_in, float exposure_time, floa
 		output->exposure_time = 1;
 
 }
+
 template void PhotometricUndistorter::processFrame<unsigned char>(unsigned char* image_in, float exposure_time, float factor);
 template void PhotometricUndistorter::processFrame<unsigned short>(unsigned short* image_in, float exposure_time, float factor);
-
-
-
-
 
 Undistort::~Undistort()
 {
@@ -312,10 +290,6 @@ Undistort* Undistort::getUndistorterForFile(std::string configFilename, std::str
 			if(!u->isValid()) {delete u; return 0; }
 		}
 	}
-
-
-
-
 
     // clean model selection implementation.
     else if(std::sscanf(l1.c_str(), "KannalaBrandt %f %f %f %f %f %f %f %f",
@@ -1242,6 +1216,4 @@ void UndistortPinhole::distortCoordinates(float* in_x, float* in_y, float* out_x
 		out_y[i] = iy;
 	}
 }
-
-
 }

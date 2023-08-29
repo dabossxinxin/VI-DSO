@@ -19,7 +19,6 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
-
 #ifndef SOPHUS_HPP
 #define SOPHUS_HPP
 
@@ -33,45 +32,44 @@ namespace std {
 }
 #endif
 
+#include <corecrt_math_defines.h>
 #include <Eigen/Eigen>
 #include <Eigen/Geometry>
 
 namespace Sophus {
-using namespace Eigen;
+	using namespace Eigen;
 
-template<typename Scalar>
-struct SophusConstants {
-  EIGEN_ALWAYS_INLINE static
-  const Scalar epsilon() {
-    return static_cast<Scalar>(1e-10);
-  }
+	template<typename Scalar>
+	struct SophusConstants {
+		EIGEN_ALWAYS_INLINE static
+			const Scalar epsilon() {
+			return static_cast<Scalar>(1e-10);
+		}
 
-  EIGEN_ALWAYS_INLINE static
-  const Scalar pi() {
-    return static_cast<Scalar>(M_PI);
-  }
-};
+		EIGEN_ALWAYS_INLINE static
+			const Scalar pi() {
+			return static_cast<Scalar>(M_PI);
+		}
+	};
 
-template<>
-struct SophusConstants<float> {
-  EIGEN_ALWAYS_INLINE static
-  float epsilon() {
-    return static_cast<float>(1e-5);
-  }
+	template<>
+	struct SophusConstants<float> {
+		EIGEN_ALWAYS_INLINE static
+			float epsilon() {
+			return static_cast<float>(1e-5);
+		}
 
-  EIGEN_ALWAYS_INLINE static
-  float pi() {
-    return static_cast<float>(M_PI);
-  }
-};
+		EIGEN_ALWAYS_INLINE static
+			float pi() {
+			return static_cast<float>(M_PI);
+		}
+	};
 
-class SophusException : public std::runtime_error {
-public:
-  SophusException (const std::string& str)
-    : runtime_error("Sophus exception: " + str) {
-  }
-};
-
+	class SophusException : public std::runtime_error {
+	public:
+		SophusException(const std::string& str)
+			: runtime_error("Sophus exception: " + str) {
+		}
+	};
 }
-
 #endif

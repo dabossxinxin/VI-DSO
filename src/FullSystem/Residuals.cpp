@@ -266,7 +266,7 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 	}
 	else
 	{
-		state_NewState = ResState::IN;
+		state_NewState = ResState::INNER;
 	}
 
 	state_NewEnergy = energyLeft;
@@ -503,7 +503,7 @@ double PointFrameResidual::linearizeStereo(CalibHessian* HCalib)
 	}
 	else
 	{
-		state_NewState = ResState::IN;
+		state_NewState = ResState::INNER;
 	}
 
 	state_NewEnergy = energyLeft;
@@ -525,7 +525,7 @@ void PointFrameResidual::debugPlot()
 	}
 	else
 	{
-		if(state_state == ResState::IN) cT = Vec3b(255,0,0);
+		if(state_state == ResState::INNER) cT = Vec3b(255,0,0);
 		else if(state_state == ResState::OOB) cT = Vec3b(255,255,0);
 		else if(state_state == ResState::OUTLIER) cT = Vec3b(0,0,255);
 		else cT = Vec3b(255,255,255);
@@ -549,7 +549,7 @@ void PointFrameResidual::applyRes(bool copyJacobians)
 			assert(!efResidual->isActiveAndIsGoodNEW);
 			return;	// can never go back from OOB
 		}
-		if(state_NewState == ResState::IN)// && )
+		if(state_NewState == ResState::INNER)// && )
 		{
 			efResidual->isActiveAndIsGoodNEW=true;
 			efResidual->takeDataF();

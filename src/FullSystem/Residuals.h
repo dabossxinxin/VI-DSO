@@ -20,90 +20,79 @@
 * You should have received a copy of the GNU General Public License
 * along with DSO. If not, see <http://www.gnu.org/licenses/>.
 */
-
-
 #pragma once
 
- 
-#include "util/globalCalib.h"
 #include "vector"
- 
-#include "util/NumType.h"
 #include <iostream>
 #include <fstream>
+
+#include "util/NumType.h"
+#include "util/globalCalib.h"
 #include "util/globalFuncs.h"
 #include "OptimizationBackend/RawResidualJacobian.h"
 
 namespace dso
 {
-class PointHessian;
-class FrameHessian;
-class CalibHessian;
+	class PointHessian;
+	class FrameHessian;
+	class CalibHessian;
 
-class EFResidual;
+	class EFResidual;
 
+	enum ResLocation { ACTIVE = 0, LINEARIZED, MARGINALIZED, NONE };
+	enum ResState { INNER = 0, OOB, OUTLIER };
 
-enum ResLocation {ACTIVE=0, LINEARIZED, MARGINALIZED, NONE};
-enum ResState {IN=0, OOB, OUTLIER};
-
-struct FullJacRowT
-{
-	Eigen::Vector2f projectedTo[MAX_RES_PER_POINT];
-};
-
-class PointFrameResidual
-{
-public:
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
-	EFResidual* efResidual;
-	
-	bool stereoResidualFlag = false;
-
-	static int instanceCounter;
-
-
-	ResState state_state;
-	double state_energy;
-	ResState state_NewState;
-	double state_NewEnergy;
-	double state_NewEnergyWithOutlier;
-
-
-	void setState(ResState s) {state_state = s;}
-
-
-	PointHessian* point;
-	FrameHessian* host;
-	FrameHessian* target;
-	RawResidualJacobian* J;
-
-
-	bool isNew;
-
-
-	Eigen::Vector2f projectedTo[MAX_RES_PER_POINT];
-	Vec3f centerProjectedTo;
-
-	~PointFrameResidual();
-	PointFrameResidual();
-	PointFrameResidual(PointHessian* point_, FrameHessian* host_, FrameHessian* target_);
-	double linearize(CalibHessian* HCalib);
-	double linearizeStereo(CalibHessian* HCalib);
-	
-
-	void resetOOB()
+	struct FullJacRowT
 	{
-		state_NewEnergy = state_energy = 0;
-		state_NewState = ResState::OUTLIER;
-
-		setState(ResState::IN);
+		Eigen::Vector2f projectedTo[MAX_RES_PER_POINT];
 	};
-	void applyRes( bool copyJacobians);
 
-	void debugPlot();
+	class PointFrameResidual
+	{
+	public:
+		EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-	void printRows(std::vector<VecX> &v, VecX &r, int nFrames, int nPoints, int M, int res);
-};
+			EFResidual* efResidual;
+
+		bool stereoResidualFlag = false;
+
+		static int instanceCounter;
+
+		ResState state_state;
+		double state_energy;
+		ResState state_NewState;
+		double state_NewEnergy;
+		double state_NewEnergyWithOutlier;
+
+		void setState(ResState s) { state_state = s; }
+
+		PointHessian* point;
+		FrameHessian* host;
+		FrameHessian* target;
+		RawResidualJacobian* J;
+
+		bool isNew;
+
+		Eigen::Vector2f projectedTo[MAX_RES_PER_POINT];
+		Vec3f centerProjectedTo;
+
+		~PointFrameResidual();
+		PointFrameResidual();
+		PointFrameResidual(PointHessian* point_, FrameHessian* host_, FrameHessian* target_);
+		double linearize(CalibHessian* HCalib);
+		double linearizeStereo(CalibHessian* HCalib);
+
+		void resetOOB()
+		{
+			state_NewEnergy = state_energy = 0;
+			state_NewState = ResState::OUTLIER;
+			setState(ResState::INNER);
+		};
+
+		void applyRes(bool copyJacobians);
+
+		void debugPlot();
+
+		void printRows(std::vector<VecX> &v, VecX &r, int nFrames, int nPoints, int M, int res);
+	};
 }
-

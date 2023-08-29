@@ -1499,11 +1499,11 @@ void FullSystem::makeKeyFrame( FrameHessian* fh, FrameHessian* fh_right)
 		for(PointHessian* ph : fh1->pointHessians)
 		{
 			PointFrameResidual* r = new PointFrameResidual(ph, fh1, fh);
-			r->setState(ResState::IN);
+			r->setState(ResState::INNER);
 			ph->residuals.push_back(r);
 			ef->insertResidual(r);
 			ph->lastResiduals[1] = ph->lastResiduals[0];
-			ph->lastResiduals[0] = std::pair<PointFrameResidual*, ResState>(r, ResState::IN);
+			ph->lastResiduals[0] = std::pair<PointFrameResidual*, ResState>(r, ResState::INNER);
 			numFwdResAdde+=1;
 		}
 	}
@@ -1710,7 +1710,7 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 		    PointFrameResidual* r = new PointFrameResidual(ph, ph->host, ph->host->frame_right);
 		    r->state_NewEnergy = r->state_energy = 0;
 		    r->state_NewState = ResState::OUTLIER;
-		    r->setState(ResState::IN);
+		    r->setState(ResState::INNER);
 		    r->stereoResidualFlag = true;
 		    ph->residuals.push_back(r);
 		    ef->insertResidual(r);

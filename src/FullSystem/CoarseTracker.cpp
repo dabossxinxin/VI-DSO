@@ -448,7 +448,7 @@ void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians, 
 	{
 		for(PointHessian* ph : fh->pointHessians)
 		{
-			if(ph->lastResiduals[0].first != 0 && ph->lastResiduals[0].second == ResState::IN)
+			if(ph->lastResiduals[0].first != 0 && ph->lastResiduals[0].second == ResState::INNER)
 			{
 				PointFrameResidual* r = ph->lastResiduals[0].first;
 				assert(r->efResidual->isActive() && r->target == lastRef);
@@ -466,7 +466,7 @@ void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians, 
 // 	{
 // 		for(PointHessian* ph : fh->pointHessians)
 // 		{
-// 			if(ph->lastResiduals[0].first != 0 && ph->lastResiduals[0].second == ResState::IN) //contains information about residuals to the last two (!) frames. ([0] = latest, [1] = the one before).
+// 			if(ph->lastResiduals[0].first != 0 && ph->lastResiduals[0].second == ResState::INNER) //contains information about residuals to the last two (!) frames. ([0] = latest, [1] = the one before).
 // 			{
 // 				PointFrameResidual* r = ph->lastResiduals[0].first;
 // 				assert(r->efResidual->isActive() && r->target == lastRef);
@@ -1371,8 +1371,13 @@ void CoarseDistanceMap::growDistBFS(int bfsNum)
 	for(int k=1;k<40;k++)
 	{
 		int bfsNum2 = bfsNum;
-		std::swap<Eigen::Vector2i*>(bfsList1,bfsList2);
-		bfsNum=0;
+
+		//std::swap<Eigen::Vector2i*>(bfsList1,bfsList2);
+		Eigen::Vector2i* bfsListTmp = bfsList1;
+		bfsList1 = bfsList2;
+		bfsList2 = bfsListTmp;
+
+		bfsNum = 0;
 
 		if(k%2==0)
 		{

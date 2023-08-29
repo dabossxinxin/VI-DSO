@@ -38,8 +38,6 @@
 #include "FullSystem/ImmaturePoint.h"
 #include "util/nanoflann.h"
 
-
-
 #if !defined(__SSE3__) && !defined(__SSE2__) && !defined(__SSE1__)
 #include "SSE2NEON.h"
 #endif
@@ -1130,7 +1128,10 @@ void CoarseInitializer::applyStep(int lvl)
 		pts[i].idepth = pts[i].idepth_new;
 		pts[i].lastHessian = pts[i].lastHessian_new;
 	}
-	std::swap<Vec10f*>(JbBuffer, JbBuffer_new);
+	//std::swap<Vec10f*>(JbBuffer, JbBuffer_new);
+	Vec10f* JbTmp = JbBuffer;
+	JbBuffer = JbBuffer_new;
+	JbBuffer_new = JbTmp;
 }
 
 void CoarseInitializer::makeK(CalibHessian* HCalib)

@@ -4,13 +4,24 @@ PROJECT(${PROJECT_NAME})
 CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 #set(CMAKE_VERBOSE_MAKEFILE ON)
 
-
 set(BUILD_TYPE Release)
-#set(BUILD_TYPE RelWithDebInfo)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /bigobj")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
 
 set(EXECUTABLE_OUTPUT_PATH bin)
 set(LIBRARY_OUTPUT_PATH lib)
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+
+# find glog
+FIND_PATH(GLOG_INCLUDE_DIRS NAMES glog HINTS ${CMAKE_SOURCE_DIR}/../../SDK/glog/include)
+FIND_PATH(GLOG_LIB_DIR NAMES glog.lib HINTS ${CMAKE_SOURCE_DIR}/../../SDK/glog/lib)
+SET(GLOG_RELEASE_LIB ${GLOG_LIB_DIR}/glog.lib)
+SET(GLOG_DEBUG_LIB ${GLOG_LIB_DIR}/glogd.lib)
+
+FIND_PATH(GFLAGS_INCLUDE_DIRS NAMES gflags HINTS ${CMAKE_SOURCE_DIR}/../../SDK/gflags/include)
+FIND_PATH(GFLAGS_LIB_DIR NAMES gflags.lib HINTS ${CMAKE_SOURCE_DIR}/../../SDK/gflags/lib)
+SET(GFLAGS_LIBRARIES gflags)
+SET(GFLAGS_LIBRARIES gflags_nothreads)
 
 # required libraries
 find_package(SuiteParse REQUIRED)
@@ -22,19 +33,11 @@ find_package(LibZip QUIET)
 find_package(Pangolin 0.2 QUIET)
 find_package(OpenCV QUIET)
 
-find_package(Glog REQUIRED)
-include_directories(${Glog_INCLUDE_DIRS})
-
 # flags
 add_definitions("-DENABLE_SSE")
-set(CMAKE_CXX_FLAGS
-   "${SSE_FLAGS} -O3 -g -std=c++0x -march=native"
-#   "${SSE_FLAGS} -O3 -g -std=c++0x -fno-omit-frame-pointer"
-)
-
-if (MSVC)
-     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
-endif (MSVC)
+add_definitions("-D__SSE3__")
+add_definitions("-DNOMINMAX")
+add_definitions("-DGLOG_NO_ABBREVIATED_SEVERITIES")
 
 # Sources files
 set(dso_SOURCE_FILES
@@ -59,15 +62,15 @@ set(dso_SOURCE_FILES
   ${PROJECT_SOURCE_DIR}/src/util/globalCalib.cpp
 )
 
-
-
 include_directories(
   ${PROJECT_SOURCE_DIR}/src
   ${PROJECT_SOURCE_DIR}/thirdparty/Sophus
   ${PROJECT_SOURCE_DIR}/thirdparty/sse2neon
   ${EIGEN3_INCLUDE_DIR}
+  ${Boost_INCLUDE_DIR}
+  ${GLOG_INCLUDE_DIRS}
+  ${GFLAGS_INCLUDE_DIRS}
 ) 
-
 
 # decide if we have pangolin
 if (Pangolin_FOUND)
@@ -129,7 +132,13 @@ endif()
 if (OpenCV_FOUND AND Pangolin_FOUND)
 	message("--- compiling dso_dataset.")
 	add_executable(dso_dataset ${PROJECT_SOURCE_DIR}/src/main_dso_pangolin.cpp )
-    target_link_libraries(dso_dataset dso boost_system cxsparse ${BOOST_THREAD_LIBRARY} ${LIBZIP_LIBRARY} ${Pangolin_LIBRARIES} ${OpenCV_LIBS} ${GLOG_LIBRARY})
+    target_link_libraries(dso_dataset dso boost_system cxsparse ${BOOST_THREAD_LIBRARY} ${LIBZIP_LIBRARY} ${Pangolin_LIBRARIES} ${OpenCV_LIBS})
+	target_link_libraries(dso_dataset debug ${GLOG_DEBUG_LIB} optimized ${GLOG_RELEASE_LIB})
+
+	foreach(_var ${GFLAGS_LIBRARIES})
+		target_link_libraries(dso_dataset debug ${GFLAGS_LIB_DIR}/${_var}_debug.lib
+										optimized ${GFLAGS_LIB_DIR}/${_var}.lib)
+	endforeach()
 else()
 	message("--- not building dso_dataset, since either don't have openCV or Pangolin.")
 endif()

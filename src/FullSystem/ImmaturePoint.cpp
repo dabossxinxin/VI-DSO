@@ -423,9 +423,14 @@ ImmaturePointStatus ImmaturePoint::traceOn(FrameHessian* frame,const Mat33f &hos
 		idepth_min = (pr[2]*(bestV-errorInPixel*dy) - pr[1]) / (hostToFrame_Kt[1] - hostToFrame_Kt[2]*(bestV-errorInPixel*dy));
 		idepth_max = (pr[2]*(bestV+errorInPixel*dy) - pr[1]) / (hostToFrame_Kt[1] - hostToFrame_Kt[2]*(bestV+errorInPixel*dy));
 	}
-	if(idepth_min > idepth_max) std::swap<float>(idepth_min, idepth_max);
-
-
+	if (idepth_min > idepth_max)
+	{
+		//std::swap<float>(idepth_min, idepth_max);
+		float idepth_tmp = idepth_min;
+		idepth_min = idepth_max;
+		idepth_max = idepth_tmp;
+	}
+		
 	if(!std::isfinite(idepth_min) || !std::isfinite(idepth_max) || (idepth_max<0))
 	{
 		//printf("COUGHT INF / NAN minmax depth (%f %f)!\n", idepth_min, idepth_max);
@@ -708,8 +713,14 @@ ImmaturePointStatus ImmaturePoint::traceStereo(FrameHessian* frame, CalibHessian
 		idepth_min_stereo = (pr[2]*(bestV-errorInPixel*dy) - pr[1]) / (Kt[1] - Kt[2]*(bestV-errorInPixel*dy));
 		idepth_max_stereo = (pr[2]*(bestV+errorInPixel*dy) - pr[1]) / (Kt[1] - Kt[2]*(bestV+errorInPixel*dy));
 	}
-	if(idepth_min_stereo > idepth_max_stereo) std::swap<float>(idepth_min_stereo, idepth_max_stereo);
-
+	if (idepth_min_stereo > idepth_max_stereo)
+	{
+		//std::swap<float>(idepth_min_stereo, idepth_max_stereo);
+		float idepth_tmp_stereo = idepth_min_stereo;
+		idepth_min_stereo = idepth_max_stereo;
+		idepth_max_stereo = idepth_tmp_stereo;
+	}
+	
 //  printf("the idpeth_min is %f, the idepth_max is %f \n", idepth_min, idepth_max);
 
 	if(!std::isfinite(idepth_min_stereo) || !std::isfinite(idepth_max_stereo) || (idepth_max_stereo<0))
@@ -877,7 +888,7 @@ double ImmaturePoint::linearizeResidual(
 	}
 	else
 	{
-		tmpRes->state_NewState = ResState::IN;
+		tmpRes->state_NewState = ResState::INNER;
 	}
 
 	tmpRes->state_NewEnergy = energyLeft;

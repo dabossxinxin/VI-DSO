@@ -25,7 +25,7 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <unistd.h>
+//#include <unistd.h>
 
 #include "IOWrapper/Output3DWrapper.h"
 #include "IOWrapper/ImageDisplay.h"
@@ -688,7 +688,7 @@ int main(int argc, char** argv)
 	double time_start;
 
 	// hook crtl+C.
-	boost::thread exThread = boost::thread(exitThread);
+	//boost::thread exThread = boost::thread(exitThread);
 
 	ImageFolderReader* reader = new ImageFolderReader(source0, calib0, gammaCalib, vignette);
 	ImageFolderReader* reader_right;
@@ -701,7 +701,7 @@ int main(int argc, char** argv)
 	int w_out, h_out;
 	reader_right->getCalibMono(K_right, w_out, h_out);
 
-	LOG(INFO) << "K_right: \n" << K_right;
+	//LOG(INFO) << "K_right: \n" << K_right;
 	// 	LOG(INFO)<<"T_C0C1: \n"<<T_C0C1.matrix();
 	// 	exit(1);
 
@@ -735,13 +735,8 @@ int main(int argc, char** argv)
 		fullSystem->outputWrapper.push_back(viewer);
 	}
 
-
-
 	if (useSampleOutput)
 		fullSystem->outputWrapper.push_back(new IOWrap::SampleOutputWrapper());
-
-
-
 
 	// to make MacOS happy: run this in dedicated thread -- and use this one to run the GUI.
 	std::thread runthread([&]() {
@@ -797,7 +792,6 @@ int main(int argc, char** argv)
 		clock_t started = clock();
 		double sInitializerOffset = 0;
 
-
 		for (int ii = 30; ii < (int)idsToPlay.size(); ii++)
 		{
 			if (!fullSystem->initialized)	// if not initialized: reset start time.
@@ -841,8 +835,6 @@ int main(int argc, char** argv)
 				else
 					img_right = img;
 			}
-
-
 
 			bool skipFrame = false;
 			if (playbackSpeed != 0)
@@ -910,9 +902,7 @@ int main(int argc, char** argv)
 		struct timeval tv_end;
 		gettimeofday(&tv_end, NULL);
 
-
 		fullSystem->printResult("result.txt");
-
 
 		int numFramesProcessed = abs(idsToPlay[0] - idsToPlay.back());
 		double numSecondsProcessed = fabs(reader->getTimestamp(idsToPlay[0]) - reader->getTimestamp(idsToPlay.back()));
@@ -941,8 +931,7 @@ int main(int argc, char** argv)
 			tmlog.close();
 		}
 
-	});
-
+		});
 
 	if (viewer != 0)
 		viewer->run();

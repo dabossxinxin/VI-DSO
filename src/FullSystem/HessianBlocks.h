@@ -480,7 +480,7 @@ struct PointHessian
 		int visInToMarg = 0;
 		for(PointFrameResidual* r : residuals)
 		{
-			if(r->state_state != ResState::IN) continue;
+			if(r->state_state != ResState::INNER) continue;
 			for(FrameHessian* k : toMarg)
 				if(r->target == k) visInToMarg++;
 		}
