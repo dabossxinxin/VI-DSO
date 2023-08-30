@@ -20,53 +20,41 @@
 * You should have received a copy of the GNU General Public License
 * along with DSO. If not, see <http://www.gnu.org/licenses/>.
 */
-
-
 #pragma once
  
 #include "util/NumType.h"
+#include "FullSystem/HessianBlocks.h"
 
 namespace dso
 {
+	enum PixelSelectorStatus { PIXSEL_VOID = 0, PIXSEL_1, PIXSEL_2, PIXSEL_3 };
 
-enum PixelSelectorStatus {PIXSEL_VOID=0, PIXSEL_1, PIXSEL_2, PIXSEL_3};
+	class FrameHessian;
 
+	class PixelSelector
+	{
+	public:
+		EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+		PixelSelector(int w, int h);
+		~PixelSelector();
 
-class FrameHessian;
+		int makeMaps(const FrameHessian* const fh, float* map_out, float density,
+			int recursionsLeft = 1, bool plot = false, float thFactor = 1);
 
-class PixelSelector
-{
-public:
-	EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
-	int makeMaps(
-			const FrameHessian* const fh,
-			float* map_out, float density, int recursionsLeft=1, bool plot=false, float thFactor=1);
+		void makeHists(const FrameHessian* const fh);
 
-	PixelSelector(int w, int h);
-	~PixelSelector();
-	int currentPotential;
+		int currentPotential;
+		bool allowFast;
+	private:
 
+		Eigen::Vector3i select(const FrameHessian* const fh,
+			float* map_out, int pot, float thFactor = 1);
 
-	bool allowFast;
-	void makeHists(const FrameHessian* const fh);
-private:
-
-	Eigen::Vector3i select(const FrameHessian* const fh,
-			float* map_out, int pot, float thFactor=1);
-
-
-	unsigned char* randomPattern;
-
-
-	int* gradHist;
-	float* ths;
-	float* thsSmoothed;
-	int thsStep;
-	const FrameHessian* gradHistFrame;
-};
-
-
-
-
+		unsigned char* randomPattern;
+		int* gradHist;
+		float* ths;
+		float* thsSmoothed;
+		int thsStep;
+		const FrameHessian* gradHistFrame;
+	};
 }
-

@@ -5,8 +5,8 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 #set(CMAKE_VERBOSE_MAKEFILE ON)
 
 set(BUILD_TYPE Release)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /bigobj")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
+#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /bigobj")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
 
 set(EXECUTABLE_OUTPUT_PATH bin)
 set(LIBRARY_OUTPUT_PATH lib)
@@ -34,9 +34,11 @@ find_package(Pangolin 0.2 QUIET)
 find_package(OpenCV QUIET)
 
 # flags
+add_definitions("-DWIN32")
 add_definitions("-DENABLE_SSE")
-add_definitions("-D__SSE3__")
+add_definitions("-D__SSE2__")
 add_definitions("-DNOMINMAX")
+add_definitions("-D_USE_MATH_DEFINES")
 add_definitions("-DGLOG_NO_ABBREVIATED_SEVERITIES")
 
 # Sources files
@@ -114,27 +116,21 @@ else()
 	set(LIBZIP_LIBRARY "")
 endif()
 
-
 # compile main library.
 include_directories( ${CSPARSE_INCLUDE_DIR} ${CHOLMOD_INCLUDE_DIR}) 
 add_library(dso ${dso_SOURCE_FILES} ${dso_opencv_SOURCE_FILES} ${dso_pangolin_SOURCE_FILES})
-
-#set_property( TARGET dso APPEND_STRING PROPERTY COMPILE_FLAGS -Wall )
-
-
-if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin") # OSX
-    set(BOOST_THREAD_LIBRARY boost_thread-mt)
-else()
-    set(BOOST_THREAD_LIBRARY boost_thread)
-endif()
 
 # build main executable (only if we have both OpenCV and Pangolin)
 if (OpenCV_FOUND AND Pangolin_FOUND)
 	message("--- compiling dso_dataset.")
 	add_executable(dso_dataset ${PROJECT_SOURCE_DIR}/src/main_dso_pangolin.cpp )
-    target_link_libraries(dso_dataset dso boost_system cxsparse ${BOOST_THREAD_LIBRARY} ${LIBZIP_LIBRARY} ${Pangolin_LIBRARIES} ${OpenCV_LIBS})
+    target_link_libraries(dso_dataset dso ${CSPARSE_LIBRARY} ${LIBZIP_LIBRARY} ${Pangolin_LIBRARIES} ${OpenCV_LIBS})
 	target_link_libraries(dso_dataset debug ${GLOG_DEBUG_LIB} optimized ${GLOG_RELEASE_LIB})
-
+	target_link_libraries(dso_dataset debug ${Boost_SYSTEM_LIBRARY_DEBUG} optimized ${Boost_SYSTEM_LIBRARY_RELEASE})
+	target_link_libraries(dso_dataset debug ${Boost_THREAD_LIBRARY_DEBUG} optimized ${Boost_THREAD_LIBRARY_RELEASE})
+	target_link_libraries(dso_dataset debug ${Boost_ATOMIC_LIBRARY_DEBUG} optimized ${Boost_ATOMIC_LIBRARY_RELEASE})
+	target_link_libraries(dso_dataset debug ${Boost_DATE_TIME_LIBRARY_DEBUG} optimized ${Boost_DATE_TIME_LIBRARY_RELEASE})
+	target_link_libraries(dso_dataset debug ${Boost_CHRONO_LIBRARY_DEBUG} optimized ${Boost_CHRONO_LIBRARY_RELEASE})
 	foreach(_var ${GFLAGS_LIBRARIES})
 		target_link_libraries(dso_dataset debug ${GFLAGS_LIB_DIR}/${_var}_debug.lib
 										optimized ${GFLAGS_LIB_DIR}/${_var}.lib)
@@ -142,4 +138,3 @@ if (OpenCV_FOUND AND Pangolin_FOUND)
 else()
 	message("--- not building dso_dataset, since either don't have openCV or Pangolin.")
 endif()
-

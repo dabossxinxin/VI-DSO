@@ -29,6 +29,7 @@
 #include "util/NumType.h"
 #include "util/globalCalib.h"
 #include "util/globalFuncs.h"
+
 #include "OptimizationBackend/RawResidualJacobian.h"
 
 namespace dso
@@ -36,40 +37,50 @@ namespace dso
 	class PointHessian;
 	class FrameHessian;
 	class CalibHessian;
-
 	class EFResidual;
 
-	enum ResLocation { ACTIVE = 0, LINEARIZED, MARGINALIZED, NONE };
-	enum ResState { INNER = 0, OOB, OUTLIER };
+	enum ResLocation
+	{
+		ACTIVE = 0,
+		LINEARIZED,
+		MARGINALIZED,
+		NONE
+	};
+
+	enum ResState
+	{
+		INNER = 0,		// 残差的值小于阈值视为内点
+		OOB,			// 点不在主帧或目标帧视野中
+		OUTLIER			// 残差的值大于阈值视为外点
+	};
 
 	struct FullJacRowT
 	{
 		Eigen::Vector2f projectedTo[MAX_RES_PER_POINT];
 	};
 
+	// 地图点与关键帧之间的光度残差
 	class PointFrameResidual
 	{
 	public:
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-			EFResidual* efResidual;
+		EFResidual* efResidual;				// 与EFResidual互相持有对方指针实现通信			
+		bool stereoResidualFlag = false;	// 当前残差是否为双目残差的标志位
+		static int instanceCounter;			// 残差数量计数的静态成员变量
 
-		bool stereoResidualFlag = false;
-
-		static int instanceCounter;
-
-		ResState state_state;
+		ResState state_state;				// TODO:当前残差的状态
 		double state_energy;
 		ResState state_NewState;
 		double state_NewEnergy;
 		double state_NewEnergyWithOutlier;
 
-		void setState(ResState s) { state_state = s; }
+		PointHessian* point;				// 构造当前残差的地图点
+		FrameHessian* host;					// 构建当前残差地图点的主帧
+		FrameHessian* target;				// 构建当前残差地图点的投影帧
+		RawResidualJacobian* J;				// 当前残差关于所求优化变量的雅可比
 
-		PointHessian* point;
-		FrameHessian* host;
-		FrameHessian* target;
-		RawResidualJacobian* J;
+		void setState(ResState s) { state_state = s; }
 
 		bool isNew;
 
@@ -79,6 +90,7 @@ namespace dso
 		~PointFrameResidual();
 		PointFrameResidual();
 		PointFrameResidual(PointHessian* point_, FrameHessian* host_, FrameHessian* target_);
+
 		double linearize(CalibHessian* HCalib);
 		double linearizeStereo(CalibHessian* HCalib);
 
@@ -90,9 +102,6 @@ namespace dso
 		};
 
 		void applyRes(bool copyJacobians);
-
 		void debugPlot();
-
-		void printRows(std::vector<VecX> &v, VecX &r, int nFrames, int nPoints, int M, int res);
 	};
 }

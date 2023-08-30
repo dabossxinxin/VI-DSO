@@ -885,43 +885,33 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, AffLight aff_g2l, floa
 	return rs;
 }
 
-
 void CoarseTracker::setCTRefForFirstFrame(std::vector<FrameHessian *> frameHessians)
 {
-    assert(frameHessians.size()>0);
-    lastRef = frameHessians.back();
-
-    makeCoarseDepthForFirstFrame(lastRef);
-
-    refFrameID = lastRef->shell->id;
-    lastRef_aff_g2l = lastRef->aff_g2l();
-
-    firstCoarseRMSE=-1;
-}
-
-
-
-void CoarseTracker::setCoarseTrackingRef(
-		std::vector<FrameHessian*> frameHessians, FrameHessian* fh_right, CalibHessian Hcalib)
-{
-	assert(frameHessians.size()>0);
+	assert(frameHessians.size() > 0);
 	lastRef = frameHessians.back();
-	makeCoarseDepthL0(frameHessians, fh_right, Hcalib);
 
-
+	makeCoarseDepthForFirstFrame(lastRef);
 
 	refFrameID = lastRef->shell->id;
 	lastRef_aff_g2l = lastRef->aff_g2l();
 
-	firstCoarseRMSE=-1;
-
+	firstCoarseRMSE = -1;
 }
-bool CoarseTracker::trackNewestCoarse(
-		FrameHessian* newFrameHessian,
-		SE3 &lastToNew_out, AffLight &aff_g2l_out,
-		int coarsestLvl,
-		Vec5 minResForAbort,
-		IOWrap::Output3DWrapper* wrap)
+
+void CoarseTracker::setCoarseTrackingRef(std::vector<FrameHessian*> frameHessians, FrameHessian* fh_right, CalibHessian Hcalib)
+{
+	assert(frameHessians.size() > 0);
+	lastRef = frameHessians.back();
+	makeCoarseDepthL0(frameHessians, fh_right, Hcalib);
+
+	refFrameID = lastRef->shell->id;
+	lastRef_aff_g2l = lastRef->aff_g2l();
+
+	firstCoarseRMSE = -1;
+}
+
+bool CoarseTracker::trackNewestCoarse(FrameHessian* newFrameHessian, SE3 &lastToNew_out, AffLight &aff_g2l_out,
+	int coarsestLvl, Vec5 minResForAbort, IOWrap::Output3DWrapper* wrap)
 {
 	debugPlot = setting_render_displayCoarseTrackingFull;
 	debugPrint = false;
@@ -931,9 +921,8 @@ bool CoarseTracker::trackNewestCoarse(
 	lastResiduals.setConstant(NAN);
 	lastFlowIndicators.setConstant(1000);
 
-
 	newFrame = newFrameHessian;
-	int maxIterations[] = {10,20,50,50,50};
+	int maxIterations[] = { 10,20,50,50,50 };
 	float lambdaExtrapolationLimit = 0.001;
 
 	SE3 refToNew_current = lastToNew_out;
@@ -944,139 +933,140 @@ bool CoarseTracker::trackNewestCoarse(
 	IMUPreintegrator IMU_preintegrator;
 	double time_start = pic_time_stamp[lastRef->shell->incoming_id];
 	double time_end = pic_time_stamp[newFrame->shell->incoming_id];
-// 	LOG(INFO)<<"lastRef->shell->incoming_id: "<<lastRef->shell->incoming_id<<" newFrame->shell->incoming_id: "<<newFrame->shell->incoming_id;
-	
+	// 	LOG(INFO)<<"lastRef->shell->incoming_id: "<<lastRef->shell->incoming_id<<" newFrame->shell->incoming_id: "<<newFrame->shell->incoming_id;
+
 	int index;
-// 	LOG(INFO)<<"pic_time_stamp.size(): "<<pic_time_stamp.size();
-// 	LOG(INFO)<<std::fixed<<std::setprecision(9)<<"time_start: "<<time_start<<" time_end: "<<time_start<<" dt: "<<time_end - time_start;
-	for(int i=0;i<imu_time_stamp.size();++i){
-	    if(imu_time_stamp[i]>time_start||fabs(time_start-imu_time_stamp[i])<0.001){
-		index = i;
-		break;
-	    }
+	// 	LOG(INFO)<<"pic_time_stamp.size(): "<<pic_time_stamp.size();
+	// 	LOG(INFO)<<std::fixed<<std::setprecision(9)<<"time_start: "<<time_start<<" time_end: "<<time_start<<" dt: "<<time_end - time_start;
+	for (int i = 0; i < imu_time_stamp.size(); ++i)
+	{
+		if (imu_time_stamp[i] > time_start || fabs(time_start - imu_time_stamp[i]) < 0.001)
+		{
+			index = i;
+			break;
+		}
 	}
-	
-	while(1){
-	    double delta_t; 
-	    if(imu_time_stamp[index+1]<time_end)
-	      delta_t = imu_time_stamp[index+1]-imu_time_stamp[index];
-	    else{
-	      delta_t = time_end - imu_time_stamp[index];
-	      if(delta_t<0.000001)break;
-	    }
-	    IMU_preintegrator.update(m_gry[index]-lastRef->bias_g, m_acc[index]-lastRef->bias_a, delta_t);
-	    if(imu_time_stamp[index+1]>=time_end)
-	      break;
-	    index++;
+
+	while (1)
+	{
+		double delta_t;
+		if (imu_time_stamp[index + 1] < time_end)
+			delta_t = imu_time_stamp[index + 1] - imu_time_stamp[index];
+		else
+		{
+			delta_t = time_end - imu_time_stamp[index];
+			if (delta_t < 0.000001)break;
+		}
+		IMU_preintegrator.update(m_gry[index] - lastRef->bias_g, m_acc[index] - lastRef->bias_a, delta_t);
+		if (imu_time_stamp[index + 1] >= time_end)
+			break;
+		index++;
 	}
-	
-	std::vector<double> imu_track_w(coarsestLvl,0);
+
+	std::vector<double> imu_track_w(coarsestLvl, 0);
 	imu_track_w[0] = imu_weight_tracker;
-	imu_track_w[1] = imu_track_w[0]/1.2;
-	imu_track_w[2] = imu_track_w[1]/1.5;
-	imu_track_w[3] = imu_track_w[2]/2;
-	imu_track_w[4] = imu_track_w[3]/3;
-	
-	for(int lvl=coarsestLvl; lvl>=0; lvl--)
+	imu_track_w[1] = imu_track_w[0] / 1.2;
+	imu_track_w[2] = imu_track_w[1] / 1.5;
+	imu_track_w[3] = imu_track_w[2] / 2;
+	imu_track_w[4] = imu_track_w[3] / 3;
+
+	for (int lvl = coarsestLvl; lvl >= 0; lvl--)
 	{
 		Mat88 H; Vec8 b;
-		float levelCutoffRepeat=1;
+		float levelCutoffRepeat = 1;
 		Vec6 resOld = calcRes(lvl, refToNew_current, aff_g2l_current, setting_coarseCutoffTH*levelCutoffRepeat);
-		while(resOld[5] > 0.6 && levelCutoffRepeat < 50)
+		while (resOld[5] > 0.6 && levelCutoffRepeat < 50)
 		{
-			levelCutoffRepeat*=2;
+			levelCutoffRepeat *= 2;
 			resOld = calcRes(lvl, refToNew_current, aff_g2l_current, setting_coarseCutoffTH*levelCutoffRepeat);
 
-            if(!setting_debugout_runquiet)
-                printf("INCREASING cutoff to %f (ratio is %f)!\n", setting_coarseCutoffTH*levelCutoffRepeat, resOld[5]);
+			if (!setting_debugout_runquiet)
+				printf("INCREASING cutoff to %f (ratio is %f)!\n", setting_coarseCutoffTH*levelCutoffRepeat, resOld[5]);
 		}
-		
+
 		calcGSSSE(lvl, H, b, refToNew_current, aff_g2l_current);
 		Mat66 H_imu;
 		Vec6 b_imu;
 		Vec9 res_PVPhi;
 		double res_imu_old = 0;
-		if(lvl<=0){
-		    res_imu_old = calcIMUResAndGS(H_imu, b_imu, refToNew_current, IMU_preintegrator,res_PVPhi,resOld[0],imu_track_w[lvl]);
-// 		    LOG(INFO)<<"res_imu_old: "<<res_imu_old<<" resOld[0]: "<<resOld[0]<<" resOld[1]: "<<resOld[0];
+		if (lvl <= 0) {
+			res_imu_old = calcIMUResAndGS(H_imu, b_imu, refToNew_current, IMU_preintegrator, res_PVPhi, resOld[0], imu_track_w[lvl]);
+			// 		    LOG(INFO)<<"res_imu_old: "<<res_imu_old<<" resOld[0]: "<<resOld[0]<<" resOld[1]: "<<resOld[0];
 		}
-	    
+
 		float lambda = 0.01;
 
-		if(debugPrint)
+		if (debugPrint)
 		{
 			Vec2f relAff = AffLight::fromToVecExposure(lastRef->ab_exposure, newFrame->ab_exposure, lastRef_aff_g2l, aff_g2l_current).cast<float>();
 			printf("lvl%d, it %d (l=%f / %f) %s: %.3f->%.3f (%d -> %d) (|inc| = %f)! \t",
-					lvl, -1, lambda, 1.0f,
-					"INITIA",
-					0.0f,
-					resOld[0] / resOld[1],
-					 0,(int)resOld[1],
-					0.0f);
-			std::cout << refToNew_current.log().transpose() << " AFF " << aff_g2l_current.vec().transpose() <<" (rel " << relAff.transpose() << ")\n";
+				lvl, -1, lambda, 1.0f,
+				"INITIA",
+				0.0f,
+				resOld[0] / resOld[1],
+				0, (int)resOld[1],
+				0.0f);
+			std::cout << refToNew_current.log().transpose() << " AFF " << aff_g2l_current.vec().transpose() << " (rel " << relAff.transpose() << ")\n";
 		}
 
-		for(int iteration=0; iteration < maxIterations[lvl]; iteration++)
+		for (int iteration = 0; iteration < maxIterations[lvl]; iteration++)
 		{
 			Mat88 Hl = H;
-// 			Hl = Mat88::Zero();
-// 			b = Vec8::Zero();
-// 			if(lvl==0){
-// 			    LOG(INFO)<<"H_image: \n"<<H;
-// 			    LOG(INFO)<<"b_image: "<<b.transpose();
-// 			}
-			if(imu_use_flag&&imu_track_flag&&imu_track_ready&&lvl<=0){
-			  Hl.block(0,0,6,6) = Hl.block(0,0,6,6) + H_imu;
-			  b.block(0,0,6,1) = b.block(0,0,6,1) + b_imu.block(0,0,6,1);
+			// 			Hl = Mat88::Zero();
+			// 			b = Vec8::Zero();
+			// 			if(lvl==0){
+			// 			    LOG(INFO)<<"H_image: \n"<<H;
+			// 			    LOG(INFO)<<"b_image: "<<b.transpose();
+			// 			}
+			if (imu_use_flag&&imu_track_flag&&imu_track_ready&&lvl <= 0) {
+				Hl.block(0, 0, 6, 6) = Hl.block(0, 0, 6, 6) + H_imu;
+				b.block(0, 0, 6, 1) = b.block(0, 0, 6, 1) + b_imu.block(0, 0, 6, 1);
 			}
-			
-			for(int i=0;i<8;i++) Hl(i,i) *= (1+lambda);
-			
+
+			for (int i = 0; i < 8; i++) Hl(i, i) *= (1 + lambda);
+
 			Vec8 inc = Hl.ldlt().solve(-b);
 
-			if(setting_affineOptModeA < 0 && setting_affineOptModeB < 0)	// fix a, b
+			if (setting_affineOptModeA < 0 && setting_affineOptModeB < 0)	// fix a, b
 			{
-				inc.head<6>() = Hl.topLeftCorner<6,6>().ldlt().solve(-b.head<6>());
-			 	inc.tail<2>().setZero();
+				inc.head<6>() = Hl.topLeftCorner<6, 6>().ldlt().solve(-b.head<6>());
+				inc.tail<2>().setZero();
 			}
-			if(!(setting_affineOptModeA < 0) && setting_affineOptModeB < 0)	// fix b
+			if (!(setting_affineOptModeA < 0) && setting_affineOptModeB < 0)	// fix b
 			{
-				inc.head<7>() = Hl.topLeftCorner<7,7>().ldlt().solve(-b.head<7>());
-			 	inc.tail<1>().setZero();
+				inc.head<7>() = Hl.topLeftCorner<7, 7>().ldlt().solve(-b.head<7>());
+				inc.tail<1>().setZero();
 			}
-			if(setting_affineOptModeA < 0 && !(setting_affineOptModeB < 0))	// fix a
+			if (setting_affineOptModeA < 0 && !(setting_affineOptModeB < 0))	// fix a
 			{
 				Mat88 HlStitch = Hl;
 				Vec8 bStitch = b;
 				HlStitch.col(6) = HlStitch.col(7);
 				HlStitch.row(6) = HlStitch.row(7);
 				bStitch[6] = bStitch[7];
-				Vec7 incStitch = HlStitch.topLeftCorner<7,7>().ldlt().solve(-bStitch.head<7>());
+				Vec7 incStitch = HlStitch.topLeftCorner<7, 7>().ldlt().solve(-bStitch.head<7>());
 				inc.setZero();
 				inc.head<6>() = incStitch.head<6>();
 				inc[6] = 0;
 				inc[7] = incStitch[6];
 			}
 
-
-
-
 			float extrapFac = 1;
-			if(lambda < lambdaExtrapolationLimit) extrapFac = sqrt(sqrt(lambdaExtrapolationLimit / lambda));
+			if (lambda < lambdaExtrapolationLimit) extrapFac = sqrt(sqrt(lambdaExtrapolationLimit / lambda));
 			inc *= extrapFac;
 
 			Vec8 incScaled = inc;
-// 			incScaled.segment<3>(0) *= SCALE_XI_ROT;
-// 			incScaled.segment<3>(3) *= SCALE_XI_TRANS;
-// 			incScaled.segment<1>(6) *= SCALE_A;
-// 			incScaled.segment<1>(7) *= SCALE_B;
+			// 			incScaled.segment<3>(0) *= SCALE_XI_ROT;
+			// 			incScaled.segment<3>(3) *= SCALE_XI_TRANS;
+			// 			incScaled.segment<1>(6) *= SCALE_A;
+			// 			incScaled.segment<1>(7) *= SCALE_B;
 			incScaled.segment<3>(0) *= SCALE_XI_TRANS;
 			incScaled.segment<3>(3) *= SCALE_XI_ROT;
 			incScaled.segment<1>(6) *= SCALE_A;
 			incScaled.segment<1>(7) *= SCALE_B;
 
-            if(!std::isfinite(incScaled.sum())) incScaled.setZero();
-// 			LOG(INFO)<<"incScaled: "<<incScaled.transpose();s
+			if (!std::isfinite(incScaled.sum())) incScaled.setZero();
+			// 			LOG(INFO)<<"incScaled: "<<incScaled.transpose();s
 
 			SE3 refToNew_new = SE3::exp((Vec6)(incScaled.head<6>())) * refToNew_current;
 			AffLight aff_g2l_new = aff_g2l_current;
@@ -1085,29 +1075,29 @@ bool CoarseTracker::trackNewestCoarse(
 
 			Vec6 resNew = calcRes(lvl, refToNew_new, aff_g2l_new, setting_coarseCutoffTH*levelCutoffRepeat);
 			double res_imu_new;
-			if(lvl<=0){
-			  res_imu_new = calcIMUResAndGS(H_imu, b_imu, refToNew_new, IMU_preintegrator,res_PVPhi,resNew[0],imu_track_w[lvl]);
+			if (lvl <= 0) {
+				res_imu_new = calcIMUResAndGS(H_imu, b_imu, refToNew_new, IMU_preintegrator, res_PVPhi, resNew[0], imu_track_w[lvl]);
 			}
 
 			bool accept = (resNew[0] / resNew[1]) < (resOld[0] / resOld[1]);
-			if(imu_use_flag&&imu_track_flag&&imu_track_ready&&lvl<=0){
-			  accept = (resNew[0] / resNew[1] * resOld[1] + res_imu_new) < (resOld[0] + res_imu_old);
+			if (imu_use_flag&&imu_track_flag&&imu_track_ready&&lvl <= 0) {
+				accept = (resNew[0] / resNew[1] * resOld[1] + res_imu_new) < (resOld[0] + res_imu_old);
 			}
 
-			if(debugPrint)
+			if (debugPrint)
 			{
 				Vec2f relAff = AffLight::fromToVecExposure(lastRef->ab_exposure, newFrame->ab_exposure, lastRef_aff_g2l, aff_g2l_new).cast<float>();
 				printf("lvl %d, it %d (l=%f / %f) %s: %.3f->%.3f (%d -> %d) (|inc| = %f)! \t",
-						lvl, iteration, lambda,
-						extrapFac,
-						(accept ? "ACCEPT" : "REJECT"),
-						resOld[0] / resOld[1],
-						resNew[0] / resNew[1],
-						(int)resOld[1], (int)resNew[1],
-						inc.norm());
-				std::cout << refToNew_new.log().transpose() << " AFF " << aff_g2l_new.vec().transpose() <<" (rel " << relAff.transpose() << ")\n";
+					lvl, iteration, lambda,
+					extrapFac,
+					(accept ? "ACCEPT" : "REJECT"),
+					resOld[0] / resOld[1],
+					resNew[0] / resNew[1],
+					(int)resOld[1], (int)resNew[1],
+					inc.norm());
+				std::cout << refToNew_new.log().transpose() << " AFF " << aff_g2l_new.vec().transpose() << " (rel " << relAff.transpose() << ")\n";
 			}
-			if(accept)
+			if (accept)
 			{
 				calcGSSSE(lvl, H, b, refToNew_new, aff_g2l_new);
 				resOld = resNew;
@@ -1119,12 +1109,12 @@ bool CoarseTracker::trackNewestCoarse(
 			else
 			{
 				lambda *= 4;
-				if(lambda < lambdaExtrapolationLimit) lambda = lambdaExtrapolationLimit;
+				if (lambda < lambdaExtrapolationLimit) lambda = lambdaExtrapolationLimit;
 			}
 
-			if(!(inc.norm() > 1e-3))
+			if (!(inc.norm() > 1e-3))
 			{
-				if(debugPrint)
+				if (debugPrint)
 					printf("inc too small, break!\n");
 				break;
 			}
@@ -1133,13 +1123,13 @@ bool CoarseTracker::trackNewestCoarse(
 		// set last residual for that level, as well as flow indicators.
 		lastResiduals[lvl] = sqrtf((float)(resOld[0] / resOld[1]));
 		lastFlowIndicators = resOld.segment<3>(2);
-		if(lastResiduals[lvl] > 1.5*minResForAbort[lvl]) return false;
+		if (lastResiduals[lvl] > 1.5*minResForAbort[lvl]) return false;
 
 
-		if(levelCutoffRepeat > 1 && !haveRepeated)
+		if (levelCutoffRepeat > 1 && !haveRepeated)
 		{
 			lvl++;
-			haveRepeated=true;
+			haveRepeated = true;
 			printf("REPEAT LEVEL!\n");
 		}
 	}
@@ -1148,43 +1138,36 @@ bool CoarseTracker::trackNewestCoarse(
 	lastToNew_out = refToNew_current;
 	aff_g2l_out = aff_g2l_current;
 
-
-	if((setting_affineOptModeA != 0 && (fabsf(aff_g2l_out.a) > 1.2))
-	|| (setting_affineOptModeB != 0 && (fabsf(aff_g2l_out.b) > 200)))
+	if ((setting_affineOptModeA != 0 && (fabsf(aff_g2l_out.a) > 1.2))
+		|| (setting_affineOptModeB != 0 && (fabsf(aff_g2l_out.b) > 200)))
 		return false;
 
 	Vec2f relAff = AffLight::fromToVecExposure(lastRef->ab_exposure, newFrame->ab_exposure, lastRef_aff_g2l, aff_g2l_out).cast<float>();
 
-	if((setting_affineOptModeA == 0 && (fabsf(logf((float)relAff[0])) > 1.5))
-	|| (setting_affineOptModeB == 0 && (fabsf((float)relAff[1]) > 200)))
+	if ((setting_affineOptModeA == 0 && (fabsf(logf((float)relAff[0])) > 1.5))
+		|| (setting_affineOptModeB == 0 && (fabsf((float)relAff[1]) > 200)))
 		return false;
 
-
-
-	if(setting_affineOptModeA < 0) aff_g2l_out.a=0;
-	if(setting_affineOptModeB < 0) aff_g2l_out.b=0;
+	if (setting_affineOptModeA < 0) aff_g2l_out.a = 0;
+	if (setting_affineOptModeB < 0) aff_g2l_out.b = 0;
 
 	return true;
 }
 
-
-
 void CoarseTracker::debugPlotIDepthMap(float* minID_pt, float* maxID_pt, std::vector<IOWrap::Output3DWrapper*> &wraps)
 {
-    if(w[1] == 0) return;
-
-
+	if (w[1] == 0) return;
 	int lvl = 0;
 
 	{
 		std::vector<float> allID;
-		for(int i=0;i<h[lvl]*w[lvl];i++)
+		for (int i = 0; i < h[lvl] * w[lvl]; i++)
 		{
-			if(idepth[lvl][i] > 0)
+			if (idepth[lvl][i] > 0)
 				allID.push_back(idepth[lvl][i]);
 		}
 		std::sort(allID.begin(), allID.end());
-		int n = allID.size()-1;
+		int n = allID.size() - 1;
 
 		float minID_new = allID[(int)(n*0.05)];
 		float maxID_new = allID[(int)(n*0.95)];
@@ -1192,9 +1175,9 @@ void CoarseTracker::debugPlotIDepthMap(float* minID_pt, float* maxID_pt, std::ve
 		float minID, maxID;
 		minID = minID_new;
 		maxID = maxID_new;
-		if(minID_pt!=0 && maxID_pt!=0)
+		if (minID_pt != 0 && maxID_pt != 0)
 		{
-			if(*minID_pt < 0 || *maxID_pt < 0)
+			if (*minID_pt < 0 || *maxID_pt < 0)
 			{
 				*maxID_pt = maxID;
 				*minID_pt = minID;
@@ -1205,15 +1188,15 @@ void CoarseTracker::debugPlotIDepthMap(float* minID_pt, float* maxID_pt, std::ve
 				// slowly adapt: change by maximum 10% of old span.
 				float maxChange = 0.3*(*maxID_pt - *minID_pt);
 
-				if(minID < *minID_pt - maxChange)
+				if (minID < *minID_pt - maxChange)
 					minID = *minID_pt - maxChange;
-				if(minID > *minID_pt + maxChange)
+				if (minID > *minID_pt + maxChange)
 					minID = *minID_pt + maxChange;
 
 
-				if(maxID < *maxID_pt - maxChange)
+				if (maxID < *maxID_pt - maxChange)
 					maxID = *maxID_pt - maxChange;
-				if(maxID > *maxID_pt + maxChange)
+				if (maxID > *maxID_pt + maxChange)
 					maxID = *maxID_pt + maxChange;
 
 				*maxID_pt = maxID;
@@ -1221,53 +1204,48 @@ void CoarseTracker::debugPlotIDepthMap(float* minID_pt, float* maxID_pt, std::ve
 			}
 		}
 
-
 		MinimalImageB3 mf(w[lvl], h[lvl]);
 		mf.setBlack();
-		for(int i=0;i<h[lvl]*w[lvl];i++)
+		for (int i = 0; i < h[lvl] * w[lvl]; i++)
 		{
-			int c = lastRef->dIp[lvl][i][0]*0.9f;
-			if(c>255) c=255;
-			mf.at(i) = Vec3b(c,c,c);
+			int c = lastRef->dIp[lvl][i][0] * 0.9f;
+			if (c > 255) c = 255;
+			mf.at(i) = Vec3b(c, c, c);
 		}
 		int wl = w[lvl];
-		for(int y=3;y<h[lvl]-3;y++)
-			for(int x=3;x<wl-3;x++)
+		for (int y = 3; y < h[lvl] - 3; y++)
+			for (int x = 3; x < wl - 3; x++)
 			{
-				int idx=x+y*wl;
-				float sid=0, nid=0;
-				float* bp = idepth[lvl]+idx;
+				int idx = x + y * wl;
+				float sid = 0, nid = 0;
+				float* bp = idepth[lvl] + idx;
 
-				if(bp[0] > 0) {sid+=bp[0]; nid++;}
-				if(bp[1] > 0) {sid+=bp[1]; nid++;}
-				if(bp[-1] > 0) {sid+=bp[-1]; nid++;}
-				if(bp[wl] > 0) {sid+=bp[wl]; nid++;}
-				if(bp[-wl] > 0) {sid+=bp[-wl]; nid++;}
+				if (bp[0] > 0) { sid += bp[0]; nid++; }
+				if (bp[1] > 0) { sid += bp[1]; nid++; }
+				if (bp[-1] > 0) { sid += bp[-1]; nid++; }
+				if (bp[wl] > 0) { sid += bp[wl]; nid++; }
+				if (bp[-wl] > 0) { sid += bp[-wl]; nid++; }
 
-				if(bp[0] > 0 || nid >= 3)
+				if (bp[0] > 0 || nid >= 3)
 				{
-					float id = ((sid / nid)-minID) / ((maxID-minID));
-					mf.setPixelCirc(x,y,makeJet3B(id));
+					float id = ((sid / nid) - minID) / ((maxID - minID));
+					mf.setPixelCirc(x, y, makeJet3B(id));
 					//mf.at(idx) = makeJet3B(id);
 				}
 			}
-        //IOWrap::displayImage("coarseDepth LVL0", &mf, false);
+		//IOWrap::displayImage("coarseDepth LVL0", &mf, false);
 
+		for (IOWrap::Output3DWrapper* ow : wraps)
+			ow->pushDepthImage(&mf);
 
-        for(IOWrap::Output3DWrapper* ow : wraps)
-            ow->pushDepthImage(&mf);
-
-		if(debugSaveImages)
+		if (debugSaveImages)
 		{
 			char buf[1000];
 			snprintf(buf, 1000, "images_out/predicted_%05d_%05d.png", lastRef->shell->id, refFrameID);
-			IOWrap::writeImage(buf,&mf);
+			IOWrap::writeImage(buf, &mf);
 		}
-
 	}
 }
-
-
 
 void CoarseTracker::debugPlotIDepthMapFloat(std::vector<IOWrap::Output3DWrapper*> &wraps)
 {
@@ -1277,16 +1255,6 @@ void CoarseTracker::debugPlotIDepthMapFloat(std::vector<IOWrap::Output3DWrapper*
     for(IOWrap::Output3DWrapper* ow : wraps)
         ow->pushDepthImageFloat(&mim, lastRef);
 }
-
-
-
-
-
-
-
-
-
-
 
 CoarseDistanceMap::CoarseDistanceMap(int ww, int hh)
 {
@@ -1303,6 +1271,7 @@ CoarseDistanceMap::CoarseDistanceMap(int ww, int hh)
 
 	w[0]=h[0]=0;
 }
+
 CoarseDistanceMap::~CoarseDistanceMap()
 {
 	delete[] fwdWarpedIDDistFinal;
@@ -1312,41 +1281,34 @@ CoarseDistanceMap::~CoarseDistanceMap()
 	delete[] coarseProjectionGridNum;
 }
 
-
-
-
-
-void CoarseDistanceMap::makeDistanceMap(
-		std::vector<FrameHessian*> frameHessians,
-		FrameHessian* frame)
+void CoarseDistanceMap::makeDistanceMap(std::vector<FrameHessian*> frameHessians, FrameHessian* frame)
 {
 	int w1 = w[1];
 	int h1 = h[1];
-	int wh1 = w1*h1;
-	for(int i=0;i<wh1;i++)
+	int wh1 = w1 * h1;
+	for (int i = 0; i < wh1; i++)
 		fwdWarpedIDDistFinal[i] = 1000;
-
 
 	// make coarse tracking templates for latstRef.
 	int numItems = 0;
 
-	for(FrameHessian* fh : frameHessians)
+	for (FrameHessian* fh : frameHessians)
 	{
-		if(frame == fh) continue;
+		if (frame == fh) continue;
 
 		SE3 fhToNew = frame->PRE_worldToCam * fh->PRE_camToWorld;
 		Mat33f KRKi = (K[1] * fhToNew.rotationMatrix().cast<float>() * Ki[0]);
 		Vec3f Kt = (K[1] * fhToNew.translation().cast<float>());
 
-		for(PointHessian* ph : fh->pointHessians)
+		for (PointHessian* ph : fh->pointHessians)
 		{
 			assert(ph->status == PointHessian::ACTIVE);
-			Vec3f ptp = KRKi * Vec3f(ph->u, ph->v, 1) + Kt*ph->idepth_scaled;
+			Vec3f ptp = KRKi * Vec3f(ph->u, ph->v, 1) + Kt * ph->idepth_scaled;
 			int u = ptp[0] / ptp[2] + 0.5f;
 			int v = ptp[1] / ptp[2] + 0.5f;
-			if(!(u > 0 && v > 0 && u < w[1] && v < h[1])) continue;
-			fwdWarpedIDDistFinal[u+w1*v]=0;
-			bfsList1[numItems] = Eigen::Vector2i(u,v);
+			if (!(u > 0 && v > 0 && u < w[1] && v < h[1])) continue;
+			fwdWarpedIDDistFinal[u + w1 * v] = 0;
+			bfsList1[numItems] = Eigen::Vector2i(u, v);
 			numItems++;
 		}
 	}
@@ -1354,15 +1316,9 @@ void CoarseDistanceMap::makeDistanceMap(
 	growDistBFS(numItems);
 }
 
-
-
-
 void CoarseDistanceMap::makeInlierVotes(std::vector<FrameHessian*> frameHessians)
 {
-
 }
-
-
 
 void CoarseDistanceMap::growDistBFS(int bfsNum)
 {
@@ -1465,7 +1421,6 @@ void CoarseDistanceMap::growDistBFS(int bfsNum)
 	}
 }
 
-
 void CoarseDistanceMap::addIntoDistFinal(int u, int v)
 {
 	if(w[0] == 0) return;
@@ -1473,8 +1428,6 @@ void CoarseDistanceMap::addIntoDistFinal(int u, int v)
 	fwdWarpedIDDistFinal[u+w[1]*v] = 0;
 	growDistBFS(1);
 }
-
-
 
 void CoarseDistanceMap::makeK(CalibHessian* HCalib)
 {
@@ -1486,25 +1439,24 @@ void CoarseDistanceMap::makeK(CalibHessian* HCalib)
 	cx[0] = HCalib->cxl();
 	cy[0] = HCalib->cyl();
 
-	for (int level = 1; level < pyrLevelsUsed; ++ level)
+	for (int level = 1; level < pyrLevelsUsed; ++level)
 	{
 		w[level] = w[0] >> level;
 		h[level] = h[0] >> level;
-		fx[level] = fx[level-1] * 0.5;
-		fy[level] = fy[level-1] * 0.5;
-		cx[level] = (cx[0] + 0.5) / ((int)1<<level) - 0.5;
-		cy[level] = (cy[0] + 0.5) / ((int)1<<level) - 0.5;
+		fx[level] = fx[level - 1] * 0.5;
+		fy[level] = fy[level - 1] * 0.5;
+		cx[level] = (cx[0] + 0.5) / ((int)1 << level) - 0.5;
+		cy[level] = (cy[0] + 0.5) / ((int)1 << level) - 0.5;
 	}
 
-	for (int level = 0; level < pyrLevelsUsed; ++ level)
+	for (int level = 0; level < pyrLevelsUsed; ++level)
 	{
-		K[level]  << fx[level], 0.0, cx[level], 0.0, fy[level], cy[level], 0.0, 0.0, 1.0;
+		K[level] << fx[level], 0.0, cx[level], 0.0, fy[level], cy[level], 0.0, 0.0, 1.0;
 		Ki[level] = K[level].inverse();
-		fxi[level] = Ki[level](0,0);
-		fyi[level] = Ki[level](1,1);
-		cxi[level] = Ki[level](0,2);
-		cyi[level] = Ki[level](1,2);
+		fxi[level] = Ki[level](0, 0);
+		fyi[level] = Ki[level](1, 1);
+		cxi[level] = Ki[level](0, 2);
+		cyi[level] = Ki[level](1, 2);
 	}
 }
-
 }

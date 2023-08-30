@@ -32,7 +32,7 @@ namespace dso
 	{
 	public:
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-		int w;
+			int w;
 		int h;
 		T* data;
 

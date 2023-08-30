@@ -30,12 +30,13 @@
 #ifdef WIN32
 #include <sys/timeb.h>
 
-struct _timeval {
-	long    tv_sec;         /* seconds */
+struct timedso
+{
+	long	tv_sec;         /* seconds */
 	long    tv_usec;        /* and microseconds */
 };
 
-inline int gettimeofday(_timeval *tp, struct timezone *tzp)
+inline int gettimeofday(timedso *tp, struct timezone *tzp)
 {
 	struct timeb timebuffer;
 	ftime(&timebuffer);

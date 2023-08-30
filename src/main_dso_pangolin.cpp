@@ -79,17 +79,17 @@ void my_exit_handler(int s)
 	exit(1);
 }
 
-void exitThread()
-{
-	struct sigaction sigIntHandler;
-	sigIntHandler.sa_handler = my_exit_handler;
-	sigemptyset(&sigIntHandler.sa_mask);
-	sigIntHandler.sa_flags = 0;
-	sigaction(SIGINT, &sigIntHandler, NULL);
-
-	firstRosSpin=true;
-	while(true) pause();
-}
+//void exitThread()
+//{
+//	struct sigaction sigIntHandler;
+//	sigIntHandler.sa_handler = my_exit_handler;
+//	sigemptyset(&sigIntHandler.sa_mask);
+//	sigIntHandler.sa_flags = 0;
+//	sigaction(SIGINT, &sigIntHandler, NULL);
+//
+//	firstRosSpin=true;
+//	while (true) pause();
+//}
 
 void settingsDefault(int preset)
 {
@@ -189,8 +189,6 @@ void parseArgument(char* arg)
 		}
 		return;
 	}
-
-
 
 	if (1 == sscanf(arg, "noros=%d", &option))
 	{
@@ -415,7 +413,6 @@ void parseArgument(char* arg)
 
 	if (1 == sscanf(arg, "mode=%d", &option))
 	{
-
 		mode = option;
 		if (option == 0)
 		{
@@ -442,53 +439,56 @@ void parseArgument(char* arg)
 	printf("could not parse argument \"%s\"!!!!\n", arg);
 }
 
-void getGroundtruth_kitti(){
+void getGroundtruth_kitti()
+{
 	std::ifstream inf;
 	inf.open(gt_path);
 	std::string sline;
-	std::getline(inf,sline);
-	while(std::getline(inf,sline)){
+	std::getline(inf, sline);
+	while (std::getline(inf, sline)) {
 		std::istringstream ss(sline);
 		Mat33 R;
 		Vec3 t;
-		for(int i=0;i<3;++i){
-			for(int j=0;j<3;++j){
-				ss>>R(i,j);			      
+		for (int i = 0; i < 3; ++i) {
+			for (int j = 0; j < 3; ++j) {
+				ss >> R(i, j);
 			}
-			ss>>t(i);
+			ss >> t(i);
 		}
-		SE3 temp(R,t);
+		SE3 temp(R, t);
 		gt_pose.push_back(temp);
 	}
 	inf.close();
 }
 
-Eigen::Matrix3d quaternionToRotation(const Eigen::Vector4d& q) {
-    Eigen::Matrix3d R = Eigen::Matrix3d::Zero();
-    
-    R(0, 0) = 1-2.0*q(1)*q(1)-2.0*q(2)*q(2);
-    R(0, 1) = 2.0*(q(0)*q(1) - q(2)*q(3));
-    R(0, 2) = 2.0*(q(0)*q(2) + q(1)*q(3));
-    
-    R(1, 0) = 2.0*(q(0)*q(1) + q(2)*q(3));
-    R(1, 1) = -1*q(0)*q(0) + q(1)*q(1) - q(2)*q(2) + q(3)*q(3);
-    R(1, 2) = 2.0*(q(1)*q(2) - q(0)*q(3));
-    
-    R(2, 0) = 2.0*(q(0)*q(2) - q(1)*q(3));
-    R(2, 1) = 2.0*(q(1)*q(2) + q(0)*q(3));
-    R(2, 2) = -1*q(0)*q(0) - q(1)*q(1) + q(2)*q(2) + q(3)*q(3);
-    return R;
+Eigen::Matrix3d quaternionToRotation(const Eigen::Vector4d& q) 
+{
+	Eigen::Matrix3d R = Eigen::Matrix3d::Zero();
+
+	R(0, 0) = 1 - 2.0*q(1)*q(1) - 2.0*q(2)*q(2);
+	R(0, 1) = 2.0*(q(0)*q(1) - q(2)*q(3));
+	R(0, 2) = 2.0*(q(0)*q(2) + q(1)*q(3));
+
+	R(1, 0) = 2.0*(q(0)*q(1) + q(2)*q(3));
+	R(1, 1) = -1 * q(0)*q(0) + q(1)*q(1) - q(2)*q(2) + q(3)*q(3);
+	R(1, 2) = 2.0*(q(1)*q(2) - q(0)*q(3));
+
+	R(2, 0) = 2.0*(q(0)*q(2) - q(1)*q(3));
+	R(2, 1) = 2.0*(q(1)*q(2) + q(0)*q(3));
+	R(2, 2) = -1 * q(0)*q(0) - q(1)*q(1) + q(2)*q(2) + q(3)*q(3);
+	return R;
 }
 
-void getGroundtruth_euroc(){
+void getGroundtruth_euroc()
+{
 	std::ifstream inf;
-	
-	if(gt_path.size() == 0)
-	    return;
+
+	if (gt_path.size() == 0)
+		return;
 	inf.open(gt_path);
 	std::string sline;
-	std::getline(inf,sline);
-	while(std::getline(inf,sline)){
+	std::getline(inf, sline);
+	while (std::getline(inf, sline)) {
 		std::istringstream ss(sline);
 		Vec4 q4;
 		Vec3 t;
@@ -496,33 +496,33 @@ void getGroundtruth_euroc(){
 		Vec3 bias_g;
 		Vec3 bias_a;
 		double time;
-		ss>>time;
-		time = time/1e9;
+		ss >> time;
+		time = time / 1e9;
 		char temp;
-		for(int i=0;i<3;++i){
-		  ss>>temp;
-		  ss>>t(i);
+		for (int i = 0; i < 3; ++i) {
+			ss >> temp;
+			ss >> t(i);
 		}
-		ss>>temp;
-		ss>>q4(3);
-		for(int i=0;i<3;++i){
-		  ss>>temp;
-		  ss>>q4(i);
+		ss >> temp;
+		ss >> q4(3);
+		for (int i = 0; i < 3; ++i) {
+			ss >> temp;
+			ss >> q4(i);
 		}
-		for(int i=0;i<3;++i){
-		  ss>>temp;
-		  ss>>v(i);
+		for (int i = 0; i < 3; ++i) {
+			ss >> temp;
+			ss >> v(i);
 		}
-		for(int i=0;i<3;++i){
-		  ss>>temp;
-		  ss>>bias_g(i);
+		for (int i = 0; i < 3; ++i) {
+			ss >> temp;
+			ss >> bias_g(i);
 		}
-		for(int i=0;i<3;++i){
-		  ss>>temp;
-		  ss>>bias_a(i);
+		for (int i = 0; i < 3; ++i) {
+			ss >> temp;
+			ss >> bias_a(i);
 		}
 		Eigen::Matrix3d R_wb = quaternionToRotation(q4);
-		SE3 pose0(R_wb,t);
+		SE3 pose0(R_wb, t);
 		gt_pose.push_back(pose0);
 		gt_time_stamp.push_back(time);
 		gt_velocity.push_back(v);
@@ -531,25 +531,27 @@ void getGroundtruth_euroc(){
 	}
 	inf.close();
 }
-void getIMUdata_euroc(){
+
+void getIMUdata_euroc() 
+{
 	std::ifstream inf;
 	inf.open(imu_path);
 	std::string sline;
-	std::getline(inf,sline);
-	while(std::getline(inf,sline)){
+	std::getline(inf, sline);
+	while (std::getline(inf, sline)) {
 		std::istringstream ss(sline);
-		Vec3 gyro,acc;
+		Vec3 gyro, acc;
 		double time;
-		ss>>time;
-		time = time/1e9;
+		ss >> time;
+		time = time / 1e9;
 		char temp;
-		for(int i=0;i<3;++i){
-		  ss>>temp;
-		  ss>>gyro(i);
+		for (int i = 0; i < 3; ++i) {
+			ss >> temp;
+			ss >> gyro(i);
 		}
-		for(int i=0;i<3;++i){
-		  ss>>temp;
-		  ss>>acc(i);
+		for (int i = 0; i < 3; ++i) {
+			ss >> temp;
+			ss >> acc(i);
 		}
 		m_gry.push_back(gyro);
 		m_acc.push_back(acc);
@@ -558,27 +560,29 @@ void getIMUdata_euroc(){
 	inf.close();
 }
 
-void getTstereo(){
+void getTstereo() {
 	std::ifstream inf;
 	inf.open(T_stereo);
 	std::string sline;
 	int line = 0;
 	Mat33 R;
 	Vec3 t;
-	while(line<3&&std::getline(inf,sline)){
+	while (line < 3 && std::getline(inf, sline)) {
 		std::istringstream ss(sline);
-		for(int i=0;i<3;++i){
-		    ss>>R(line,i);
+		for (int i = 0; i < 3; ++i) {
+			ss >> R(line, i);
 		}
-		ss>>t(line);
+		ss >> t(line);
 		++line;
 	}
 	inf.close();
-	SE3 temp(R,t);
+	SE3 temp(R, t);
 	T_C0C1 = temp;
 	T_C1C0 = temp.inverse();
 }
-void getIMUinfo(){
+
+void getIMUinfo() 
+{
 	std::ifstream inf;
 	inf.open(imu_info);
 	std::string sline;
@@ -586,61 +590,60 @@ void getIMUinfo(){
 	Mat33 R;
 	Vec3 t;
 	Vec4 noise;
-	while(line<3&&std::getline(inf,sline)){
+	while (line < 3 && std::getline(inf, sline)) {
 		std::istringstream ss(sline);
-		for(int i=0;i<3;++i){
-		    ss>>R(line,i);
+		for (int i = 0; i < 3; ++i) {
+			ss >> R(line, i);
 		}
-		ss>>t(line);
+		ss >> t(line);
 		++line;
 	}
-	std::getline(inf,sline);
+	std::getline(inf, sline);
 	++line;
-	while(line<8&&std::getline(inf,sline)){
+	while (line < 8 && std::getline(inf, sline)) {
 		std::istringstream ss(sline);
-		ss>>noise(line-4);
+		ss >> noise(line - 4);
 		++line;
 	}
-	SE3 temp(R,t);
+	SE3 temp(R, t);
 	T_BC = temp;
-	
-	GyrCov = Mat33::Identity()*noise(0)*noise(0)/0.005;
-	AccCov = Mat33::Identity()*noise(1)*noise(1)/0.005;
+
+	GyrCov = Mat33::Identity()*noise(0)*noise(0) / 0.005;
+	AccCov = Mat33::Identity()*noise(1)*noise(1) / 0.005;
 	GyrRandomWalkNoise = Mat33::Identity()*noise(2)*noise(2);
 	AccRandomWalkNoise = Mat33::Identity()*noise(3)*noise(3);
-	
-	LOG(INFO)<<"T_BC: \n"<<T_BC.matrix();
-	LOG(INFO)<<"noise: "<<noise.transpose();
+
+	LOG(INFO) << "T_BC: \n" << T_BC.matrix();
+	LOG(INFO) << "noise: " << noise.transpose();
 	inf.close();
-	
 }
 
-void getPicTimestamp(){
+void getPicTimestamp() {
 	std::ifstream inf;
 	inf.open(pic_timestamp);
 	std::string sline;
-	std::getline(inf,sline);
-	while(std::getline(inf,sline)){
+	std::getline(inf, sline);
+	while (std::getline(inf, sline)) {
 		std::istringstream ss(sline);
 		double time;
-		ss>>time;
-		time = time/1e9;
+		ss >> time;
+		time = time / 1e9;
 		pic_time_stamp.push_back(time);
 	}
 	inf.close();
-	if(pic_timestamp1.size()>0){
-	    std::ifstream inf;
-	    inf.open(pic_timestamp1);
-	    std::string sline;
-	    std::getline(inf,sline);
-	    while(std::getline(inf,sline)){
-		    std::istringstream ss(sline);
-		    double time;
-		    ss>>time;
-		    time = time/1e9;
-		    pic_time_stamp_r.push_back(time);
-	    }
-	    inf.close();
+	if (pic_timestamp1.size() > 0) {
+		std::ifstream inf;
+		inf.open(pic_timestamp1);
+		std::string sline;
+		std::getline(inf, sline);
+		while (std::getline(inf, sline)) {
+			std::istringstream ss(sline);
+			double time;
+			ss >> time;
+			time = time / 1e9;
+			pic_time_stamp_r.push_back(time);
+		}
+		inf.close();
 	}
 }
 
@@ -787,7 +790,7 @@ int main(int argc, char** argv)
 			}
 		}
 
-		struct timeval tv_start;
+		timedso tv_start;
 		gettimeofday(&tv_start, NULL);
 		clock_t started = clock();
 		double sInitializerOffset = 0;
@@ -839,11 +842,11 @@ int main(int argc, char** argv)
 			bool skipFrame = false;
 			if (playbackSpeed != 0)
 			{
-				struct timeval tv_now; gettimeofday(&tv_now, NULL);
+				timedso tv_now; gettimeofday(&tv_now, NULL);
 				double sSinceStart = sInitializerOffset + ((tv_now.tv_sec - tv_start.tv_sec) + (tv_now.tv_usec - tv_start.tv_usec) / (1000.0f*1000.0f));
 
 				if (sSinceStart < timesToPlayAt[ii])
-					usleep((int)((timesToPlayAt[ii] - sSinceStart) * 1000 * 1000));
+					Sleep((int)((timesToPlayAt[ii] - sSinceStart) * 1000));
 				else if (sSinceStart > timesToPlayAt[ii] + 0.5 + 0.1*(ii % 2))
 				{
 					printf("SKIPFRAME %d (play at %f, now it is %f)!\n", ii, timesToPlayAt[ii], sSinceStart);
@@ -863,7 +866,6 @@ int main(int argc, char** argv)
 			// 	    IplImage* src = 0;
 			// 	    cvShowImage("camera",src);
 			// 	    cv::waitKey(-1);
-
 
 			delete img;
 
@@ -899,7 +901,7 @@ int main(int argc, char** argv)
 		}
 		fullSystem->blockUntilMappingIsFinished();
 		clock_t ended = clock();
-		struct timeval tv_end;
+		timedso tv_end;
 		gettimeofday(&tv_end, NULL);
 
 		fullSystem->printResult("result.txt");
@@ -930,12 +932,10 @@ int main(int argc, char** argv)
 			tmlog.flush();
 			tmlog.close();
 		}
-
-		});
+	});
 
 	if (viewer != 0)
 		viewer->run();
-
 	runthread.join();
 
 	for (IOWrap::Output3DWrapper* ow : fullSystem->outputWrapper)

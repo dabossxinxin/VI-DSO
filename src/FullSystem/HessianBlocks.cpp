@@ -58,7 +58,8 @@ namespace dso
 
 	void PointHessian::release()
 	{
-		for (unsigned int i = 0; i < residuals.size(); i++) delete residuals[i];
+		for (unsigned int i = 0; i < residuals.size(); i++)
+			delete residuals[i];
 		residuals.clear();
 	}
 

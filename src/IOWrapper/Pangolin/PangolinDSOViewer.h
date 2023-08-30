@@ -28,6 +28,7 @@
 #include <pangolin/pangolin.h>
 #include "boost/thread.hpp"
 #include "util/MinimalImage.h"
+#include "util/settings.h"
 #include "IOWrapper/Output3DWrapper.h"
 
 namespace dso
@@ -113,8 +114,8 @@ namespace dso
 			int settings_sparsity;
 
 			// timings
-			struct _timeval last_track;
-			struct _timeval last_map;
+			timedso last_track;
+			timedso last_map;
 
 			std::deque<float> lastNTrackingMs;
 			std::deque<float> lastNMappingMs;
