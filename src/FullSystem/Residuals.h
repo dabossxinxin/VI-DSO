@@ -30,15 +30,13 @@
 #include "util/globalCalib.h"
 #include "util/globalFuncs.h"
 
+#include "FullSystem/HessianBlocks.h"
+
+#include "OptimizationBackend/EnergyFunctionalStructs.h"
 #include "OptimizationBackend/RawResidualJacobian.h"
 
 namespace dso
 {
-	class PointHessian;
-	class FrameHessian;
-	class CalibHessian;
-	class EFResidual;
-
 	enum ResLocation
 	{
 		ACTIVE = 0,

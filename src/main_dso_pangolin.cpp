@@ -25,7 +25,6 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <stdio.h>
-//#include <unistd.h>
 
 #include "IOWrapper/Output3DWrapper.h"
 #include "IOWrapper/ImageDisplay.h"
@@ -41,6 +40,7 @@
 
 #include "FullSystem/FullSystem.h"
 #include "FullSystem/PixelSelector2.h"
+#include "FullSystem/CoarseTracker.h"
 
 #include "OptimizationBackend/MatrixAccumulators.h"
 #include <opencv2/highgui/highgui.hpp>
@@ -121,23 +121,23 @@ void settingsDefault(int preset)
 		setting_maxShiftWeightRT = 0.02f * (640 + 128);  // original is 0.02f * (640+480);
 	}
 
-	if(preset == 2 || preset == 3)
+	if (preset == 2 || preset == 3)
 	{
 		printf("FAST settings:\n"
-				"- %s real-time enforcing\n"
-				"- 800 active points\n"
-				"- 4-6 active frames\n"
-				"- 1-4 LM iteration each KF\n"
-				"- 424 x 320 image resolution\n", preset==0 ? "no " : "5x");
+			"- %s real-time enforcing\n"
+			"- 800 active points\n"
+			"- 4-6 active frames\n"
+			"- 1-4 LM iteration each KF\n"
+			"- 424 x 320 image resolution\n", preset == 0 ? "no " : "5x");
 
-		playbackSpeed = (preset==2 ? 0 : 5);
-		preload = preset==3;
+		playbackSpeed = (preset == 2 ? 0 : 5);
+		preload = preset == 3;
 		setting_desiredImmatureDensity = 600;
 		setting_desiredPointDensity = 800;
 		setting_minFrames = 4;
 		setting_maxFrames = 6;
-		setting_maxOptIterations=4;
-		setting_minOptIterations=1;
+		setting_maxOptIterations = 4;
+		setting_minOptIterations = 1;
 
 		benchmarkSetting_width = 424;
 		benchmarkSetting_height = 320;
@@ -560,7 +560,8 @@ void getIMUdata_euroc()
 	inf.close();
 }
 
-void getTstereo() {
+void getTstereo() 
+{
 	std::ifstream inf;
 	inf.open(T_stereo);
 	std::string sline;
@@ -618,7 +619,8 @@ void getIMUinfo()
 	inf.close();
 }
 
-void getPicTimestamp() {
+void getPicTimestamp()
+{
 	std::ifstream inf;
 	inf.open(pic_timestamp);
 	std::string sline;

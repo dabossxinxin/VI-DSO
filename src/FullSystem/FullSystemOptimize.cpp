@@ -83,7 +83,6 @@ namespace dso
 		}
 	}
 
-
 	void FullSystem::applyRes_Reductor(bool copyJacobians, int min, int max, Vec10* stats, int tid)
 	{
 		for (int k = min; k < max; k++)

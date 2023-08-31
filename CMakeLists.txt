@@ -6,7 +6,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 
 set(BUILD_TYPE Release)
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /bigobj")
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
 
 set(EXECUTABLE_OUTPUT_PATH bin)
 set(LIBRARY_OUTPUT_PATH lib)
@@ -30,7 +30,8 @@ find_package(Boost COMPONENTS system thread)
 
 # optional libraries
 find_package(LibZip QUIET)
-find_package(Pangolin 0.2 QUIET)
+#find_package(Pangolin 0.2 QUIET)
+include(FindPangolin)
 find_package(OpenCV QUIET)
 
 # flags
@@ -74,20 +75,16 @@ include_directories(
   ${GFLAGS_INCLUDE_DIRS}
 ) 
 
-# decide if we have pangolin
-if (Pangolin_FOUND)
-	message("--- found PANGOLIN, compiling dso_pangolin library.")
-	include_directories( ${Pangolin_INCLUDE_DIRS} ) 
-	set(dso_pangolin_SOURCE_FILES 
-	  ${PROJECT_SOURCE_DIR}/src/IOWrapper/Pangolin/KeyFrameDisplay.cpp
-	  ${PROJECT_SOURCE_DIR}/src/IOWrapper/Pangolin/PangolinDSOViewer.cpp)
-	set(HAS_PANGOLIN 1)
-else ()
-	message("--- could not find PANGOLIN, not compiling dso_pangolin library.")
-	message("    this means there will be no 3D display / GUI available for dso_dataset.")
-	set(dso_pangolin_SOURCE_FILES )
-	set(HAS_PANGOLIN 0)
-endif ()
+# pangolin
+message("--- found PANGOLIN, compiling dso_pangolin library.")
+include_directories(${Pangolin_INCLUDE_DIRS} ) 
+INCLUDE_DIRECTORIES(${Glew_INCLUDE_DIRS})
+INCLUDE_DIRECTORIES(${JPEG_INCLUDE_DIRS})
+INCLUDE_DIRECTORIES(${PNG_INCLUDE_DIRS})
+set(dso_pangolin_SOURCE_FILES 
+	 ${PROJECT_SOURCE_DIR}/src/IOWrapper/Pangolin/KeyFrameDisplay.cpp
+	 ${PROJECT_SOURCE_DIR}/src/IOWrapper/Pangolin/PangolinDSOViewer.cpp)
+set(HAS_PANGOLIN 1)
 
 # decide if we have openCV
 if (OpenCV_FOUND)
@@ -120,21 +117,22 @@ endif()
 include_directories( ${CSPARSE_INCLUDE_DIR} ${CHOLMOD_INCLUDE_DIR}) 
 add_library(dso ${dso_SOURCE_FILES} ${dso_opencv_SOURCE_FILES} ${dso_pangolin_SOURCE_FILES})
 
-# build main executable (only if we have both OpenCV and Pangolin)
-if (OpenCV_FOUND AND Pangolin_FOUND)
-	message("--- compiling dso_dataset.")
-	add_executable(dso_dataset ${PROJECT_SOURCE_DIR}/src/main_dso_pangolin.cpp )
-    target_link_libraries(dso_dataset dso ${CSPARSE_LIBRARY} ${LIBZIP_LIBRARY} ${Pangolin_LIBRARIES} ${OpenCV_LIBS})
-	target_link_libraries(dso_dataset debug ${GLOG_DEBUG_LIB} optimized ${GLOG_RELEASE_LIB})
-	target_link_libraries(dso_dataset debug ${Boost_SYSTEM_LIBRARY_DEBUG} optimized ${Boost_SYSTEM_LIBRARY_RELEASE})
-	target_link_libraries(dso_dataset debug ${Boost_THREAD_LIBRARY_DEBUG} optimized ${Boost_THREAD_LIBRARY_RELEASE})
-	target_link_libraries(dso_dataset debug ${Boost_ATOMIC_LIBRARY_DEBUG} optimized ${Boost_ATOMIC_LIBRARY_RELEASE})
-	target_link_libraries(dso_dataset debug ${Boost_DATE_TIME_LIBRARY_DEBUG} optimized ${Boost_DATE_TIME_LIBRARY_RELEASE})
-	target_link_libraries(dso_dataset debug ${Boost_CHRONO_LIBRARY_DEBUG} optimized ${Boost_CHRONO_LIBRARY_RELEASE})
-	foreach(_var ${GFLAGS_LIBRARIES})
-		target_link_libraries(dso_dataset debug ${GFLAGS_LIB_DIR}/${_var}_debug.lib
-										optimized ${GFLAGS_LIB_DIR}/${_var}.lib)
-	endforeach()
-else()
-	message("--- not building dso_dataset, since either don't have openCV or Pangolin.")
-endif()
+message("--- compiling dso_dataset.")
+add_executable(dso_dataset ${PROJECT_SOURCE_DIR}/src/main_dso_pangolin.cpp)
+target_link_libraries(dso_dataset dso ${CSPARSE_LIBRARY} ${LIBZIP_LIBRARY} ${Pangolin_LIBRARIES} ${OpenCV_LIBS})
+target_link_libraries(dso_dataset debug ${GLOG_DEBUG_LIB} optimized ${GLOG_RELEASE_LIB})
+target_link_libraries(dso_dataset debug ${Boost_SYSTEM_LIBRARY_DEBUG} optimized ${Boost_SYSTEM_LIBRARY_RELEASE})
+target_link_libraries(dso_dataset debug ${Boost_THREAD_LIBRARY_DEBUG} optimized ${Boost_THREAD_LIBRARY_RELEASE})
+target_link_libraries(dso_dataset debug ${Boost_ATOMIC_LIBRARY_DEBUG} optimized ${Boost_ATOMIC_LIBRARY_RELEASE})
+target_link_libraries(dso_dataset debug ${Boost_DATE_TIME_LIBRARY_DEBUG} optimized ${Boost_DATE_TIME_LIBRARY_RELEASE})
+target_link_libraries(dso_dataset debug ${Boost_CHRONO_LIBRARY_DEBUG} optimized ${Boost_CHRONO_LIBRARY_RELEASE})
+target_link_libraries(dso_dataset debug Pangolin::pangolind optimized Pangolin::pangolin)
+target_link_libraries(dso_dataset debug ${Glew_DEBUG_LIB} optimized ${Glew_RELEASE_LIB})
+target_link_libraries(dso_dataset debug ${JPEG_DEBUG_LIB} optimized ${JPEG_RELEASE_LIB})
+target_link_libraries(dso_dataset debug ${PNG_DEBUG_LIB} optimized ${PNG_RELEASE_LIB})
+target_link_libraries(dso_dataset debug ${ZLIB_DEBUG_LIB} optimized ${ZLIB_RELEASE_LIB})
+
+foreach(_var ${GFLAGS_LIBRARIES})
+	target_link_libraries(dso_dataset debug ${GFLAGS_LIB_DIR}/${_var}_debug.lib
+									optimized ${GFLAGS_LIB_DIR}/${_var}.lib)
+endforeach()

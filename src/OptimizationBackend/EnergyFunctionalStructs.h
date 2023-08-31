@@ -26,19 +26,16 @@
 #include <math.h>
 
 #include "util/NumType.h"
+
+#include "FullSystem/HessianBlocks.h"
+#include "FullSystem/Residuals.h"
+
 #include "OptimizationBackend/RawResidualJacobian.h"
 
 namespace dso
 {
-	class PointFrameResidual;
-	class CalibHessian;
-	class FrameHessian;
-	class PointHessian;
-
-	class EFResidual;
-	class EFPoint;
 	class EFFrame;
-	class EnergyFunctional;
+	class EFPoint;
 
 	class EFResidual
 	{
@@ -102,11 +99,8 @@ namespace dso
 
 		PointHessian* data;
 
-
-
 		float priorF;
 		float deltaF;
-
 
 		// constant info (never changes in-between).
 		int idxInPoints;

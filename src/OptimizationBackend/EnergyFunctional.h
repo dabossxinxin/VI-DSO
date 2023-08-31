@@ -24,158 +24,140 @@
 
 #pragma once
 
- 
+#include <vector>
+#include <math.h>
+#include <map>
+
 #include "util/NumType.h"
 #include "util/IndexThreadReduce.h"
-#include "vector"
-#include <math.h>
-#include "map"
+
+#include "FullSystem/Residuals.h"
+#include "FullSystem/HessianBlocks.h"
 #include "FullSystem/IMUPreintegrator.h"
 
+#include "OptimizationBackend/EnergyFunctionalStructs.h"
+#include "OptimizationBackend/AccumulatedSCHessian.h"
+#include "OptimizationBackend/AccumulatedTopHessian.h"
 
 namespace dso
 {
+	//class AccumulatedTopHessian;
+	//class AccumulatedSCHessian;
 
-class PointFrameResidual;
-class CalibHessian;
-class FrameHessian;
-class PointHessian;
+	extern bool EFAdjointsValid;
+	extern bool EFIndicesValid;
+	extern bool EFDeltaValid;
 
+	class EnergyFunctional
+	{
+	public:
+		EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+		friend class EFFrame;
+		friend class EFPoint;
+		friend class EFResidual;
+		friend class AccumulatedTopHessian;
+		friend class AccumulatedTopHessianSSE;
+		friend class AccumulatedSCHessian;
+		friend class AccumulatedSCHessianSSE;
 
-class EFResidual;
-class EFPoint;
-class EFFrame;
-class EnergyFunctional;
-class AccumulatedTopHessian;
-class AccumulatedTopHessianSSE;
-class AccumulatedSCHessian;
-class AccumulatedSCHessianSSE;
+		EnergyFunctional();
+		~EnergyFunctional();
 
+		EFResidual* insertResidual(PointFrameResidual* r);
+		EFFrame* insertFrame(FrameHessian* fh, CalibHessian* Hcalib);
+		EFPoint* insertPoint(PointHessian* ph);
 
-extern bool EFAdjointsValid;
-extern bool EFIndicesValid;
-extern bool EFDeltaValid;
+		void dropResidual(EFResidual* r);
+		void marginalizeFrame(EFFrame* fh);
+		void marginalizeFrame_imu(EFFrame* fh);
+		void removePoint(EFPoint* ph);
 
+		void marginalizePointsF();
+		void dropPointsF();
+		void solveSystemF(int iteration, double lambda, CalibHessian* HCalib);
+		double calcMEnergyF();
+		double calcLEnergyF_MT();
 
+		void makeIDX();
 
-class EnergyFunctional {
-public:
-	EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
-	friend class EFFrame;
-	friend class EFPoint;
-	friend class EFResidual;
-	friend class AccumulatedTopHessian;
-	friend class AccumulatedTopHessianSSE;
-	friend class AccumulatedSCHessian;
-	friend class AccumulatedSCHessianSSE;
+		void setDeltaF(CalibHessian* HCalib);
 
-	EnergyFunctional();
-	~EnergyFunctional();
+		void setAdjointsF(CalibHessian* Hcalib);
 
+		std::vector<EFFrame*> frames;
+		int nPoints, nFrames, nResiduals;
 
-	EFResidual* insertResidual(PointFrameResidual* r);
-	EFFrame* insertFrame(FrameHessian* fh, CalibHessian* Hcalib);
-	EFPoint* insertPoint(PointHessian* ph);
+		MatXX HM;
+		VecX bM;
 
-	void dropResidual(EFResidual* r);
-	void marginalizeFrame(EFFrame* fh);
-	void marginalizeFrame_imu(EFFrame* fh);
-	void removePoint(EFPoint* ph);
+		MatXX HM_imu;
+		VecX bM_imu;
 
+		MatXX HM_bias;
+		VecX bM_bias;
 
+		MatXX HM_imu_half;
+		VecX bM_imu_half;
 
-	void marginalizePointsF();
-	void dropPointsF();
-	void solveSystemF(int iteration, double lambda, CalibHessian* HCalib);
-	double calcMEnergyF();
-	double calcLEnergyF_MT();
+		double s_middle = 1;
+		double s_last = 1;
+		double d_now = sqrt(1.1);
+		double d_half = sqrt(1.1);
+		bool side_last = true;//for d margin: true: upper s_middle false: below s_middle
 
+		int resInA, resInL, resInM;
+		MatXX lastHS;
+		VecX lastbS;
+		VecX lastX;
+		std::vector<VecX> lastNullspaces_forLogging;
+		std::vector<VecX> lastNullspaces_pose;
+		std::vector<VecX> lastNullspaces_scale;
+		std::vector<VecX> lastNullspaces_affA;
+		std::vector<VecX> lastNullspaces_affB;
 
-	void makeIDX();
+		IndexThreadReduce<Vec10>* red;
 
-	void setDeltaF(CalibHessian* HCalib);
+		std::map<uint64_t,
+			Eigen::Vector2i,
+			std::less<uint64_t>,
+			Eigen::aligned_allocator<std::pair<const uint64_t, Eigen::Vector2i>>
+		> connectivityMap;
+	private:
 
-	void setAdjointsF(CalibHessian* Hcalib);
+		VecX getStitchedDeltaF() const;
 
-	std::vector<EFFrame*> frames;
-	int nPoints, nFrames, nResiduals;
+		void resubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT);
+		void resubstituteFPt(const VecCf &xc, Mat18f* xAd, int min, int max, Vec10* stats, int tid);
 
-	MatXX HM;
-	VecX bM;
-	
-	MatXX HM_imu;
-	VecX bM_imu;
-	
-	MatXX HM_bias;
-	VecX bM_bias;
-	
-	MatXX HM_imu_half;
-	VecX bM_imu_half;
-	
-	double s_middle = 1;
-	double s_last = 1;
-	double d_now = sqrt(1.1);
-	double d_half = sqrt(1.1);
-	bool side_last = true;//for d margin: true: upper s_middle false: below s_middle
+		void accumulateAF_MT(MatXX &H, VecX &b, bool MT);
+		void accumulateLF_MT(MatXX &H, VecX &b, bool MT);
+		void accumulateSCF_MT(MatXX &H, VecX &b, bool MT);
 
-	int resInA, resInL, resInM;
-	MatXX lastHS;
-	VecX lastbS;
-	VecX lastX;
-	std::vector<VecX> lastNullspaces_forLogging;
-	std::vector<VecX> lastNullspaces_pose;
-	std::vector<VecX> lastNullspaces_scale;
-	std::vector<VecX> lastNullspaces_affA;
-	std::vector<VecX> lastNullspaces_affB;
+		void calcLEnergyPt(int min, int max, Vec10* stats, int tid);
 
-	IndexThreadReduce<Vec10>* red;
+		void getIMUHessian(MatXX &H, VecX &b);
 
+		void orthogonalize(VecX* b, MatXX* H);
+		Mat18f* adHTdeltaF;
 
-	std::map<uint64_t,
-	  Eigen::Vector2i,
-	  std::less<uint64_t>,
-	  Eigen::aligned_allocator<std::pair<const uint64_t, Eigen::Vector2i>>
-	  > connectivityMap;
+		Mat88* adHost;
+		Mat88* adTarget;
 
-private:
+		Mat88f* adHostF;
+		Mat88f* adTargetF;
 
-	VecX getStitchedDeltaF() const;
+		VecC cPrior;
+		VecCf cDeltaF;
+		VecCf cPriorF;
 
-	void resubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT);
-    void resubstituteFPt(const VecCf &xc, Mat18f* xAd, int min, int max, Vec10* stats, int tid);
+		AccumulatedTopHessianSSE* accSSE_top_L;
+		AccumulatedTopHessianSSE* accSSE_top_A;
 
-	void accumulateAF_MT(MatXX &H, VecX &b, bool MT);
-	void accumulateLF_MT(MatXX &H, VecX &b, bool MT);
-	void accumulateSCF_MT(MatXX &H, VecX &b, bool MT);
+		AccumulatedSCHessianSSE* accSSE_bot;
 
-	void calcLEnergyPt(int min, int max, Vec10* stats, int tid);
-	
-	void getIMUHessian(MatXX &H, VecX &b);
+		std::vector<EFPoint*> allPoints;
+		std::vector<EFPoint*> allPointsToMarg;
 
-	void orthogonalize(VecX* b, MatXX* H);
-	Mat18f* adHTdeltaF;
-
-	Mat88* adHost;
-	Mat88* adTarget;
-
-	Mat88f* adHostF;
-	Mat88f* adTargetF;
-
-
-	VecC cPrior;
-	VecCf cDeltaF;
-	VecCf cPriorF;
-
-	AccumulatedTopHessianSSE* accSSE_top_L;
-	AccumulatedTopHessianSSE* accSSE_top_A;
-
-
-	AccumulatedSCHessianSSE* accSSE_bot;
-
-	std::vector<EFPoint*> allPoints;
-	std::vector<EFPoint*> allPointsToMarg;
-
-	float currentLambda;
-};
+		float currentLambda;
+	};
 }
-

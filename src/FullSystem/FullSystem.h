@@ -35,31 +35,21 @@
 #include "util/NumType.h"
 #include "util/FrameShell.h"
 #include "util/IndexThreadReduce.h"
+#include "util/ImageAndExposure.h"
 
-#include "FullSystem/Residuals.h"
-#include "FullSystem/PixelSelector2.h"
+#include "IOWrapper/Output3DWrapper.h"
+
 #include "FullSystem/CoarseTracker.h"
+#include "FullSystem/CoarseInitializer.h"
+#include "FullSystem/PixelSelector2.h"
+#include "FullSystem/Residuals.h"
+#include "FullSystem/ImmaturePoint.h"
 #include "FullSystem/HessianBlocks.h"
 
 #include "OptimizationBackend/EnergyFunctional.h"
 
 namespace dso
 {
-	namespace IOWrap
-	{
-		class Output3DWrapper;
-	}
-
-	//class CoarseTracker;
-	struct FrameHessian;
-	struct PointHessian;
-	class CoarseInitializer;
-	class ImageAndExposure;
-	//class CoarseDistanceMap;
-	class EnergyFunctional;
-
-	struct ImmaturePointTemporaryResidual;
-
 	template<typename T> 
 	inline void deleteOut(std::vector<T*> &v, const int i)
 	{

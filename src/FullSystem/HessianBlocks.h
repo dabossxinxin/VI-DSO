@@ -41,8 +41,8 @@ namespace dso
 		return Vec2(from[0] / to[0], (from[1] - to[1]) / to[0]);
 	}
 
-	struct FrameHessian;
-	struct PointHessian;
+	//struct FrameHessian;
+	//struct PointHessian;
 
 	class ImmaturePoint;
 	class FrameShell;
@@ -151,13 +151,11 @@ namespace dso
 		Vec3 bias_g = Vec3::Zero();
 		Vec3 bias_a = Vec3::Zero();
 
-
 		EIGEN_STRONG_INLINE const SE3 &get_worldToCam_evalPT() const { return worldToCam_evalPT; }
 		EIGEN_STRONG_INLINE const Vec10 &get_state_zero() const { return state_zero; }
 		EIGEN_STRONG_INLINE const Vec10 &get_state() const { return state; }
 		EIGEN_STRONG_INLINE const Vec10 &get_state_scaled() const { return state_scaled; }
 		EIGEN_STRONG_INLINE const Vec10 get_state_minus_stateZero() const { return get_state() - get_state_zero(); }
-
 
 		// precalc values
 		SE3 PRE_worldToCam;
@@ -169,9 +167,6 @@ namespace dso
 		inline Vec6 w2c_leftEps() const { return get_state_scaled().head<6>(); }
 		inline AffLight aff_g2l() const { return AffLight(get_state_scaled()[6], get_state_scaled()[7]); }
 		inline AffLight aff_g2l_0() const { return AffLight(get_state_zero()[6] * SCALE_A, get_state_zero()[7] * SCALE_B); }
-
-
-
 		void setStateZero(const Vec10 &state_zero);
 		inline void setState(const Vec10 &state)
 		{
@@ -415,7 +410,6 @@ namespace dso
 		PtStatus status;
 
 		inline void setPointStatus(PtStatus s) { status = s; }
-
 
 		inline void setIdepth(float idepth) {
 			this->idepth = idepth;
