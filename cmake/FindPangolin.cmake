@@ -1,0 +1,42 @@
+
+FIND_PATH(Pangolin_INCLUDE_DIRS pangolin HINTS ${SDK_DIR}/Pangolin/include)
+FIND_PATH(Pangolin_LIB_DIR pangolin.lib HINTS ${SDK_DIR}/Pangolin/lib)
+SET(Pangolin_DEBUG_LIB ${Pangolin_LIB_DIR}/pangolind.lib)
+SET(Pangolin_RELEASE_LIB ${Pangolin_LIB_DIR}/pangolin.lib)
+
+ADD_LIBRARY(Pangolin::pangolin STATIC IMPORTED)
+SET_PROPERTY(TARGET Pangolin::pangolin APPEND PROPERTY IMPORTED_CONFIGURATIONS RELEASE)
+SET_TARGET_PROPERTIES(Pangolin::pangolin PROPERTIES
+	IMPORTED_LINK_INTERFACE_LANGUAGES_RELEASE "C;CXX"
+	IMPORTED_LINK_INTERFACE_LIBRARIES_RELEASE "opengl32;glu32"
+	IMPORTED_LOCATION_RELEASE "${Pangolin_RELEASE_LIB}"
+)
+
+ADD_LIBRARY(Pangolin::pangolind STATIC IMPORTED)
+SET_PROPERTY(TARGET Pangolin::pangolind APPEND PROPERTY IMPORTED_CONFIGURATIONS DEBUG)
+SET_TARGET_PROPERTIES(Pangolin::pangolind PROPERTIES
+	IMPORTED_LINK_INTERFACE_LANGUAGES_DEBUG "C;CXX"
+	IMPORTED_LINK_INTERFACE_LIBRARIES_DEBUG "opengl32;glu32"
+	IMPORTED_LOCATION_DEBUG "${Pangolin_DEBUG_LIB}"
+)
+
+FIND_PATH(Glew_INCLUDE_DIRS GL HINTS ${SDK_DIR}/Pangolin/external/glew/include)
+FIND_PATH(Glew_LIB_DIR glew.lib HINTS ${SDK_DIR}/Pangolin/external/glew/lib)
+SET(Glew_DEBUG_LIB ${Glew_LIB_DIR}/glewd.lib)
+SET(Glew_RELEASE_LIB ${Glew_LIB_DIR}/glew.lib)
+
+FIND_PATH(JPEG_INCLUDE_DIRS jpeglib.h HINTS ${SDK_DIR}/Pangolin/external/libjpeg/include)
+FIND_PATH(JPEG_LIB_DIR jpeg.lib HINTS ${SDK_DIR}/Pangolin/external/libjpeg/lib)
+SET(JPEG_DEBUG_LIB ${JPEG_LIB_DIR}/jpeg.lib)
+SET(JPEG_RELEASE_LIB ${JPEG_LIB_DIR}/jpeg.lib)
+
+FIND_PATH(PNG_INCLUDE_DIRS png.h HINTS ${SDK_DIR}/Pangolin/external/libpng/include)
+FIND_PATH(PNG_LIB_DIR libpng16.lib HINTS ${SDK_DIR}/Pangolin/external/libpng/lib)
+SET(PNG_DEBUG_LIB ${PNG_LIB_DIR}/libpng16d.lib)
+SET(PNG_RELEASE_LIB ${PNG_LIB_DIR}/libpng16.lib)
+
+FIND_PATH(ZLIB_INCLUDE_DIRS zlib.h HINTS ${SDK_DIR}/Pangolin/external/zlib/include)
+FIND_PATH(ZLIB_LIB_DIR zlib.lib HINTS ${SDK_DIR}/Pangolin/external/zlib/lib)
+SET(ZLIB_DEBUG_LIB ${ZLIB_LIB_DIR}/zlibd.lib)
+SET(ZLIB_RELEASE_LIB ${ZLIB_LIB_DIR}/zlib.lib)
+
