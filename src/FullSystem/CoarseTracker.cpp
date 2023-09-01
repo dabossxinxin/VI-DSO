@@ -21,13 +21,11 @@
 * along with DSO. If not, see <http://www.gnu.org/licenses/>.
 */
 #include "FullSystem/CoarseTracker.h"
-#include "FullSystem/FullSystem.h"
-#include "FullSystem/HessianBlocks.h"
-#include "FullSystem/Residuals.h"
 #include "FullSystem/ImmaturePoint.h"
-#include "OptimizationBackend/EnergyFunctionalStructs.h"
+
 #include "IOWrapper/ImageRW.h"
-#include <algorithm>
+
+#include "OptimizationBackend/EnergyFunctionalStructs.h"
 
 #if !defined(__SSE3__) && !defined(__SSE2__) && !defined(__SSE1__)
 #include "SSE2NEON.h"
@@ -302,6 +300,7 @@ namespace dso
 			float* weightSums_lm = weightSums[lvlm1];
 
 			for (int y = 0; y < hl; y++)
+			{
 				for (int x = 0; x < wl; x++)
 				{
 					int bidx = 2 * x + 2 * y*wlm1;
@@ -315,13 +314,13 @@ namespace dso
 						weightSums_lm[bidx + wlm1] +
 						weightSums_lm[bidx + wlm1 + 1];
 				}
+			}
 		}
 
 		// dilate idepth by 1.
 		for (int lvl = 0; lvl < 2; lvl++)
 		{
 			int numIts = 1;
-
 
 			for (int it = 0; it < numIts; it++)
 			{
@@ -346,7 +345,6 @@ namespace dso
 				}
 			}
 		}
-
 
 		// dilate idepth by 1 (2 on lower levels).
 		for (int lvl = 2; lvl < pyrLevelsUsed; lvl++)

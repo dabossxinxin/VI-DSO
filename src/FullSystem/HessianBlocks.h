@@ -51,6 +51,7 @@ namespace dso
 
 	class EFFrame;
 	class EFPoint;
+	class PointFrameResidual;
 
 #define SCALE_IDEPTH 1.0f		// scales internal value to idepth.
 #define SCALE_XI_ROT 1.0f

@@ -20,6 +20,9 @@
 * You should have received a copy of the GNU General Public License
 * along with DSO. If not, see <http://www.gnu.org/licenses/>.
 */
+
+
+
 #include "PangolinDSOViewer.h"
 #include "KeyFrameDisplay.h"
 
@@ -33,11 +36,15 @@ namespace dso
 {
 	namespace IOWrap
 	{
+
+
+
 		PangolinDSOViewer::PangolinDSOViewer(int w, int h, bool startRunThread)
 		{
 			this->w = w;
 			this->h = h;
 			running = true;
+
 
 			{
 				boost::unique_lock<boost::mutex> lk(openImagesMutex);
@@ -51,21 +58,26 @@ namespace dso
 				internalResImg->setBlack();
 			}
 
+
 			{
 				currentCam = new KeyFrameDisplay();
 			}
 
 			needReset = false;
 
+
 			if (startRunThread)
 				runThread = boost::thread(&PangolinDSOViewer::run, this);
+
 		}
+
 
 		PangolinDSOViewer::~PangolinDSOViewer()
 		{
 			close();
 			runThread.join();
 		}
+
 
 		void PangolinDSOViewer::run()
 		{
@@ -86,6 +98,7 @@ namespace dso
 				.SetBounds(0.0, 1.0, pangolin::Attach::Pix(UI_WIDTH), 1.0, -w / (float)h)
 				.SetHandler(new pangolin::Handler3D(Visualization3D_camera));
 
+
 			// 3 images
 			pangolin::View& d_kfDepth = pangolin::Display("imgKFDepth")
 				.SetAspect(w / (float)h);
@@ -99,6 +112,7 @@ namespace dso
 			pangolin::GlTexture texKFDepth(w, h, GL_RGB, false, 0, GL_RGB, GL_UNSIGNED_BYTE);
 			pangolin::GlTexture texVideo(w, h, GL_RGB, false, 0, GL_RGB, GL_UNSIGNED_BYTE);
 			pangolin::GlTexture texResidual(w, h, GL_RGB, false, 0, GL_RGB, GL_UNSIGNED_BYTE);
+
 
 			pangolin::CreateDisplay()
 				.SetBounds(0.0, 0.3, pangolin::Attach::Pix(UI_WIDTH), 1.0)
@@ -129,12 +143,15 @@ namespace dso
 			pangolin::Var<bool> settings_showFullTracking("ui.showFullTracking", false, true);
 			pangolin::Var<bool> settings_showCoarseTracking("ui.showCoarseTracking", false, true);
 
+
 			pangolin::Var<int> settings_sparsity("ui.sparsity", 1, 1, 20, false);
 			pangolin::Var<double> settings_scaledVarTH("ui.relVarTH", 0.001, 1e-10, 1e10, true);
 			pangolin::Var<double> settings_absVarTH("ui.absVarTH", 0.001, 1e-10, 1e10, true);
 			pangolin::Var<double> settings_minRelBS("ui.minRelativeBS", 0.1, 0, 1, false);
 
+
 			pangolin::Var<bool> settings_resetButton("ui.Reset", false, false);
+
 
 			pangolin::Var<int> settings_nPts("ui.activePoints", setting_desiredPointDensity, 50, 5000, false);
 			pangolin::Var<int> settings_nCandidates("ui.pointCandidates", setting_desiredImmatureDensity, 50, 5000, false);
@@ -144,6 +161,7 @@ namespace dso
 
 			pangolin::Var<double> settings_trackFps("ui.Track fps", 0, 0, 0, false);
 			pangolin::Var<double> settings_mapFps("ui.KF fps", 0, 0, 0, false);
+
 
 			// Default hooks for exiting (Esc) and fullscreen (tab).
 			while (!pangolin::ShouldQuit() && running)
@@ -174,12 +192,17 @@ namespace dso
 					lk3d.unlock();
 				}
 
+
+
 				openImagesMutex.lock();
 				if (videoImgChanged) 	texVideo.Upload(internalVideoImg->data, GL_BGR, GL_UNSIGNED_BYTE);
 				if (kfImgChanged) 		texKFDepth.Upload(internalKFImg->data, GL_BGR, GL_UNSIGNED_BYTE);
 				if (resImgChanged) 		texResidual.Upload(internalResImg->data, GL_BGR, GL_UNSIGNED_BYTE);
 				videoImgChanged = kfImgChanged = resImgChanged = false;
 				openImagesMutex.unlock();
+
+
+
 
 				// update fps counters
 				{
@@ -189,7 +212,6 @@ namespace dso
 					settings_mapFps = lastNMappingMs.size()*1000.0f / sd;
 					openImagesMutex.unlock();
 				}
-
 				{
 					model3DMutex.lock();
 					float sd = 0;
@@ -197,6 +219,7 @@ namespace dso
 					settings_trackFps = lastNTrackingMs.size()*1000.0f / sd;
 					model3DMutex.unlock();
 				}
+
 
 				if (setting_render_displayVideo)
 				{
@@ -219,6 +242,7 @@ namespace dso
 					texResidual.RenderToViewportFlipY();
 				}
 
+
 				// update parameters
 				this->settings_pointCloudMode = settings_pointCloudMode.Get();
 
@@ -239,6 +263,7 @@ namespace dso
 				setting_render_plotTrackingFull = settings_showFullTracking.Get();
 				setting_render_displayCoarseTrackingFull = settings_showCoarseTracking.Get();
 
+
 				this->settings_absVarTH = settings_absVarTH.Get();
 				this->settings_scaledVarTH = settings_scaledVarTH.Get();
 				this->settings_minRelBS = settings_minRelBS.Get();
@@ -250,6 +275,7 @@ namespace dso
 				setting_kfGlobalWeight = settings_kfFrequency.Get();
 				setting_minGradHistAdd = settings_gradHistAdd.Get();
 
+
 				if (settings_resetButton.Get())
 				{
 					printf("RESET!\n");
@@ -260,14 +286,17 @@ namespace dso
 				// Swap frames and Process Events
 				pangolin::FinishFrame();
 
+
 				if (needReset) reset_internal();
 			}
+
 
 			printf("QUIT Pangolin thread!\n");
 			printf("I'll just kill the whole process.\nSo Long, and Thanks for All the Fish!\n");
 
 			exit(1);
 		}
+		 
 
 		void PangolinDSOViewer::close()
 		{
@@ -439,10 +468,13 @@ namespace dso
 				runningID++;
 			}
 
+
 			model3DMutex.unlock();
 		}
-
-		void PangolinDSOViewer::publishKeyframes(std::vector<FrameHessian*> &frames, bool final, CalibHessian* HCalib)
+		void PangolinDSOViewer::publishKeyframes(
+			std::vector<FrameHessian*> &frames,
+			bool final,
+			CalibHessian* HCalib)
 		{
 			if (!setting_render_display3D) return;
 			if (disableAllDisplay) return;

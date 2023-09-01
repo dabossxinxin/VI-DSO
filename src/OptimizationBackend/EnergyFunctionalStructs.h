@@ -33,13 +33,14 @@ namespace dso
 {
 	class EFFrame;
 	class EFPoint;
-	class EnergyFunctional;
-	
+	class EFResidual;
+		
 	class FrameHessian;
 	class PointHessian;
 	class CalibHessian;
 
 	class PointFrameResidual;
+	class EnergyFunctional;
 
 	class EFResidual
 	{
@@ -78,7 +79,6 @@ namespace dso
 		// 	Vec8f JpJdF=Vec8f::Zero();
 		EIGEN_ALIGN16 VecNRf res_toZeroF;
 		EIGEN_ALIGN16 Vec8f JpJdF = Vec8f::Zero();
-
 
 		// status.
 		bool isLinearized;
@@ -121,7 +121,6 @@ namespace dso
 		float Hdd_accAF;
 		VecCf Hcd_accAF;
 		float bd_accAF;
-
 
 		EFPointStatus stateFlag;
 	};

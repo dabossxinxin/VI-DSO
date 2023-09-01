@@ -24,22 +24,22 @@
 
 #include <vector>
 #include <math.h>
+#include <algorithm>
 
 #include "util/settings.h"
 #include "util/NumType.h"
+#include "util/FrameShell.h"
 
 #include "IOWrapper/Output3DWrapper.h"
+
 #include "FullSystem/Residuals.h"
 #include "FullSystem/IMUPreintegrator.h"
 #include "FullSystem/HessianBlocks.h"
+
 #include "OptimizationBackend/MatrixAccumulators.h"
 
 namespace dso
 {
-	//struct CalibHessian;
-	//struct FrameHessian;
-	//struct PointFrameResidual;
-
 	class CoarseTracker 
 	{
 	public:
