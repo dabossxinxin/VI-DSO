@@ -1,128 +1,61 @@
-FIND_PATH(CHOLMOD_INCLUDE_DIR NAMES cholmod.h amd.h camd.h
-    PATHS
-    ${SUITE_SPARSE_ROOT}/include
-    /usr/include/suitesparse
-    /usr/include/ufsparse
-    /opt/local/include/ufsparse
-    /usr/local/include/ufsparse
-    /sw/include/ufsparse
-  )
 
-FIND_LIBRARY(CHOLMOD_LIBRARY NAMES cholmod
-     PATHS
-     ${SUITE_SPARSE_ROOT}/lib
-     /usr/lib
-     /usr/local/lib
-     /opt/local/lib
-     /sw/lib
-   )
+FIND_PATH(SuiteSparse_INCLUDE_DIR NAMES suitesparse HINTS ${CMAKE_SOURCE_DIR}/../../SDK/suitesparse/include)
+FIND_PATH(SuiteSparse_LIB_DIR NAMES libamd.lib HINTS ${CMAKE_SOURCE_DIR}/../../SDK/suitesparse/lib)
 
-FIND_LIBRARY(AMD_LIBRARY NAMES SHARED NAMES amd
-  PATHS
-  ${SUITE_SPARSE_ROOT}/lib
-  /usr/lib
-  /usr/local/lib
-  /opt/local/lib
-  /sw/lib
-  )
+SET(GHOLMOD_RELEASE_LIB ${SuiteSparse_LIB_DIR}/libcholmod.lib)
+SET(GHOLMOD_DEBUG_LIB ${SuiteSparse_LIB_DIR}/libcholmodd.lib)
 
-FIND_LIBRARY(CAMD_LIBRARY NAMES camd
-  PATHS
-  ${SUITE_SPARSE_ROOT}/lib
-  /usr/lib
-  /usr/local/lib
-  /opt/local/lib
-  /sw/lib
-  )
+SET(AMD_RELEASE_LIB ${SuiteSparse_LIB_DIR}/libamd.lib)
+SET(AMD_DEBUG_LIB ${SuiteSparse_LIB_DIR}/libamdd.lib)
 
-FIND_LIBRARY(SUITESPARSECONFIG_LIBRARY NAMES suitesparseconfig
-  PATHS
-  ${SUITE_SPARSE_ROOT}/lib
-  /usr/lib
-  /usr/local/lib
-  /opt/local/lib
-  /sw/lib
-  )
+SET(CAMD_RELEASE_LIB ${SuiteSparse_LIB_DIR}/libcamd.lib)
+SET(CAMD_DEBUG_LIB ${SuiteSparse_LIB_DIR}/libcamdd.lib)
 
+SET(CSPARSE_RELEASE_LIB ${SuiteSparse_LIB_DIR}/libcxsparse.lib)
+SET(CSPARSE_DEBUG_LIB ${SuiteSparse_LIB_DIR}/libcxsparsed.lib)
 
-# Different platforms seemingly require linking against different sets of libraries
-IF(CYGWIN)
-  FIND_PACKAGE(PkgConfig)
-  FIND_LIBRARY(COLAMD_LIBRARY NAMES colamd
-    PATHS
-    /usr/lib
-    /usr/local/lib
-    /opt/local/lib
-    /sw/lib
-    )
-  PKG_CHECK_MODULES(LAPACK lapack)
+SET(SUITESPARSECONFIG_RELEASE_LIB ${SuiteSparse_LIB_DIR}/suitesparseconfig.lib)
+SET(SUITESPARSECONFIG_DEBUG_LIB ${SuiteSparse_LIB_DIR}/suitesparseconfigd.lib)
 
-  SET(CHOLMOD_LIBRARIES ${CHOLMOD_LIBRARY} ${AMD_LIBRARY} ${CAMD_LIBRARY} ${COLAMD_LIBRARY} ${CCOLAMD_LIBRARY} ${LAPACK_LIBRARIES})
+ADD_LIBRARY(_cholmod STATIC IMPORTED)
+SET_TARGET_PROPERTIES(_cholmod PROPERTIES
+	IMPORTED_LOCATION_RELEASE "${GHOLMOD_RELEASE_LIB}"
+	IMPORTED_LOCATION_DEBUG "${GHOLMOD_DEBUG_LIB}"
+)
 
-# MacPorts build of the SparseSuite requires linking against extra libraries
+ADD_LIBRARY(_amd STATIC IMPORTED)
+SET_TARGET_PROPERTIES(_amd PROPERTIES
+	IMPORTED_LOCATION_RELEASE "${AMD_RELEASE_LIB}"
+	IMPORTED_LOCATION_DEBUG "${AMD_DEBUG_LIB}"
+)
 
-ELSEIF(APPLE)
+ADD_LIBRARY(_camd STATIC IMPORTED)
+SET_TARGET_PROPERTIES(_camd PROPERTIES
+	IMPORTED_LOCATION_RELEASE "${CAMD_RELEASE_LIB}"
+	IMPORTED_LOCATION_DEBUG "${CAMD_DEBUG_LIB}"
+)
 
-  FIND_LIBRARY(COLAMD_LIBRARY NAMES colamd
-    PATHS
-    /usr/lib
-    /usr/local/lib
-    /opt/local/lib
-    /sw/lib
-    )
+ADD_LIBRARY(_cxsparse STATIC IMPORTED)
+SET_TARGET_PROPERTIES(_cxsparse PROPERTIES
+	IMPORTED_LOCATION_RELEASE "${CSPARSE_RELEASE_LIB}"
+	IMPORTED_LOCATION_DEBUG "${CSPARSE_DEBUG_LIB}"
+)
 
-  FIND_LIBRARY(CCOLAMD_LIBRARY NAMES ccolamd
-    PATHS
-    /usr/lib
-    /usr/local/lib
-    /opt/local/lib
-    /sw/lib
-    )
+#ADD_LIBRARY(SuiteSparse STATIC IMPORTED)
+#SET_TARGET_PROPERTIES(SuiteSparse PROPERTIES
+#	IMPORTED_LINK_INTERFACE_LANGUAGES "C;CXX"
+#	INTERFACE_INCLUDE_DIRECTORIES "${SuiteSparse_INCLUDE_DIR}"
+#	IMPORTED_LINK_INTERFACE_LIBRARIES "_cholmod;_amd;_camd;_cxsparse"
+#	IMPORTED_LOCATION_RELEASE "${SUITESPARSECONFIG_RELEASE_LIB}"
+#	IMPORTED_LOCATION_DEBUG "${SUITESPARSECONFIG_DEBUG_LIB}"
+#)
 
-  FIND_LIBRARY(METIS_LIBRARY NAMES metis
-    PATHS
-    /usr/lib
-    /usr/local/lib
-    /opt/local/lib
-    /sw/lib
-    )
+ADD_LIBRARY(SuiteSparse STATIC IMPORTED)
+SET_TARGET_PROPERTIES(SuiteSparse PROPERTIES
+	IMPORTED_LINK_INTERFACE_LANGUAGES "C;CXX"
+	INTERFACE_INCLUDE_DIRECTORIES "${SuiteSparse_INCLUDE_DIR}"
+	IMPORTED_LOCATION_RELEASE "${CSPARSE_RELEASE_LIB}"
+	IMPORTED_LOCATION_DEBUG "${CSPARSE_DEBUG_LIB}"
+)
 
-  SET(CHOLMOD_LIBRARIES ${CHOLMOD_LIBRARY} ${AMD_LIBRARY} ${CAMD_LIBRARY} ${COLAMD_LIBRARY} ${CCOLAMD_LIBRARY} ${METIS_LIBRARY} "-framework Accelerate")
-ELSE(APPLE)
-  SET(CHOLMOD_LIBRARIES ${CHOLMOD_LIBRARY} ${AMD_LIBRARY})
-ENDIF(CYGWIN)
-
-IF(CHOLMOD_INCLUDE_DIR AND CHOLMOD_LIBRARIES)
-  SET(CHOLMOD_FOUND TRUE)
-ELSE(CHOLMOD_INCLUDE_DIR AND CHOLMOD_LIBRARIES)
-  SET(CHOLMOD_FOUND FALSE)
-ENDIF(CHOLMOD_INCLUDE_DIR AND CHOLMOD_LIBRARIES)
-
-# Look for csparse; note the difference in the directory specifications!
-FIND_PATH(CSPARSE_INCLUDE_DIR NAMES cs.h
-  PATHS
-  /usr/include/suitesparse
-  /usr/include
-  /opt/local/include
-  /usr/local/include
-  /sw/include
-  /usr/include/ufsparse
-  /opt/local/include/ufsparse
-  /usr/local/include/ufsparse
-  /sw/include/ufsparse
-  )
-
-FIND_LIBRARY(CSPARSE_LIBRARY NAMES cxsparse
-  PATHS
-  /usr/lib
-  /usr/local/lib
-  /opt/local/lib
-  /sw/lib
-  )
-
-IF(CSPARSE_INCLUDE_DIR AND CSPARSE_LIBRARY)
-  SET(CSPARSE_FOUND TRUE)
-ELSE(CSPARSE_INCLUDE_DIR AND CSPARSE_LIBRARY)
-  SET(CSPARSE_FOUND FALSE)
-ENDIF(CSPARSE_INCLUDE_DIR AND CSPARSE_LIBRARY)
 

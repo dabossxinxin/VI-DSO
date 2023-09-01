@@ -10,23 +10,23 @@ set(LIBRARY_OUTPUT_PATH lib)
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
 # required libraries
-find_package(SuiteParse REQUIRED)
-find_package(Eigen3 REQUIRED)
+include(FindSuiteParse)
+include(FindEigen3)
 
 # optional libraries
-find_package(LibZip QUIET)
+include(FindLibZip)
 include(FindGlog)
 include(FindBoost)
+include(FindOpenCV)
 include(FindPangolin)
-find_package(OpenCV QUIET)
 
 # flags
 add_definitions("-DWIN32")
-add_definitions("-DENABLE_SSE")
 add_definitions("-D__SSE2__")
 add_definitions("-DNOMINMAX")
-add_definitions("-D_USE_MATH_DEFINES")
+add_definitions("-DENABLE_SSE")
 add_definitions("-DHAS_ZIPLIB=1")
+add_definitions("-D_USE_MATH_DEFINES")
 add_definitions("-DGLOG_NO_ABBREVIATED_SEVERITIES")
 
 # Sources files
@@ -62,25 +62,16 @@ set(dso_opencv_SOURCE_FILES
   ${PROJECT_SOURCE_DIR}/src/IOWrapper/OpenCV/ImageRW_OpenCV.cpp
 )
 
-include_directories(${CSPARSE_INCLUDE_DIR}) 
-include_directories(${CHOLMOD_INCLUDE_DIR}) 
 include_directories(${EIGEN3_INCLUDE_DIR})
-include_directories(${Boost_INCLUDE_DIRS})
-include_directories(${Pangolin_INCLUDE_DIRS})
-include_directories(${Glew_INCLUDE_DIRS})
-include_directories(${JPEG_INCLUDE_DIRS})
-include_directories(${PNG_INCLUDE_DIRS})
-include_directories(${LIBZIP_INCLUDE_DIR_ZIP}) 
-include_directories(${LIBZIP_INCLUDE_DIR_ZIPCONF}) 
-include_directories(${OpenCV_INCLUDE_DIRS})
 include_directories(${PROJECT_SOURCE_DIR}/src)
 include_directories(${PROJECT_SOURCE_DIR}/thirdparty/Sophus)
 include_directories(${PROJECT_SOURCE_DIR}/thirdparty/sse2neon)
 
 add_library(dso ${dso_SOURCE_FILES} ${dso_opencv_SOURCE_FILES} ${dso_pangolin_SOURCE_FILES})
-target_link_libraries(dso Google::glog)
-add_executable(dso_dataset ${PROJECT_SOURCE_DIR}/src/main_dso_pangolin.cpp)
+target_link_libraries(dso Google::glog Pangolin::pangolin SuiteSparse OpenCV LibZip)
+target_link_libraries(dso Boost::system Boost::thread Boost::date_time Boost::chrono)
 
-target_link_libraries(dso_dataset dso ${CSPARSE_LIBRARY} ${LIBZIP_LIBRARY} ${OpenCV_LIBS})
-target_link_libraries(dso_dataset Boost::atomic Boost::chrono Boost::date_time Boost::system Boost::thread)
-target_link_libraries(dso_dataset debug Pangolin::pangolind optimized Pangolin::pangolin)
+add_executable(dso_dataset ${PROJECT_SOURCE_DIR}/src/main_dso_pangolin.cpp)
+target_link_libraries(dso_dataset dso)
+
+#target_link_libraries(dso_dataset Boost::atomic Boost::chrono Boost::date_time Boost::system Boost::thread)
