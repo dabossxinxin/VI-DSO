@@ -30,26 +30,22 @@
 #include "util/globalCalib.h"
 #include "util/globalFuncs.h"
 
-#include "FullSystem/HessianBlocks.h"
-
-#include "OptimizationBackend/EnergyFunctionalStructs.h"
 #include "OptimizationBackend/RawResidualJacobian.h"
 
 namespace dso
 {
+	class PointHessian;
+	class FrameHessian;
+	class CalibHessian;
+	class PointFrameHessian;
+	class EFResidual;
+
 	enum ResLocation
 	{
 		ACTIVE = 0,
 		LINEARIZED,
 		MARGINALIZED,
 		NONE
-	};
-
-	enum ResState
-	{
-		INNER = 0,		// 残差的值小于阈值视为内点
-		OOB,			// 点不在主帧或目标帧视野中
-		OUTLIER			// 残差的值大于阈值视为外点
 	};
 
 	struct FullJacRowT

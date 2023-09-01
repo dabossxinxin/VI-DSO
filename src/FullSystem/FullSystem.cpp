@@ -20,41 +20,16 @@
 * You should have received a copy of the GNU General Public License
 * along with DSO. If not, see <http://www.gnu.org/licenses/>.
 */
-
-
-/*
- * KFBuffer.cpp
- *
- *  Created on: Jan 7, 2014
- *      Author: engelj
- */
-
-#include "FullSystem/FullSystem.h"
-  
-#include "stdio.h"
-#include "util/globalFuncs.h"
-#include <Eigen/LU>
+#include <cmath>
+#include <stdio.h>
 #include <algorithm>
-#include "IOWrapper/ImageDisplay.h"
-#include "util/globalCalib.h"
+
+#include <Eigen/LU>
 #include <Eigen/SVD>
 #include <Eigen/Eigenvalues>
-#include "FullSystem/PixelSelector.h"
-#include "FullSystem/PixelSelector2.h"
+
+#include "FullSystem/FullSystem.h"
 #include "FullSystem/ResidualProjections.h"
-#include "FullSystem/ImmaturePoint.h"
-
-#include "FullSystem/CoarseTracker.h"
-#include "FullSystem/CoarseInitializer.h"
-
-#include "OptimizationBackend/EnergyFunctional.h"
-#include "OptimizationBackend/EnergyFunctionalStructs.h"
-
-#include "IOWrapper/Output3DWrapper.h"
-
-#include "util/ImageAndExposure.h"
-
-#include <cmath>
 
 namespace dso
 {

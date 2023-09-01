@@ -32,11 +32,11 @@
 #include "util/globalFuncs.h"
 
 #include "FullSystem/FullSystem.h"
-#include "FullSystem/Residuals.h"
-#include "FullSystem/HessianBlocks.h"
+//#include "FullSystem/Residuals.h"
+//#include "FullSystem/HessianBlocks.h"
 #include "FullSystem/ResidualProjections.h"
 
-#include "OptimizationBackend/EnergyFunctional.h"
+//#include "OptimizationBackend/EnergyFunctional.h"
 #include "OptimizationBackend/EnergyFunctionalStructs.h"
 
 namespace dso

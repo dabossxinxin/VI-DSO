@@ -31,13 +31,13 @@
 #include <vector>
 
 #include "util/NumType.h"
-#include "util/globalCalib.h"
-#include "util/NumType.h"
 #include "util/FrameShell.h"
+#include "util/globalCalib.h"
 #include "util/IndexThreadReduce.h"
 #include "util/ImageAndExposure.h"
 
 #include "IOWrapper/Output3DWrapper.h"
+#include "IOWrapper/ImageDisplay.h"
 
 #include "FullSystem/CoarseTracker.h"
 #include "FullSystem/CoarseInitializer.h"
@@ -47,6 +47,7 @@
 #include "FullSystem/HessianBlocks.h"
 
 #include "OptimizationBackend/EnergyFunctional.h"
+#include "OptimizationBackend/EnergyFunctionalStructs.h"
 
 namespace dso
 {

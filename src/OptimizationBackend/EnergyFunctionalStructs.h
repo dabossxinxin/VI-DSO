@@ -27,15 +27,19 @@
 
 #include "util/NumType.h"
 
-#include "FullSystem/HessianBlocks.h"
-#include "FullSystem/Residuals.h"
-
 #include "OptimizationBackend/RawResidualJacobian.h"
 
 namespace dso
 {
 	class EFFrame;
 	class EFPoint;
+	class EnergyFunctional;
+	
+	class FrameHessian;
+	class PointHessian;
+	class CalibHessian;
+
+	class PointFrameResidual;
 
 	class EFResidual
 	{

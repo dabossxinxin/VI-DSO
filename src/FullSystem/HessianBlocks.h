@@ -20,19 +20,20 @@
 * You should have received a copy of the GNU General Public License
 * along with DSO. If not, see <http://www.gnu.org/licenses/>.
 */
-
-
 #pragma once
+
 #define MAX_ACTIVE_FRAMES 100
 
-#include "util/globalCalib.h"
-#include "vector"
- 
+#include <vector>
 #include <iostream>
 #include <fstream>
+
+#include "util/globalCalib.h"
 #include "util/NumType.h"
-#include "FullSystem/Residuals.h"
+#include "util/MinimalImage.h"
 #include "util/ImageAndExposure.h"
+
+#include "FullSystem/Residuals.h"
 
 namespace dso
 {
@@ -41,8 +42,9 @@ namespace dso
 		return Vec2(from[0] / to[0], (from[1] - to[1]) / to[0]);
 	}
 
-	//struct FrameHessian;
-	//struct PointHessian;
+	struct FrameHessian;
+	struct PointHessian;
+	struct CalibHessian;
 
 	class ImmaturePoint;
 	class FrameShell;
@@ -69,7 +71,6 @@ namespace dso
 #define SCALE_A_INVERSE (1.0f / SCALE_A)
 #define SCALE_B_INVERSE (1.0f / SCALE_B)
 
-
 	struct FrameFramePrecalc
 	{
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
@@ -92,7 +93,6 @@ namespace dso
 		Vec3f PRE_tTll_0;
 
 		float distanceLL;
-
 
 		inline ~FrameFramePrecalc() {}
 		inline FrameFramePrecalc() { host = target = 0; }
@@ -162,7 +162,6 @@ namespace dso
 		SE3 PRE_camToWorld;
 		std::vector<FrameFramePrecalc, Eigen::aligned_allocator<FrameFramePrecalc>> targetPrecalc;
 		MinimalImageB3* debugImage;
-
 
 		inline Vec6 w2c_leftEps() const { return get_state_scaled().head<6>(); }
 		inline AffLight aff_g2l() const { return AffLight(get_state_scaled()[6], get_state_scaled()[7]); }
@@ -374,7 +373,6 @@ namespace dso
 		}
 	};
 
-	// hessian component associated with one point.
 	struct PointHessian
 	{
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW;

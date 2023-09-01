@@ -23,24 +23,27 @@
 
 
 
-#include "FullSystem/FullSystem.h"
+
  
-#include "stdio.h"
-#include "util/globalFuncs.h"
-#include <Eigen/LU>
+#include <stdio.h>
 #include <algorithm>
-#include "IOWrapper/ImageDisplay.h"
-#include "util/globalCalib.h"
+#include <cmath>
+#include <algorithm>
+
+#include <Eigen/LU>
 #include <Eigen/SVD>
 #include <Eigen/Eigenvalues>
+
+#include "util/globalFuncs.h"
+#include "util/globalCalib.h"
+
+#include "IOWrapper/ImageDisplay.h"
+
 #include "FullSystem/ResidualProjections.h"
+#include "FullSystem/FullSystem.h"
 
 #include "OptimizationBackend/EnergyFunctional.h"
 #include "OptimizationBackend/EnergyFunctionalStructs.h"
-
-#include <cmath>
-
-#include <algorithm>
 
 namespace dso
 {

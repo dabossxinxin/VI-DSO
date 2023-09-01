@@ -22,9 +22,12 @@
 */
 #include <stdio.h>
 #include <pangolin/pangolin.h>
+
 #include "KeyFrameDisplay.h"
+
 #include "FullSystem/HessianBlocks.h"
 #include "FullSystem/ImmaturePoint.h"
+
 #include "util/settings.h"
 #include "util/FrameShell.h"
 

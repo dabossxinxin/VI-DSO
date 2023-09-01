@@ -20,15 +20,6 @@
 * You should have received a copy of the GNU General Public License
 * along with DSO. If not, see <http://www.gnu.org/licenses/>.
 */
-
-
-/*
- * KFBuffer.cpp
- *
- *  Created on: Jan 7, 2014
- *      Author: engelj
- */
-
 #include "FullSystem/CoarseTracker.h"
 #include "FullSystem/FullSystem.h"
 #include "FullSystem/HessianBlocks.h"
@@ -206,6 +197,7 @@ namespace dso
 		//     exit(1);
 		return res;
 	}
+
 	CoarseTracker::CoarseTracker(int ww, int hh) : lastRef_aff_g2l(0, 0)
 	{
 		// make coarse tracking templates.
@@ -235,13 +227,13 @@ namespace dso
 		buf_warped_weight = allocAligned<4, float>(ww*hh, ptrToDelete);
 		buf_warped_refColor = allocAligned<4, float>(ww*hh, ptrToDelete);
 
-
 		newFrame = 0;
 		lastRef = 0;
 		debugPlot = debugPrint = true;
 		w[0] = h[0] = 0;
 		refFrameID = -1;
 	}
+
 	CoarseTracker::~CoarseTracker()
 	{
 		for (float* ptr : ptrToDelete)
@@ -428,9 +420,7 @@ namespace dso
 			pc_n[lvl] = lpc_n;
 			//		printf("pc_n[lvl] is %d \n", lpc_n);
 		}
-
 	}
-
 
 	void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians, FrameHessian* fh_right, CalibHessian Hcalib)
 	{
@@ -581,7 +571,6 @@ namespace dso
 			}
 		}
 
-
 		// dilate idepth by 1 (2 on lower levels).
 		for (int lvl = 2; lvl < pyrLevelsUsed; lvl++)
 		{
@@ -606,7 +595,6 @@ namespace dso
 			}
 		}
 
-
 		// normalize idepths and weights.
 		for (int lvl = 0; lvl < pyrLevelsUsed; lvl++)
 		{
@@ -622,7 +610,6 @@ namespace dso
 			float* lpc_idepth = pc_idepth[lvl];
 			float* lpc_color = pc_color[lvl];
 
-
 			for (int y = 2; y < hl - 2; y++)
 				for (int x = 2; x < wl - 2; x++)
 				{
@@ -635,8 +622,6 @@ namespace dso
 						lpc_v[lpc_n] = y;
 						lpc_idepth[lpc_n] = idepthl[i];
 						lpc_color[lpc_n] = dIRefl[i][0];
-
-
 
 						if (!std::isfinite(lpc_color[lpc_n]) || !(idepthl[i] > 0))
 						{
@@ -653,7 +638,6 @@ namespace dso
 
 			pc_n[lvl] = lpc_n;
 		}
-
 	}
 
 	void CoarseTracker::calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l)
@@ -715,9 +699,6 @@ namespace dso
 		b_out.segment<1>(7) *= SCALE_B;
 	}
 
-
-
-
 	Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, AffLight aff_g2l, float cutoffTH)
 	{
 		float E = 0;
@@ -733,18 +714,15 @@ namespace dso
 		float cxl = cx[lvl];
 		float cyl = cy[lvl];
 
-
 		Mat33f RKi = (refToNew.rotationMatrix().cast<float>() * Ki[lvl]);
 		Vec3f t = (refToNew.translation()).cast<float>();
 		Vec2f affLL = AffLight::fromToVecExposure(lastRef->ab_exposure, newFrame->ab_exposure, lastRef_aff_g2l, aff_g2l).cast<float>();
-
 
 		float sumSquaredShiftT = 0;
 		float sumSquaredShiftRT = 0;
 		float sumSquaredShiftNum = 0;
 
 		float maxEnergy = 2 * setting_huberTH*cutoffTH - setting_huberTH * setting_huberTH;	// energy for r=setting_coarseCutoffTH.
-
 
 		MinimalImageB3* resImage = 0;
 		if (debugPlot)
@@ -807,14 +785,11 @@ namespace dso
 
 			if (!(Ku > 2 && Kv > 2 && Ku < wl - 3 && Kv < hl - 3 && new_idepth > 0)) continue;
 
-
-
 			float refColor = lpc_color[i];
 			Vec3f hitColor = getInterpolatedElement33(dINewl, Ku, Kv, wl);
 			if (!std::isfinite((float)hitColor[0])) continue;
 			float residual = hitColor[0] - (float)(affLL[0] * refColor + affLL[1]);
 			float hw = fabs(residual) < setting_huberTH ? 1 : setting_huberTH / fabs(residual);
-
 
 			if (fabs(residual) > cutoffTH)
 			{

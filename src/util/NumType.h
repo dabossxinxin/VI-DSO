@@ -29,7 +29,7 @@
 
 namespace dso
 {
-	// CAMERA MODEL TO USE
+// CAMERA MODEL TO USE
 #define SSEE(val,idx) (*(((float*)&val)+idx))
 
 #define MAX_RES_PER_POINT 8
@@ -190,5 +190,12 @@ namespace dso
 		{
 			return Vec2(a, b);
 		}
+	};
+
+	enum ResState
+	{
+		INNER = 0,		// 残差的值小于阈值视为内点
+		OOB,			// 点不在主帧或目标帧视野中
+		OUTLIER			// 残差的值大于阈值视为外点
 	};
 }
