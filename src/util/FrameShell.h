@@ -32,8 +32,8 @@ namespace dso
 	public:
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 		int id; 			// INTERNAL ID, starting at zero.
-		int incoming_id;	// ID passed into DSO
-		double timestamp;		// timestamp passed into DSO.
+		int incoming_id;	// 将图像输入算法时设置的图像ID
+		double timestamp;	// 将图像输入算法时设置的图像时间戳
 
 		// set once after tracking
 		SE3 camToTrackingRef;

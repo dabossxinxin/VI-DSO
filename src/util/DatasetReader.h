@@ -20,18 +20,18 @@
 * You should have received a copy of the GNU General Public License
 * along with DSO. If not, see <http://www.gnu.org/licenses/>.
 */
-
-
 #pragma once
-#include "util/settings.h"
-#include "util/globalFuncs.h"
-#include "util/globalCalib.h"
 
 #include <sstream>
 #include <fstream>
 #include <algorithm>
+#include <boost/thread.hpp>
 
+#include "util/settings.h"
+#include "util/globalFuncs.h"
+#include "util/globalCalib.h"
 #include "util/Undistort.h"
+
 #include "IOWrapper/ImageRW.h"
 
 #if HAS_ZIPLIB
@@ -39,8 +39,6 @@
 #else
 	#include <dirent.h>
 #endif
-
-#include <boost/thread.hpp>
 
 using namespace dso;
 
@@ -139,9 +137,11 @@ public:
 #endif
 		}
 		else
+		{
 #ifndef HAS_ZIPLIB
 			getdir(path, files);
 #endif
+		}
 
 		undistort = Undistort::getUndistorterForFile(calibFile, gammaFile, vignetteFile);
 

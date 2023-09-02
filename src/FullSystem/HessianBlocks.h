@@ -109,7 +109,7 @@ namespace dso
 		//DepthImageWrap* frame;
 		FrameShell* shell;
 
-		FrameHessian* frame_right;
+		FrameHessian* frame_right;			 // 双目情况时当前帧对应的双目图像帧
 
 		Eigen::Vector3f* dI;				 // trace, fine tracking. Used for direction select (not for gradient histograms etc.)
 		Eigen::Vector3f* dIp[PYR_LEVELS];	 // coarse tracking / coarse initializer. NAN in [0] only.

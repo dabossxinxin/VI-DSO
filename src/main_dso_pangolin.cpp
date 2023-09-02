@@ -286,7 +286,7 @@ void parseArgument(char* arg)
 	if (1 == sscanf(arg, "imudata=%s", buf))
 	{
 		imu_path = buf;
-		printf("loading groundtruth from %s!\n", imu_path.c_str());
+		printf("loading imudata from %s!\n", imu_path.c_str());
 		return;
 	}
 	if (1 == sscanf(arg, "savefile_tail=%s", buf))
@@ -482,13 +482,13 @@ Eigen::Matrix3d quaternionToRotation(const Eigen::Vector4d& q)
 void getGroundtruth_euroc()
 {
 	std::ifstream inf;
+	if (gt_path.size() == 0) return;
 
-	if (gt_path.size() == 0)
-		return;
 	inf.open(gt_path);
 	std::string sline;
 	std::getline(inf, sline);
-	while (std::getline(inf, sline)) {
+	while (std::getline(inf, sline))
+	{
 		std::istringstream ss(sline);
 		Vec4 q4;
 		Vec3 t;
@@ -499,25 +499,30 @@ void getGroundtruth_euroc()
 		ss >> time;
 		time = time / 1e9;
 		char temp;
-		for (int i = 0; i < 3; ++i) {
+		for (int i = 0; i < 3; ++i)
+		{
 			ss >> temp;
 			ss >> t(i);
 		}
 		ss >> temp;
 		ss >> q4(3);
-		for (int i = 0; i < 3; ++i) {
+		for (int i = 0; i < 3; ++i)
+		{
 			ss >> temp;
 			ss >> q4(i);
 		}
-		for (int i = 0; i < 3; ++i) {
+		for (int i = 0; i < 3; ++i)
+		{
 			ss >> temp;
 			ss >> v(i);
 		}
-		for (int i = 0; i < 3; ++i) {
+		for (int i = 0; i < 3; ++i)
+		{
 			ss >> temp;
 			ss >> bias_g(i);
 		}
-		for (int i = 0; i < 3; ++i) {
+		for (int i = 0; i < 3; ++i)
+		{
 			ss >> temp;
 			ss >> bias_a(i);
 		}
@@ -532,24 +537,27 @@ void getGroundtruth_euroc()
 	inf.close();
 }
 
-void getIMUdata_euroc() 
+void getIMUdata_euroc()
 {
 	std::ifstream inf;
 	inf.open(imu_path);
 	std::string sline;
 	std::getline(inf, sline);
-	while (std::getline(inf, sline)) {
+	while (std::getline(inf, sline))
+	{
 		std::istringstream ss(sline);
 		Vec3 gyro, acc;
 		double time;
 		ss >> time;
 		time = time / 1e9;
 		char temp;
-		for (int i = 0; i < 3; ++i) {
+		for (int i = 0; i < 3; ++i)
+		{
 			ss >> temp;
 			ss >> gyro(i);
 		}
-		for (int i = 0; i < 3; ++i) {
+		for (int i = 0; i < 3; ++i)
+		{
 			ss >> temp;
 			ss >> acc(i);
 		}
@@ -560,7 +568,7 @@ void getIMUdata_euroc()
 	inf.close();
 }
 
-void getTstereo() 
+void getTstereo()
 {
 	std::ifstream inf;
 	inf.open(T_stereo);
@@ -568,9 +576,11 @@ void getTstereo()
 	int line = 0;
 	Mat33 R;
 	Vec3 t;
-	while (line < 3 && std::getline(inf, sline)) {
+	while (line < 3 && std::getline(inf, sline))
+	{
 		std::istringstream ss(sline);
-		for (int i = 0; i < 3; ++i) {
+		for (int i = 0; i < 3; ++i)
+		{
 			ss >> R(line, i);
 		}
 		ss >> t(line);
@@ -582,7 +592,7 @@ void getTstereo()
 	T_C1C0 = temp.inverse();
 }
 
-void getIMUinfo() 
+void getIMUinfo()
 {
 	std::ifstream inf;
 	inf.open(imu_info);
@@ -591,9 +601,11 @@ void getIMUinfo()
 	Mat33 R;
 	Vec3 t;
 	Vec4 noise;
-	while (line < 3 && std::getline(inf, sline)) {
+	while (line < 3 && std::getline(inf, sline))
+	{
 		std::istringstream ss(sline);
-		for (int i = 0; i < 3; ++i) {
+		for (int i = 0; i < 3; ++i)
+		{
 			ss >> R(line, i);
 		}
 		ss >> t(line);
@@ -601,7 +613,8 @@ void getIMUinfo()
 	}
 	std::getline(inf, sline);
 	++line;
-	while (line < 8 && std::getline(inf, sline)) {
+	while (line < 8 && std::getline(inf, sline))
+	{
 		std::istringstream ss(sline);
 		ss >> noise(line - 4);
 		++line;
@@ -625,7 +638,8 @@ void getPicTimestamp()
 	inf.open(pic_timestamp);
 	std::string sline;
 	std::getline(inf, sline);
-	while (std::getline(inf, sline)) {
+	while (std::getline(inf, sline))
+	{
 		std::istringstream ss(sline);
 		double time;
 		ss >> time;
@@ -633,12 +647,14 @@ void getPicTimestamp()
 		pic_time_stamp.push_back(time);
 	}
 	inf.close();
-	if (pic_timestamp1.size() > 0) {
+	if (pic_timestamp1.size() > 0)
+	{
 		std::ifstream inf;
 		inf.open(pic_timestamp1);
 		std::string sline;
 		std::getline(inf, sline);
-		while (std::getline(inf, sline)) {
+		while (std::getline(inf, sline))
+		{
 			std::istringstream ss(sline);
 			double time;
 			ss >> time;
@@ -651,16 +667,16 @@ void getPicTimestamp()
 
 int main(int argc, char** argv)
 {
-	//setlocale(LC_ALL, "");
 	imu_weight = 3;
 	imu_weight_tracker = 0.1;
 	stereo_weight = 2;
+
 	for (int i = 1; i < argc; i++)
 		parseArgument(argv[i]);
 
-	if (gt_path.size() > 0)getGroundtruth_euroc();
-	if (T_stereo.size() > 0)getTstereo();
-	if (imu_info.size() > 0)getIMUinfo();
+	if (gt_path.size() > 0) getGroundtruth_euroc();
+	if (T_stereo.size() > 0) getTstereo();
+	if (imu_info.size() > 0) getIMUinfo();
 
 	// 	Mat33 R_BC;
 	// 	R_BC<<0.0148655429818,-0.999880929698,0.00414029679422,0.999557249008,0.0149672133247,0.025715529948,-0.0257744366974,0.00375618835797,0.999660727178;
@@ -707,8 +723,8 @@ int main(int argc, char** argv)
 	reader_right->getCalibMono(K_right, w_out, h_out);
 
 	//LOG(INFO) << "K_right: \n" << K_right;
-	// 	LOG(INFO)<<"T_C0C1: \n"<<T_C0C1.matrix();
-	// 	exit(1);
+	//LOG(INFO)<<"T_C0C1: \n"<<T_C0C1.matrix();
+	//exit(1);
 
 	if (setting_photometricCalibration > 0 && reader->getPhotometricGamma() == 0)
 	{

@@ -928,7 +928,7 @@ namespace dso
 			index++;
 		}
 
-		std::vector<double> imu_track_w(coarsestLvl, 0);
+		std::vector<double> imu_track_w(coarsestLvl + 1, 0);
 		imu_track_w[0] = imu_weight_tracker;
 		imu_track_w[1] = imu_track_w[0] / 1.2;
 		imu_track_w[2] = imu_track_w[1] / 1.5;
@@ -1039,7 +1039,7 @@ namespace dso
 				aff_g2l_new.b += incScaled[7];
 
 				Vec6 resNew = calcRes(lvl, refToNew_new, aff_g2l_new, setting_coarseCutoffTH*levelCutoffRepeat);
-				double res_imu_new;
+				double res_imu_new = 0;
 				if (lvl <= 0) {
 					res_imu_new = calcIMUResAndGS(H_imu, b_imu, refToNew_new, IMU_preintegrator, res_PVPhi, resNew[0], imu_track_w[lvl]);
 				}

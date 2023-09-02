@@ -621,8 +621,7 @@ namespace dso
 		delete[] xAd;
 	}
 
-	void EnergyFunctional::resubstituteFPt(
-		const VecCf &xc, Mat18f* xAd, int min, int max, Vec10* stats, int tid)
+	void EnergyFunctional::resubstituteFPt(const VecCf &xc, Mat18f* xAd, int min, int max, Vec10* stats, int tid)
 	{
 		for (int k = min; k < max; k++)
 		{
