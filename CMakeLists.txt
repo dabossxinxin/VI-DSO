@@ -73,5 +73,3 @@ target_link_libraries(dso Boost::system Boost::thread Boost::date_time Boost::ch
 
 add_executable(dso_dataset ${PROJECT_SOURCE_DIR}/src/main_dso_pangolin.cpp)
 target_link_libraries(dso_dataset dso)
-
-#target_link_libraries(dso_dataset Boost::atomic Boost::chrono Boost::date_time Boost::system Boost::thread)
