@@ -107,8 +107,6 @@ void settingsDefault(int preset)
 		preload = preset == 1;
 		setting_desiredImmatureDensity = 1500;
 		setting_desiredPointDensity = 2000;
-		// 		setting_desiredImmatureDensity = 3000;
-		// 		setting_desiredPointDensity = 3000;
 		setting_minFrames = 5;
 		setting_maxFrames = 7;
 		setting_maxOptIterations = 6;
@@ -382,10 +380,11 @@ void parseArgument(char* arg)
 		if (option == 0)
 		{
 			use_stereo = false;
-			printf("NO GUI!\n");
+			printf("Don't Use Stereo!\n");
 		}
 		else {
 			use_stereo = true;
+			printf("Use Stereo!\n");
 		}
 		return;
 	}
@@ -445,12 +444,14 @@ void getGroundtruth_kitti()
 	inf.open(gt_path);
 	std::string sline;
 	std::getline(inf, sline);
-	while (std::getline(inf, sline)) {
+	while (std::getline(inf, sline)) 
+	{
+		Mat33 R; Vec3 t;
 		std::istringstream ss(sline);
-		Mat33 R;
-		Vec3 t;
-		for (int i = 0; i < 3; ++i) {
-			for (int j = 0; j < 3; ++j) {
+		for (int i = 0; i < 3; ++i)
+		{
+			for (int j = 0; j < 3; ++j) 
+			{
 				ss >> R(i, j);
 			}
 			ss >> t(i);
@@ -479,6 +480,7 @@ Eigen::Matrix3d quaternionToRotation(const Eigen::Vector4d& q)
 	return R;
 }
 
+// 获取当前数据集真实轨迹信息
 void getGroundtruth_euroc()
 {
 	std::ifstream inf;
@@ -568,6 +570,7 @@ void getIMUdata_euroc()
 	inf.close();
 }
 
+// 获取当前设备双目相机位姿变换信息
 void getTstereo()
 {
 	std::ifstream inf;
@@ -592,6 +595,7 @@ void getTstereo()
 	T_C1C0 = temp.inverse();
 }
 
+// 获取IMU噪声信息与相机之间的位姿信息
 void getIMUinfo()
 {
 	std::ifstream inf;
@@ -632,12 +636,15 @@ void getIMUinfo()
 	inf.close();
 }
 
+// 获取双目相机左相机与右相机所有图像的时间戳信息
 void getPicTimestamp()
 {
 	std::ifstream inf;
 	inf.open(pic_timestamp);
 	std::string sline;
 	std::getline(inf, sline);
+
+	// 获取左相机所有图像的时间戳
 	while (std::getline(inf, sline))
 	{
 		std::istringstream ss(sline);
@@ -647,6 +654,8 @@ void getPicTimestamp()
 		pic_time_stamp.push_back(time);
 	}
 	inf.close();
+
+	// 获取右相机所有图像的时间戳
 	if (pic_timestamp1.size() > 0)
 	{
 		std::ifstream inf;
@@ -708,20 +717,20 @@ int main(int argc, char** argv)
 
 	double time_start;
 
-	// hook crtl+C.
+	// 捕获Ctrl+C命令退出当前算法程序
 	//boost::thread exThread = boost::thread(exitThread);
 
-	ImageFolderReader* reader = new ImageFolderReader(source0, calib0, gammaCalib, vignette);
-	ImageFolderReader* reader_right;
-	if (use_stereo)
-		reader_right = new ImageFolderReader(source1, calib1, gammaCalib, vignette);
-	else
-		reader_right = new ImageFolderReader(source0, calib0, gammaCalib, vignette);
-	reader->setGlobalCalibration();
-	// 	reader_right->setGlobalCalibration();
-	int w_out, h_out;
-	reader_right->getCalibMono(K_right, w_out, h_out);
+	ImageFolderReader *reader = NULL, *reader_right = NULL;
 
+	reader = new ImageFolderReader(source0, calib0, gammaCalib, vignette);
+	if (use_stereo) reader_right = new ImageFolderReader(source1, calib1, gammaCalib, vignette);
+	else reader_right = new ImageFolderReader(source0, calib0, gammaCalib, vignette);
+
+	reader->setGlobalCalibration();
+	reader_right->setGlobalCalibration();
+
+	//int w_out, h_out;
+	//reader_right->getCalibMono(K_right, w_out, h_out);
 	//LOG(INFO) << "K_right: \n" << K_right;
 	//LOG(INFO)<<"T_C0C1: \n"<<T_C0C1.matrix();
 	//exit(1);
@@ -749,208 +758,207 @@ int main(int argc, char** argv)
 	fullSystem->setGammaFunction(reader->getPhotometricGamma());
 	fullSystem->linearizeOperation = (playbackSpeed == 0);
 
-	IOWrap::PangolinDSOViewer* viewer = 0;
+	IOWrap::PangolinDSOViewer *viewer = NULL;
 	if (!disableAllDisplay)
 	{
 		viewer = new IOWrap::PangolinDSOViewer(wG[0], hG[0], false);
-		fullSystem->outputWrapper.push_back(viewer);
+		fullSystem->outputWrapper.emplace_back(viewer);
 	}
 
 	if (useSampleOutput)
-		fullSystem->outputWrapper.push_back(new IOWrap::SampleOutputWrapper());
+		fullSystem->outputWrapper.emplace_back(new IOWrap::SampleOutputWrapper());
 
-	// to make MacOS happy: run this in dedicated thread -- and use this one to run the GUI.
-	std::thread runthread([&]() {
-		std::vector<int> idsToPlay;
-		std::vector<double> timesToPlayAt;
-		std::vector<int> idsToPlayRight;		// right images
-		std::vector<double> timesToPlayAtRight;
-		for (int i = lstart; i >= 0 && i < reader->getNumImages() && linc*i < linc*lend; i += linc)
+	// MacOS中显示线程必须在主线程中运行
+	// 意味着计算线程必须声明在分支线程中
+	std::thread runthread([&]() 
 		{
-			idsToPlay.push_back(i);
-			if (timesToPlayAt.size() == 0)
-			{
-				timesToPlayAt.push_back((double)0);
-			}
-			else
-			{
-				double tsThis = reader->getTimestamp(idsToPlay[idsToPlay.size() - 1]);
-				double tsPrev = reader->getTimestamp(idsToPlay[idsToPlay.size() - 2]);
-				timesToPlayAt.push_back(timesToPlayAt.back() + fabs(tsThis - tsPrev) / playbackSpeed);
-			}
-		}
+			std::vector<int> idsToPlay, idsToPlayRight;
+			std::vector<double> timesToPlayAt, timesToPlayAtRight;
 
-		for (int i = lstart; i >= 0 && i < reader_right->getNumImages() && linc*i < linc*lend; i += linc)
-		{
-			idsToPlayRight.push_back(i);
-			if (timesToPlayAtRight.size() == 0)
+			for (int i = lstart; i >= 0 && i < reader->getNumImages() && linc*i < linc*lend; i += linc)
 			{
-				timesToPlayAtRight.push_back((double)0);
+				idsToPlay.push_back(i);
+				if (timesToPlayAt.size() == 0)
+				{
+					timesToPlayAt.push_back((double)0);
+				}
+				else
+				{
+					double tsThis = reader->getTimestamp(idsToPlay[idsToPlay.size() - 1]);
+					double tsPrev = reader->getTimestamp(idsToPlay[idsToPlay.size() - 2]);
+					timesToPlayAt.push_back(timesToPlayAt.back() + fabs(tsThis - tsPrev) / playbackSpeed);
+				}
 			}
-			else
-			{
-				double tsThis = reader_right->getTimestamp(idsToPlay[idsToPlay.size() - 1]);
-				double tsPrev = reader_right->getTimestamp(idsToPlay[idsToPlay.size() - 2]);
-				timesToPlayAtRight.push_back(timesToPlayAtRight.back() + fabs(tsThis - tsPrev) / playbackSpeed);
-			}
-		}
 
-		std::vector<ImageAndExposure*> preloadedImages;
-		std::vector<ImageAndExposure*> preloadedImagesRight;
-		if (preload)
-		{
-			printf("LOADING ALL IMAGES!\n");
-			for (int ii = 0; ii < (int)idsToPlay.size(); ii++)
+			for (int i = lstart; i >= 0 && i < reader_right->getNumImages() && linc*i < linc*lend; i += linc)
 			{
+				idsToPlayRight.push_back(i);
+				if (timesToPlayAtRight.size() == 0)
+				{
+					timesToPlayAtRight.push_back((double)0);
+				}
+				else
+				{
+					double tsThis = reader_right->getTimestamp(idsToPlay[idsToPlay.size() - 1]);
+					double tsPrev = reader_right->getTimestamp(idsToPlay[idsToPlay.size() - 2]);
+					timesToPlayAtRight.push_back(timesToPlayAtRight.back() + fabs(tsThis - tsPrev) / playbackSpeed);
+				}
+			}
+
+			std::vector<ImageAndExposure*> preloadedImages;
+			std::vector<ImageAndExposure*> preloadedImagesRight;
+
+			if (preload)
+			{
+				printf("LOADING ALL IMAGES!\n");
+				for (int ii = 0; ii < (int)idsToPlay.size(); ii++)
+				{
+					int i = idsToPlay[ii];
+					preloadedImages.push_back(reader->getImage(i));
+					preloadedImagesRight.push_back(reader_right->getImage(i));
+				}
+			}
+
+			timedso tv_start;
+			gettimeofday(&tv_start, NULL);
+			double sInitializerOffset = 0;
+
+			for (int ii = 30; ii < (int)idsToPlay.size(); ii++)
+			{
+				if (!fullSystem->initialized)	// if not initialized: reset start time.
+				{
+					gettimeofday(&tv_start, NULL);
+					sInitializerOffset = timesToPlayAt[ii];
+				}
+
 				int i = idsToPlay[ii];
-				preloadedImages.push_back(reader->getImage(i));
-				preloadedImagesRight.push_back(reader_right->getImage(i));
-			}
-		}
 
-		timedso tv_start;
-		gettimeofday(&tv_start, NULL);
-		clock_t started = clock();
-		double sInitializerOffset = 0;
-
-		for (int ii = 30; ii < (int)idsToPlay.size(); ii++)
-		{
-			if (!fullSystem->initialized)	// if not initialized: reset start time.
-			{
-				gettimeofday(&tv_start, NULL);
-				started = clock();
-				sInitializerOffset = timesToPlayAt[ii];
-			}
-
-			int i = idsToPlay[ii];
-
-			double time_l = pic_time_stamp[i];
-			int index = -1;
-			if (use_stereo) {
-				if (pic_time_stamp_r.size() > 0) {
-					for (int i = 0; i < pic_time_stamp_r.size(); ++i) {
-						if (pic_time_stamp_r[i] >= time_l || fabs(pic_time_stamp_r[i] - time_l) < 0.01) {
-							index = i;
-							break;
+				double time_l = pic_time_stamp[i];
+				int index = -1;
+				if (use_stereo)
+				{
+					if (pic_time_stamp_r.size() > 0)
+					{
+						for (int i = 0; i < pic_time_stamp_r.size(); ++i)
+						{
+							if (pic_time_stamp_r[i] >= time_l || fabs(pic_time_stamp_r[i] - time_l) < 0.01) {
+								index = i;
+								break;
+							}
 						}
 					}
+					if (fabs(pic_time_stamp_r[index] - time_l) > 0.01) { continue; }
 				}
-				if (fabs(pic_time_stamp_r[index] - time_l) > 0.01) { continue; }
-			}
-			// 	    LOG(INFO)<<"pic_time_stamp_r.size(): "<<pic_time_stamp_r.size()<<" pic_time_stamp.size(): "<<pic_time_stamp.size();
-			// 	    LOG(INFO)<<std::fixed<<std::setprecision(9)<<"time_l: "<<time_l<<" time_r: "<<pic_time_stamp_r[index];
-			// 	    LOG(INFO)<<"i: "<<i<<" index: "<<index;
-			// 	    exit(1);
+				//LOG(INFO)<<"pic_time_stamp_r.size(): "<<pic_time_stamp_r.size()<<" pic_time_stamp.size(): "<<pic_time_stamp.size();
+				//LOG(INFO)<<std::fixed<<std::setprecision(9)<<"time_l: "<<time_l<<" time_r: "<<pic_time_stamp_r[index];
+				//LOG(INFO)<<"i: "<<i<<" index: "<<index;
+				//exit(1);
 
-			ImageAndExposure* img;
-			ImageAndExposure* img_right;
-			if (preload) {
-				img = preloadedImages[ii];
-				img_right = preloadedImagesRight[ii];
-			}
-			else {
-				img = reader->getImage(i);
-				// 		img_right = reader_right->getImage(i);
-				if (use_stereo)
-					img_right = reader_right->getImage(index);
+				ImageAndExposure* img;
+				ImageAndExposure* img_right;
+				if (preload)
+				{
+					img = preloadedImages[ii];
+					img_right = preloadedImagesRight[ii];
+				}
 				else
-					img_right = img;
-			}
-
-			bool skipFrame = false;
-			if (playbackSpeed != 0)
-			{
-				timedso tv_now; gettimeofday(&tv_now, NULL);
-				double sSinceStart = sInitializerOffset + ((tv_now.tv_sec - tv_start.tv_sec) + (tv_now.tv_usec - tv_start.tv_usec) / (1000.0f*1000.0f));
-
-				if (sSinceStart < timesToPlayAt[ii])
-					Sleep((int)((timesToPlayAt[ii] - sSinceStart) * 1000));
-				else if (sSinceStart > timesToPlayAt[ii] + 0.5 + 0.1*(ii % 2))
 				{
-					printf("SKIPFRAME %d (play at %f, now it is %f)!\n", ii, timesToPlayAt[ii], sSinceStart);
-					skipFrame = true;
+					img = reader->getImage(i);
+					// 		img_right = reader_right->getImage(i);
+					if (use_stereo)
+						img_right = reader_right->getImage(index);
+					else
+						img_right = img;
+				}
+
+				bool skipFrame = false;
+				if (playbackSpeed != 0)
+				{
+					timedso tv_now; gettimeofday(&tv_now, NULL);
+					double sSinceStart = sInitializerOffset + ((tv_now.tv_sec - tv_start.tv_sec) + (tv_now.tv_usec - tv_start.tv_usec) / (1000.0f*1000.0f));
+
+					if (sSinceStart < timesToPlayAt[ii])
+						Sleep((int)((timesToPlayAt[ii] - sSinceStart) * 1000));
+					else if (sSinceStart > timesToPlayAt[ii] + 0.5 + 0.1*(ii % 2))
+					{
+						printf("SKIPFRAME %d (play at %f, now it is %f)!\n", ii, timesToPlayAt[ii], sSinceStart);
+						skipFrame = true;
+					}
+				}
+
+				// 	    if(i>300){
+				// 		imu_weight_tracker = 1;
+				// 	    }
+				// 	    if(i>600){
+				// 		imu_weight_tracker = 1;
+				// 	    }
+
+				if (!skipFrame) fullSystem->addActiveFrame(img, img_right, i);
+
+				// 	    IplImage* src = 0;
+				// 	    cvShowImage("camera",src);
+				// 	    cv::waitKey(-1);
+
+				delete img;
+
+				// 存在两种情况系统需要重置
+				// 1、系统初始化失败并且系统刚刚工作不久
+				// 2、在界面中手动设置了重置当前系统
+				if (fullSystem->initFailed || setting_fullResetRequested)
+				{
+					if (ii < 250 || setting_fullResetRequested)
+					{
+						printf("RESETTING!\n");
+
+						std::vector<IOWrap::Output3DWrapper*> wraps = fullSystem->outputWrapper;
+						delete fullSystem;
+
+						for (IOWrap::Output3DWrapper* ow : wraps) ow->reset();
+
+						fullSystem = new FullSystem();
+						fullSystem->setGammaFunction(reader->getPhotometricGamma());
+						fullSystem->linearizeOperation = (playbackSpeed == 0);
+
+						fullSystem->outputWrapper = wraps;
+
+						setting_fullResetRequested = false;
+						first_track_flag = false;
+					}
+				}
+
+				if (fullSystem->isLost)
+				{
+					printf("LOST!!\n");
+					break;
 				}
 			}
+			fullSystem->blockUntilMappingIsFinished();
+			timedso tv_end;
+			gettimeofday(&tv_end, NULL);
 
-			// 	    if(i>300){
-			// 		imu_weight_tracker = 1;
-			// 	    }
-			// 	    if(i>600){
-			// 		imu_weight_tracker = 1;
-			// 	    }
+			fullSystem->printResult("result.txt");
 
-			if (!skipFrame) fullSystem->addActiveFrame(img, img_right, i);
-
-			// 	    IplImage* src = 0;
-			// 	    cvShowImage("camera",src);
-			// 	    cv::waitKey(-1);
-
-			delete img;
-
-			if (fullSystem->initFailed || setting_fullResetRequested)
+			int numFramesProcessed = abs(idsToPlay[0] - idsToPlay.back());
+			double numSecondsProcessed = fabs(reader->getTimestamp(idsToPlay[0]) - reader->getTimestamp(idsToPlay.back()));
+			double MilliSecondsTakenMT = sInitializerOffset + ((tv_end.tv_sec - tv_start.tv_sec)*1000.0f + (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f);
+			printf("\n======================"
+				"\n%d Frames (%.1f fps)"
+				"\n%.2fms per frame (multi core); "
+				"\n%.3fx (multi core); "
+				"\n======================\n\n",
+				numFramesProcessed, numFramesProcessed / numSecondsProcessed,
+				MilliSecondsTakenMT / (float)numFramesProcessed,
+				1000 / (MilliSecondsTakenMT / numSecondsProcessed));
+			//fullSystem->printFrameLifetimes();
+			if (setting_logStuff)
 			{
-				if (ii < 250 || setting_fullResetRequested)
-				{
-					printf("RESETTING!\n");
-
-					std::vector<IOWrap::Output3DWrapper*> wraps = fullSystem->outputWrapper;
-					delete fullSystem;
-
-					for (IOWrap::Output3DWrapper* ow : wraps) ow->reset();
-
-					fullSystem = new FullSystem();
-					fullSystem->setGammaFunction(reader->getPhotometricGamma());
-					fullSystem->linearizeOperation = (playbackSpeed == 0);
-
-
-					fullSystem->outputWrapper = wraps;
-
-					setting_fullResetRequested = false;
-					first_track_flag = false;
-				}
+				std::ofstream tmlog;
+				tmlog.open("logs/time.txt", std::ios::trunc | std::ios::out);
+				tmlog << ((tv_end.tv_sec - tv_start.tv_sec)*1000.0f + (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f) / (float)reader->getNumImages() << "\n";
+				tmlog.flush();
+				tmlog.close();
 			}
-
-			if (fullSystem->isLost)
-			{
-				printf("LOST!!\n");
-				break;
-			}
-
-		}
-		fullSystem->blockUntilMappingIsFinished();
-		clock_t ended = clock();
-		timedso tv_end;
-		gettimeofday(&tv_end, NULL);
-
-		fullSystem->printResult("result.txt");
-
-		int numFramesProcessed = abs(idsToPlay[0] - idsToPlay.back());
-		double numSecondsProcessed = fabs(reader->getTimestamp(idsToPlay[0]) - reader->getTimestamp(idsToPlay.back()));
-		double MilliSecondsTakenSingle = 1000.0f*(ended - started) / (float)(CLOCKS_PER_SEC);
-		double MilliSecondsTakenMT = sInitializerOffset + ((tv_end.tv_sec - tv_start.tv_sec)*1000.0f + (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f);
-		printf("\n======================"
-			"\n%d Frames (%.1f fps)"
-			"\n%.2fms per frame (single core); "
-			"\n%.2fms per frame (multi core); "
-			"\n%.3fx (single core); "
-			"\n%.3fx (multi core); "
-			"\n======================\n\n",
-			numFramesProcessed, numFramesProcessed / numSecondsProcessed,
-			MilliSecondsTakenSingle / numFramesProcessed,
-			MilliSecondsTakenMT / (float)numFramesProcessed,
-			1000 / (MilliSecondsTakenSingle / numSecondsProcessed),
-			1000 / (MilliSecondsTakenMT / numSecondsProcessed));
-		//fullSystem->printFrameLifetimes();
-		if (setting_logStuff)
-		{
-			std::ofstream tmlog;
-			tmlog.open("logs/time.txt", std::ios::trunc | std::ios::out);
-			tmlog << 1000.0f*(ended - started) / (float)(CLOCKS_PER_SEC*reader->getNumImages()) << " "
-				<< ((tv_end.tv_sec - tv_start.tv_sec)*1000.0f + (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f) / (float)reader->getNumImages() << "\n";
-			tmlog.flush();
-			tmlog.close();
-		}
-	});
+		});
 
 	if (viewer != 0)
 		viewer->run();

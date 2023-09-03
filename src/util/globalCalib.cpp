@@ -26,6 +26,8 @@
 
 namespace dso
 {
+	// 成员变量中的G表示global
+
 	int wG[PYR_LEVELS], hG[PYR_LEVELS];
 	float fxG[PYR_LEVELS], fyG[PYR_LEVELS],
 		cxG[PYR_LEVELS], cyG[PYR_LEVELS];
@@ -80,6 +82,7 @@ namespace dso
 		cxiG[0] = KiG[0](0, 2);
 		cyiG[0] = KiG[0](1, 2);
 
+		// 设置图像在各层金字塔的图像宽高以及模拟相机内参
 		for (int level = 1; level < pyrLevelsUsed; ++level)
 		{
 			wG[level] = w >> level;
