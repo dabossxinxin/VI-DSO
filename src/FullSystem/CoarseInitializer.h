@@ -61,12 +61,12 @@ namespace dso
 		float maxstep;
 
 		// idx (x+y*w) of closest point one pyramid level above.
-		int parent;
-		float parentDist;
+		int parent;						// 该点在上一层金字塔中的最邻近点
+		float parentDist;				// 该点与上一层金字塔中最邻近点的距离
 
 		// idx (x+y*w) of up to 10 nearest points in pixel space.
-		int neighbours[10];
-		float neighboursDist[10];
+		int neighbours[10];				// 同层金字塔中当前点的十个最邻近点
+		float neighboursDist[10];		// 同层金字塔中当前点的十个最邻近点的距离
 
 		float my_type;
 		float outlierTH;
@@ -78,7 +78,6 @@ namespace dso
 		CoarseInitializer(int w, int h);
 		~CoarseInitializer();
 
-
 		void setFirst(CalibHessian* HCalib, FrameHessian* newFrameHessian);
 		void setFirstStereo(CalibHessian* HCalib, FrameHessian* newFrameHessian, FrameHessian* newFrameHessian_right);
 		bool trackFrame(FrameHessian* newFrameHessian, std::vector<IOWrap::Output3DWrapper*> &wraps);
@@ -88,14 +87,14 @@ namespace dso
 		bool fixAffine;
 		bool printDebug;
 
-		Pnt* points[PYR_LEVELS];
-		int numPoints[PYR_LEVELS];
+		Pnt* points[PYR_LEVELS];			// 金字塔中选取的所有特征点的坐标
+		int numPoints[PYR_LEVELS];			// 每一层金字塔中选取的特征点的数量
 		AffLight thisToNext_aff;
 		SE3 thisToNext;
 
-		FrameHessian* firstFrame;
-		FrameHessian* firstFrame_right;
-		FrameHessian* newFrame;
+		FrameHessian* firstFrame;			// 初始化器中进来的第一帧图像
+		FrameHessian* firstFrame_right;		// 初始化器中进来的第一帧图像对应的双目右相机图像
+		FrameHessian* newFrame;				// 初始化器中进来的最新帧图像
 
 	private:
 
@@ -111,7 +110,10 @@ namespace dso
 		double cyi[PYR_LEVELS];
 		int w[PYR_LEVELS];
 		int h[PYR_LEVELS];
+
+		// 设置初始化器中的相机内参信息
 		void makeK(CalibHessian* HCalib);
+
 		float* idepth[PYR_LEVELS];
 
 		bool snapped;
@@ -156,7 +158,10 @@ namespace dso
 
 		void makeGradients(Eigen::Vector3f** data);
 
+		// 在pangolin中显示初始化得到深度图结果以便于调试程序
 		void debugPlot(int lvl, std::vector<IOWrap::Output3DWrapper*> &wraps);
+
+		// 初始化过程中在不同层金字塔中选好特征后构造特征的空间拓扑结构
 		void makeNN();
 	};
 

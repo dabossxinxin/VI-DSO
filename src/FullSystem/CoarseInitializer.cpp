@@ -46,7 +46,6 @@ namespace dso
 		JbBuffer = new Vec10f[ww*hh];
 		JbBuffer_new = new Vec10f[ww*hh];
 
-
 		frameID = -1;
 		fixAffine = true;
 		printDebug = false;
@@ -56,6 +55,7 @@ namespace dso
 		wM.diagonal()[6] = SCALE_A;
 		wM.diagonal()[7] = SCALE_B;
 	}
+
 	CoarseInitializer::~CoarseInitializer()
 	{
 		for (int lvl = 0; lvl < pyrLevelsUsed; lvl++)
@@ -249,7 +249,6 @@ namespace dso
 			needCall = needCall || ow->needPushDepthImage();
 		if (!needCall) return;
 
-
 		int wl = w[lvl], hl = h[lvl];
 		Eigen::Vector3f* colorRef = firstFrame->dIp[lvl];
 
@@ -311,11 +310,13 @@ namespace dso
 
 		int npts = numPoints[lvl];
 		Pnt* ptsl = points[lvl];
+
+		// 遍历提取的所有特征计算特征光度残差以及对应的雅可比
 		for (int i = 0; i < npts; i++)
 		{
 			Pnt* point = ptsl + i;
-
 			point->maxstep = 1e10;
+
 			if (!point->isGood)
 			{
 				E.updateSingle((float)(point->energy[0]));
@@ -336,14 +337,14 @@ namespace dso
 			VecNRf r;
 			JbBuffer_new[i].setZero();
 
-			// sum over all residuals.
 			bool isGood = true;
 			float energy = 0;
+
+			// 对于单个特征为保证其鲁棒性，将特征周围的7个点与特征点一起计算残差和
 			for (int idx = 0; idx < patternNum; idx++)
 			{
 				int dx = patternP[idx][0];
 				int dy = patternP[idx][1];
-
 
 				Vec3f pt = RKi * Vec3f(point->u + dx, point->v + dy, 1) + t * point->idepth_new;
 				float u = pt[0] / pt[2];
@@ -359,9 +360,6 @@ namespace dso
 				}
 
 				Vec3f hitColor = getInterpolatedElement33(colorNew, Ku, Kv, wl);
-				//Vec3f hitColor = getInterpolatedElement33BiCub(colorNew, Ku, Kv, wl);
-
-				//float rlR = colorRef[point->u+dx + (point->v+dy) * wl][0];
 				float rlR = getInterpolatedElement31(colorRef, point->u + dx, point->v + dy, wl);
 
 				if (!std::isfinite(rlR) || !std::isfinite((float)hitColor[0]))
@@ -703,11 +701,12 @@ namespace dso
 		float* statusMap = new float[w[0] * h[0]];
 		bool* statusMapB = new bool[w[0] * h[0]];
 
+		// 在各层金字塔中选点并初始化各个点的深度值
 		float densities[] = { 0.03,0.05,0.15,0.5,1 };
 		for (int lvl = 0; lvl < pyrLevelsUsed; lvl++)
 		{
 			sel.currentPotential = 3;
-			int npts;
+			int npts = 0;
 			if (lvl == 0)
 				npts = sel.makeMaps(firstFrame, statusMap, densities[lvl] * w[0] * h[0], 1, false, 2);
 			else
@@ -716,18 +715,16 @@ namespace dso
 			if (points[lvl] != 0) delete[] points[lvl];
 			points[lvl] = new Pnt[npts];
 
-			// set idepth map to initially 1 everywhere.
-			int wl = w[lvl], hl = h[lvl];
+			// 初始化所有点的逆深度值为1
 			Pnt* pl = points[lvl];
-			int nl = 0;
+			int wl = w[lvl], hl = h[lvl], nl = 0;
+		
 			for (int y = patternPadding + 1; y < hl - patternPadding - 2; y++)
 			{
 				for (int x = patternPadding + 1; x < wl - patternPadding - 2; x++)
 				{
-					//if(x==2) printf("y=%d!\n",y);
 					if ((lvl != 0 && statusMapB[x + y * wl]) || (lvl == 0 && statusMap[x + y * wl] != 0))
 					{
-						//assert(patternNum==9);
 						pl[nl].u = x + 0.1;
 						pl[nl].v = y + 0.1;
 						pl[nl].idepth = 1;
@@ -738,22 +735,20 @@ namespace dso
 						pl[nl].lastHessian_new = 0;
 						pl[nl].my_type = (lvl != 0) ? 1 : statusMap[x + y * wl];
 
+						// 计算所选特征点与周围点的梯度值和
+						int dx = 0, dy = 0;
+						float sumGrad2 = 0, absgrad = 0;
 						Eigen::Vector3f* cpt = firstFrame->dIp[lvl] + x + y * w[lvl];
-						float sumGrad2 = 0;
+						
 						for (int idx = 0; idx < patternNum; idx++)
 						{
-							int dx = patternP[idx][0];
-							int dy = patternP[idx][1];
-							float absgrad = cpt[dx + dy * w[lvl]].tail<2>().squaredNorm();
+							dx = patternP[idx][0];
+							dy = patternP[idx][1];
+							absgrad = cpt[dx + dy * w[lvl]].tail<2>().squaredNorm();
 							sumGrad2 += absgrad;
 						}
 
-						//				float gth = setting_outlierTH * (sqrtf(sumGrad2)+setting_outlierTHSumComponent);
-						//				pl[nl].outlierTH = patternNum*gth*gth;
-
-						pl[nl].outlierTH = patternNum * setting_outlierTH;
-
-						nl++;
+						pl[nl++].outlierTH = patternNum * setting_outlierTH;
 						assert(nl <= npts);
 					}
 				}
@@ -762,9 +757,10 @@ namespace dso
 			numPoints[lvl] = nl;
 		}
 
-		delete[] statusMap;
-		delete[] statusMapB;
+		delete[] statusMap; statusMap = NULL;
+		delete[] statusMapB; statusMapB = NULL;
 
+		//构造金字塔中所提取特征的空间拓扑结构
 		makeNN();
 
 		thisToNext = SE3();
@@ -780,40 +776,39 @@ namespace dso
 		makeK(HCalib);
 		firstFrame = newFrameHessian;
 		firstFrame_right = newFrameHessian_right;
+
 		PixelSelector sel(w[0], h[0]);
+
 		float* statusMap = new float[w[0] * h[0]];
 		bool* statusMapB = new bool[w[0] * h[0]];
 		float densities[] = { 0.03,0.05,0.15,0.5,1 };
-		//memset(idepth[0], 0, sizeof(float)*w[0]*h[0]);
-		for (int lvl = 0; lvl < pyrLevelsUsed; lvl++)
-		{
-			idepth[lvl] = new float[w[lvl] * h[lvl]]{ 0 };
-		}
 
+		for (int lvl = 0; lvl < pyrLevelsUsed; lvl++)
+			idepth[lvl] = new float[w[lvl] * h[lvl]]{ 0 };
+
+		// 在各层金字塔中选点并初始化各个点的深度值
 		for (int lvl = 0; lvl < pyrLevelsUsed; lvl++)
 		{
 			sel.currentPotential = 3;
-			int npts;
+			int npts = 0;
 			if (lvl == 0)
 				npts = sel.makeMaps(firstFrame, statusMap, densities[lvl] * w[0] * h[0], 1, false, 2);
 			else
 				npts = makePixelStatus(firstFrame->dIp[lvl], statusMapB, w[lvl], h[lvl], densities[lvl] * w[0] * h[0]);
 
-			// 		if(lvl == 0)LOG(INFO)<<"npts: "<<npts;
 			if (points[lvl] != 0) delete[] points[lvl];
 			points[lvl] = new Pnt[npts];
 
-			// set idepth map to initially 1 everywhere.
-			int wl = w[lvl], hl = h[lvl];
 			Pnt* pl = points[lvl];
-			int nl = 0;
+			int wl = w[lvl], hl = h[lvl], nl = 0;
+			
+			// 初始化所有点的逆深度值为1
 			for (int y = patternPadding + 1; y < hl - patternPadding - 2; y++)
 			{
 				for (int x = patternPadding + 1; x < wl - patternPadding - 2; x++)
 				{
 					if ((lvl != 0 && statusMapB[x + y * wl]) || (lvl == 0 && statusMap[x + y * wl] != 0))
 					{
-						//assert(patternNum==9);
 						pl[nl].u = x + 0.1;
 						pl[nl].v = y + 0.1;
 						pl[nl].idepth = 1;
@@ -824,22 +819,22 @@ namespace dso
 						pl[nl].lastHessian_new = 0;
 						pl[nl].my_type = (lvl != 0) ? 1 : statusMap[x + y * wl];
 
+						int dx = 0, dy = 0;
+						float absgrad = 0, sumGrad2 = 0;
 						Eigen::Vector3f* cpt = firstFrame->dIp[lvl] + x + y * w[lvl];
-						float sumGrad2 = 0;
+
 						for (int idx = 0; idx < patternNum; idx++)
 						{
-							int dx = patternP[idx][0];
-							int dy = patternP[idx][1];
-							float absgrad = cpt[dx + dy * w[lvl]].tail<2>().squaredNorm();
+							dx = patternP[idx][0];
+							dy = patternP[idx][1];
+							absgrad = cpt[dx + dy * w[lvl]].tail<2>().squaredNorm();
 							sumGrad2 += absgrad;
 						}
 
-						//				float gth = setting_outlierTH * (sqrtf(sumGrad2)+setting_outlierTHSumComponent);
-						//				pl[nl].outlierTH = patternNum*gth*gth;
+						//float gth = setting_outlierTH * (sqrtf(sumGrad2)+setting_outlierTHSumComponent);
+						//pl[nl].outlierTH = patternNum*gth*gth;
 
-						pl[nl].outlierTH = patternNum * setting_outlierTH;
-
-						nl++;
+						pl[nl++].outlierTH = patternNum * setting_outlierTH;
 						assert(nl <= npts);
 					}
 				}
@@ -955,18 +950,16 @@ namespace dso
 			// 			}
 			// 		}
 			numPoints[lvl] = nl;
-			// 		LOG(INFO)<<"lvl: "<<lvl<<" nl:"<<nl;
 		}
-		delete[] statusMap;
-		delete[] statusMapB;
+		delete[] statusMap; statusMap = NULL;
+		delete[] statusMapB; statusMapB = NULL;
 
-		// 	std::ofstream f2;
-		// 	std::string dsoposefile = "/home/sjm/桌面/temp/depth1_myself.txt";
-		// 	f2.open(dsoposefile,std::ios::out);
-		// 	for(int i=0;i<numPoints[1];i++){
-		// 	    f2<<std::fixed<<std::setprecision(9)<<points[1][i].idepth<<std::endl;
-		// 	}
-		// 	f2.close();
+		/*std::ofstream f2;
+		std::string dsoposefile = "/home/sjm/桌面/temp/depth1_myself.txt";
+		f2.open(dsoposefile, std::ios::out);
+		for (int i = 0; i < numPoints[1]; i++)
+			f2 << std::fixed << std::setprecision(9) << points[1][i].idepth << std::endl;
+		f2.close();*/
 
 		makeNN();
 
@@ -986,7 +979,6 @@ namespace dso
 		{
 			pts[i].energy.setZero();
 			pts[i].idepth_new = pts[i].idepth;
-
 
 			if (lvl == pyrLevelsUsed - 1 && !pts[i].isGood)
 			{
@@ -1088,13 +1080,14 @@ namespace dso
 
 	void CoarseInitializer::makeNN()
 	{
+		const int nn = 10;
 		const float NNDistFactor = 0.05;
 
 		typedef nanoflann::KDTreeSingleIndexAdaptor<
 			nanoflann::L2_Simple_Adaptor<float, FLANNPointcloud>,
 			FLANNPointcloud, 2> KDTree;
 
-		// build indices
+		// 使用金字塔中得到的特征数据构造八叉树
 		FLANNPointcloud pcs[PYR_LEVELS];
 		KDTree* indexes[PYR_LEVELS];
 		for (int i = 0; i < pyrLevelsUsed; i++)
@@ -1104,9 +1097,7 @@ namespace dso
 			indexes[i]->buildIndex();
 		}
 
-		const int nn = 10;
-
-		// find NN & parents
+		// 使用八叉树搜索最邻近点
 		for (int lvl = 0; lvl < pyrLevelsUsed; lvl++)
 		{
 			Pnt* pts = points[lvl];
@@ -1119,29 +1110,30 @@ namespace dso
 
 			for (int i = 0; i < npts; i++)
 			{
-				//resultSet.init(pts[i].neighbours, pts[i].neighboursDist );
 				resultSet.init(ret_index, ret_dist);
 				Vec2f pt = Vec2f(pts[i].u, pts[i].v);
 				indexes[lvl]->findNeighbors(resultSet, (float*)&pt, nanoflann::SearchParams());
-				int myidx = 0;
-				float sumDF = 0;
+				
+				int idx = 0;
+				float sumDF = 0, df = 0;
 				for (int k = 0; k < nn; k++)
 				{
-					pts[i].neighbours[myidx] = ret_index[k];
-					float df = expf(-ret_dist[k] * NNDistFactor);
-					sumDF += df;
-					pts[i].neighboursDist[myidx] = df;
+					pts[i].neighbours[idx] = ret_index[k];
+					df = expf(-ret_dist[k] * NNDistFactor);
+					pts[i].neighboursDist[idx] = df;
 					assert(ret_index[k] >= 0 && ret_index[k] < npts);
-					myidx++;
+					sumDF += df; idx++;
 				}
-				for (int k = 0; k < nn; k++)
-					pts[i].neighboursDist[k] *= 10 / sumDF;
 
+				// neighboursDist中存储的实际上是按照反距离加权的权重值
+				float sumDFFactor = 10.0 / sumDF;
+				for (int k = 0; k < nn; k++)
+					pts[i].neighboursDist[k] *= sumDFFactor;
 
 				if (lvl < pyrLevelsUsed - 1)
 				{
 					resultSet1.init(ret_index, ret_dist);
-					pt = pt * 0.5f - Vec2f(0.25f, 0.25f);
+					pt = pt * 0.5f - Vec2f(0.25f, 0.25f); // TODO：0.25精度问题
 					indexes[lvl + 1]->findNeighbors(resultSet1, (float*)&pt, nanoflann::SearchParams());
 
 					pts[i].parent = ret_index[0];
@@ -1157,8 +1149,10 @@ namespace dso
 			}
 		}
 
-		// done.
 		for (int i = 0; i < pyrLevelsUsed; i++)
+		{
 			delete indexes[i];
+			indexes[i] = NULL;
+		}
 	}
 }

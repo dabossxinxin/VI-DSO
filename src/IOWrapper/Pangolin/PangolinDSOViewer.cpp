@@ -36,15 +36,11 @@ namespace dso
 {
 	namespace IOWrap
 	{
-
-
-
 		PangolinDSOViewer::PangolinDSOViewer(int w, int h, bool startRunThread)
 		{
 			this->w = w;
 			this->h = h;
 			running = true;
-
 
 			{
 				boost::unique_lock<boost::mutex> lk(openImagesMutex);
@@ -58,26 +54,21 @@ namespace dso
 				internalResImg->setBlack();
 			}
 
-
 			{
 				currentCam = new KeyFrameDisplay();
 			}
 
 			needReset = false;
 
-
 			if (startRunThread)
 				runThread = boost::thread(&PangolinDSOViewer::run, this);
-
 		}
-
 
 		PangolinDSOViewer::~PangolinDSOViewer()
 		{
 			close();
 			runThread.join();
 		}
-
 
 		void PangolinDSOViewer::run()
 		{
@@ -192,17 +183,12 @@ namespace dso
 					lk3d.unlock();
 				}
 
-
-
 				openImagesMutex.lock();
 				if (videoImgChanged) 	texVideo.Upload(internalVideoImg->data, GL_BGR, GL_UNSIGNED_BYTE);
 				if (kfImgChanged) 		texKFDepth.Upload(internalKFImg->data, GL_BGR, GL_UNSIGNED_BYTE);
 				if (resImgChanged) 		texResidual.Upload(internalResImg->data, GL_BGR, GL_UNSIGNED_BYTE);
 				videoImgChanged = kfImgChanged = resImgChanged = false;
 				openImagesMutex.unlock();
-
-
-
 
 				// update fps counters
 				{
@@ -468,13 +454,10 @@ namespace dso
 				runningID++;
 			}
 
-
 			model3DMutex.unlock();
 		}
-		void PangolinDSOViewer::publishKeyframes(
-			std::vector<FrameHessian*> &frames,
-			bool final,
-			CalibHessian* HCalib)
+
+		void PangolinDSOViewer::publishKeyframes(std::vector<FrameHessian*> &frames, bool final, CalibHessian* HCalib)
 		{
 			if (!setting_render_display3D) return;
 			if (disableAllDisplay) return;

@@ -103,7 +103,8 @@ void settingsDefault(int preset)
 			"- 1-6 LM iteration each KF\n"
 			"- original image resolution\n", preset == 0 ? "no " : "1x");
 
-		playbackSpeed = (preset == 0 ? 0 : 1);
+		playbackSpeed = 0;
+		//playbackSpeed = (preset == 0 ? 0 : 1);
 		preload = preset == 1;
 		setting_desiredImmatureDensity = 1500;
 		setting_desiredPointDensity = 2000;
@@ -784,9 +785,14 @@ int main(int argc, char** argv)
 				}
 				else
 				{
-					double tsThis = reader->getTimestamp(idsToPlay[idsToPlay.size() - 1]);
-					double tsPrev = reader->getTimestamp(idsToPlay[idsToPlay.size() - 2]);
-					timesToPlayAt.push_back(timesToPlayAt.back() + fabs(tsThis - tsPrev) / playbackSpeed);
+					if (playbackSpeed != 0)
+					{
+						double tsThis = reader->getTimestamp(idsToPlay[idsToPlay.size() - 1]);
+						double tsPrev = reader->getTimestamp(idsToPlay[idsToPlay.size() - 2]);
+						timesToPlayAt.push_back(timesToPlayAt.back() + fabs(tsThis - tsPrev) / playbackSpeed);
+					}
+					else
+						timesToPlayAt.push_back(timesToPlayAt.back());
 				}
 			}
 
@@ -799,9 +805,14 @@ int main(int argc, char** argv)
 				}
 				else
 				{
-					double tsThis = reader_right->getTimestamp(idsToPlay[idsToPlay.size() - 1]);
-					double tsPrev = reader_right->getTimestamp(idsToPlay[idsToPlay.size() - 2]);
-					timesToPlayAtRight.push_back(timesToPlayAtRight.back() + fabs(tsThis - tsPrev) / playbackSpeed);
+					if (playbackSpeed != 0)
+					{
+						double tsThis = reader_right->getTimestamp(idsToPlay[idsToPlay.size() - 1]);
+						double tsPrev = reader_right->getTimestamp(idsToPlay[idsToPlay.size() - 2]);
+						timesToPlayAtRight.push_back(timesToPlayAtRight.back() + fabs(tsThis - tsPrev) / playbackSpeed);
+					}
+					else
+						timesToPlayAtRight.push_back(timesToPlayAtRight.back());
 				}
 			}
 
@@ -825,37 +836,41 @@ int main(int argc, char** argv)
 
 			for (int ii = 30; ii < (int)idsToPlay.size(); ii++)
 			{
-				if (!fullSystem->initialized)	// if not initialized: reset start time.
+				if (!fullSystem->initialized)
 				{
 					gettimeofday(&tv_start, NULL);
 					sInitializerOffset = timesToPlayAt[ii];
 				}
 
-				int i = idsToPlay[ii];
+				// 搜索左相机在右相机中对应的图像
+				int id_right = -1;
+				int id_left = idsToPlay[ii];
+				double timestamp_right = 0;
+				double timestamp_left = pic_time_stamp[id_left];
 
-				double time_l = pic_time_stamp[i];
-				int index = -1;
 				if (use_stereo)
 				{
 					if (pic_time_stamp_r.size() > 0)
 					{
-						for (int i = 0; i < pic_time_stamp_r.size(); ++i)
+						for (int id = 0; id < pic_time_stamp_r.size(); ++id)
 						{
-							if (pic_time_stamp_r[i] >= time_l || fabs(pic_time_stamp_r[i] - time_l) < 0.01) {
-								index = i;
+							timestamp_right = pic_time_stamp_r[id];
+							if (timestamp_right >= timestamp_left ||
+								std::fabs(timestamp_right - timestamp_left) < 0.01)
+							{
+								id_right = id;
 								break;
 							}
 						}
 					}
-					if (fabs(pic_time_stamp_r[index] - time_l) > 0.01) { continue; }
+					if (std::fabs(timestamp_right - timestamp_left) > 0.01) continue;
 				}
 				//LOG(INFO)<<"pic_time_stamp_r.size(): "<<pic_time_stamp_r.size()<<" pic_time_stamp.size(): "<<pic_time_stamp.size();
 				//LOG(INFO)<<std::fixed<<std::setprecision(9)<<"time_l: "<<time_l<<" time_r: "<<pic_time_stamp_r[index];
 				//LOG(INFO)<<"i: "<<i<<" index: "<<index;
 				//exit(1);
 
-				ImageAndExposure* img;
-				ImageAndExposure* img_right;
+				ImageAndExposure *img = NULL, *img_right = NULL;
 				if (preload)
 				{
 					img = preloadedImages[ii];
@@ -863,12 +878,9 @@ int main(int argc, char** argv)
 				}
 				else
 				{
-					img = reader->getImage(i);
-					// 		img_right = reader_right->getImage(i);
-					if (use_stereo)
-						img_right = reader_right->getImage(index);
-					else
-						img_right = img;
+					img = reader->getImage(id_left);
+					if (!use_stereo) img_right = img;
+					else img_right = reader_right->getImage(id_right);
 				}
 
 				bool skipFrame = false;
@@ -886,20 +898,11 @@ int main(int argc, char** argv)
 					}
 				}
 
-				// 	    if(i>300){
-				// 		imu_weight_tracker = 1;
-				// 	    }
-				// 	    if(i>600){
-				// 		imu_weight_tracker = 1;
-				// 	    }
+				if (!skipFrame) fullSystem->addActiveFrame(img, img_right, id_left);
 
-				if (!skipFrame) fullSystem->addActiveFrame(img, img_right, i);
-
-				// 	    IplImage* src = 0;
-				// 	    cvShowImage("camera",src);
-				// 	    cv::waitKey(-1);
-
-				delete img;
+				delete img_right;
+				if (img != img_right) delete img;
+				img = img_right = NULL;
 
 				// 存在两种情况系统需要重置
 				// 1、系统初始化失败并且系统刚刚工作不久
@@ -932,13 +935,13 @@ int main(int argc, char** argv)
 					break;
 				}
 			}
+
 			fullSystem->blockUntilMappingIsFinished();
 			timedso tv_end;
 			gettimeofday(&tv_end, NULL);
-
 			fullSystem->printResult("result.txt");
 
-			int numFramesProcessed = abs(idsToPlay[0] - idsToPlay.back());
+			int numFramesProcessed = std::abs(idsToPlay[0] - idsToPlay.back());
 			double numSecondsProcessed = fabs(reader->getTimestamp(idsToPlay[0]) - reader->getTimestamp(idsToPlay.back()));
 			double MilliSecondsTakenMT = sInitializerOffset + ((tv_end.tv_sec - tv_start.tv_sec)*1000.0f + (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f);
 			printf("\n======================"
@@ -972,9 +975,12 @@ int main(int argc, char** argv)
 
 	printf("DELETE FULLSYSTEM!\n");
 	delete fullSystem;
+	fullSystem = NULL;
 
 	printf("DELETE READER!\n");
-	delete reader;
+	delete reader_right;
+	if (reader != reader_right) delete reader;
+	reader = reader_right = NULL;
 
 	printf("EXIT NOW!\n");
 	return 0;

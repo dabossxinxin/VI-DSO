@@ -852,8 +852,6 @@ namespace dso
 				}
 			}
 		}
-
-
 	}
 
 	void FullSystem::activatePointsOldFirst()
@@ -966,29 +964,22 @@ namespace dso
 	{
 		LOG(INFO) << "id: " << id << "M_num: " << M_num << " M_num2: " << M_num2;
 		LOG(INFO) << std::fixed << std::setprecision(12) << "timestamp: " << pic_time_stamp[id];
-		
+
 		if (isLost) return;
 		boost::unique_lock<boost::mutex> lock(trackMutex);
 
-		if (use_stereo && (T_WD.scale() > 2 || T_WD.scale() < 0.6)) 
-		{
-			initFailed = true;
-			first_track_flag = false;
-		}
-		// 	LOG(INFO)<<"allKeyFramesHistory.size(): "<< allKeyFramesHistory.size();
-		if (use_stereo == false && (T_WD.scale() < 0.1 || T_WD.scale() > 10)) 
+		if (use_stereo && (T_WD.scale() > 2 || T_WD.scale() < 0.6))
 		{
 			initFailed = true;
 			first_track_flag = false;
 		}
 
-		// 	if(use_stereo==false){
-		// 	    if(allKeyFramesHistory.size()<40){
-		// 		imu_use_flag = false;
-		// 	    }else{
-		// 		imu_use_flag = true;
-		// 	    }
-		// 	}
+		// 	LOG(INFO)<<"allKeyFramesHistory.size(): "<< allKeyFramesHistory.size();
+		if (use_stereo == false && (T_WD.scale() < 0.1 || T_WD.scale() > 10))
+		{
+			initFailed = true;
+			first_track_flag = false;
+		}
 
 		// =========================== add into allFrameHistory =========================
 		FrameHessian* fh = new FrameHessian();
@@ -1009,22 +1000,22 @@ namespace dso
 		fh_right->makeImages(image_right->image, &Hcalib);
 		fh->frame_right = fh_right;
 
-		if (allFrameHistory.size() > 0) {
+		if (allFrameHistory.size() > 0) 
+		{
 			fh->velocity = fh->shell->velocity = allFrameHistory.back()->velocity;
 			fh->bias_g = fh->shell->bias_g = allFrameHistory.back()->bias_g + allFrameHistory.back()->delta_bias_g;
 			fh->bias_a = fh->shell->bias_a = allFrameHistory.back()->bias_a + allFrameHistory.back()->delta_bias_a;
 		}
 
-		allFrameHistory.push_back(shell);
+		allFrameHistory.emplace_back(shell);
 
-		// 	LOG(INFO)<<"fh->bias_a: "<<fh->bias_a.transpose();
 		if (!initialized)
 		{
 			// use initializer!
 			if (coarseInitializer->frameID < 0 && use_stereo)	// first frame set. fh is kept by coarseInitializer.
 			{
 				coarseInitializer->setFirstStereo(&Hcalib, fh, fh_right);
-				// 			coarseInitializer->setFirst(&Hcalib, fh);
+				//coarseInitializer->setFirst(&Hcalib, fh);
 				initFirstFrame_imu(fh);
 
 				initializeFromInitializer(fh);
@@ -1041,7 +1032,6 @@ namespace dso
 				initializeFromInitializer(fh);
 				lock.unlock();
 				deliverTrackedFrame(fh, fh_right, true);
-
 			}
 			else
 			{
@@ -1049,14 +1039,14 @@ namespace dso
 				fh->shell->poseValid = false;
 				delete fh;
 			}
-			std::ofstream f1;
+			/*std::ofstream f1;
 			std::string dsoposefile = "./data/" + savefile_tail + ".txt";
 			f1.open(dsoposefile, std::ios::out);
 			f1.close();
 			std::ofstream f2;
 			std::string gtfile = "./data/" + savefile_tail + "_gt.txt";
 			f2.open(gtfile, std::ios::out);
-			f2.close();
+			f2.close();*/
 			return;
 		}
 		else	// do front-end operation.

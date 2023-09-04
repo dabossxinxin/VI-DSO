@@ -129,6 +129,7 @@ public:
 				files.push_back(name);
 			}
 
+			files.erase(files.begin());
 			printf("got %d entries and %d files!\n", numEntries, (int)files.size());
 			std::sort(files.begin(), files.end());
 #else
