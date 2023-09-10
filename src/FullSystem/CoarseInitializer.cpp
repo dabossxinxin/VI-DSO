@@ -56,6 +56,7 @@ namespace dso
 		wM.diagonal()[6] = SCALE_A;
 		wM.diagonal()[7] = SCALE_B;
 	}
+
 	CoarseInitializer::~CoarseInitializer()
 	{
 		for (int lvl = 0; lvl < pyrLevelsUsed; lvl++)
@@ -955,7 +956,7 @@ namespace dso
 			// 			}
 			// 		}
 			numPoints[lvl] = nl;
-			// 		LOG(INFO)<<"lvl: "<<lvl<<" nl:"<<nl;
+			// LOG(INFO)<<"lvl: "<<lvl<<" nl:"<<nl;
 		}
 		delete[] statusMap;
 		delete[] statusMapB;

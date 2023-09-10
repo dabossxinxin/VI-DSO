@@ -78,9 +78,11 @@ namespace dso
 		CoarseInitializer(int w, int h);
 		~CoarseInitializer();
 
-
+		// 将进入系统的第一帧图像设置为初始化器的第一帧
 		void setFirst(CalibHessian* HCalib, FrameHessian* newFrameHessian);
 		void setFirstStereo(CalibHessian* HCalib, FrameHessian* newFrameHessian, FrameHessian* newFrameHessian_right);
+
+		// 跟踪系统最新送进来的图像帧并返回跟踪状态
 		bool trackFrame(FrameHessian* newFrameHessian, std::vector<IOWrap::Output3DWrapper*> &wraps);
 		void calcTGrads(FrameHessian* newFrameHessian);
 
@@ -93,9 +95,9 @@ namespace dso
 		AffLight thisToNext_aff;
 		SE3 thisToNext;
 
-		FrameHessian* firstFrame;
-		FrameHessian* firstFrame_right;
-		FrameHessian* newFrame;
+		FrameHessian* firstFrame;			// 初始化器中维护的最初进入系统的一帧
+		FrameHessian* firstFrame_right;		// 最初进入系统的帧对应的双目右相机图像帧
+		FrameHessian* newFrame;				// 最新进入初始化器中的帧用于与第一帧完成初始化
 
 	private:
 
