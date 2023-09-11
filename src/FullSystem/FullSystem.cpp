@@ -957,28 +957,170 @@ namespace dso
 				}
 			}
 		}
+	}
 
+	void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
+	{
+		boost::unique_lock<boost::mutex> lock(mapMutex);
+
+		FrameHessian* firstFrame = coarseInitializer->firstFrame;
+		firstFrame->idx = frameHessians.size();
+		frameHessians.emplace_back(firstFrame);
+		firstFrame->frameID = allKeyFramesHistory.size();
+		firstFrame->frame_right->frameID = 10000 + allKeyFramesHistory.size();
+		allKeyFramesHistory.emplace_back(firstFrame->shell);
+		ef->insertFrame(firstFrame, &Hcalib);
+
+		setPrecalcValues();
+
+		FrameHessian* firstFrameRight = coarseInitializer->firstFrame_right;
+
+		//int numPointsTotal = makePixelStatus(firstFrame->dI, selectionMap, wG[0], hG[0], setting_desiredDensity);
+		//int numPointsTotal = pixelSelector->makeMaps(firstFrame->dIp, selectionMap,setting_desiredDensity);
+
+		firstFrame->pointHessians.reserve(wG[0] * hG[0] * 0.2f);
+		firstFrame->pointHessiansMarginalized.reserve(wG[0] * hG[0] * 0.2f);
+		firstFrame->pointHessiansOut.reserve(wG[0] * hG[0] * 0.2f);
+
+		float idepthStereo = 0;
+		float sumIDepth = 1e-5;
+		float numIDepth = 1e-5;
+
+		// 计算初始化得到的特征点深度平均值
+		for (int i = 0; i < coarseInitializer->numPoints[0]; i++)
+		{
+			sumIDepth += coarseInitializer->points[0][i].iR;
+			numIDepth++;
+		}
+		float rescaleFactor = 1 / (sumIDepth / numIDepth);
+
+		float keepPercentage = setting_desiredPointDensity / coarseInitializer->numPoints[0];
+		if (!setting_debugout_runquiet)
+			printf("Initialization: keep %.1f%% (need %d, have %d)!\n",
+				100 * keepPercentage, (int)(setting_desiredPointDensity), coarseInitializer->numPoints[0]);
+
+		if (use_stereo)
+		{
+			// 双目情况中将特征点激活加入firstFrame中并向energyFunction中添加双目残差
+			for (int idx = 0; idx < coarseInitializer->numPoints[0]; ++idx)
+			{
+				if (rand() / (float)RAND_MAX > keepPercentage) continue;
+
+				Pnt* point = coarseInitializer->points[0] + idx;
+				ImmaturePoint* pt = new ImmaturePoint(point->u + 0.5f, point->v + 0.5f, firstFrame, point->my_type, &Hcalib);
+
+				pt->u_stereo = pt->u;
+				pt->v_stereo = pt->v;
+				pt->idepth_min_stereo = 0;
+				pt->idepth_max_stereo = NAN;
+
+				pt->traceStereo(firstFrameRight, &Hcalib, 1);
+
+				pt->idepth_min = pt->idepth_min_stereo;
+				pt->idepth_max = pt->idepth_max_stereo;
+				idepthStereo = pt->idepth_stereo;
+
+				if (!std::isfinite(pt->energyTH) || !std::isfinite(pt->idepth_min) ||
+					!std::isfinite(pt->idepth_max) || pt->idepth_min < 0 || pt->idepth_max < 0)
+				{
+					delete pt;
+					pt = NULL;
+					continue;
+				}
+
+				PointHessian* ph = new PointHessian(pt, &Hcalib);
+				if (pt != NULL) { delete pt; pt = NULL; }
+				if (!std::isfinite(ph->energyTH)) { delete ph; continue; }
+
+				ph->setIdepthScaled(idepthStereo);
+				ph->setIdepthZero(idepthStereo);
+				ph->hasDepthPrior = true;
+				ph->setPointStatus(PointHessian::ACTIVE);
+
+				firstFrame->pointHessians.emplace_back(ph);
+				ef->insertPoint(ph);
+
+				PointFrameResidual* r = new PointFrameResidual(ph, ph->host, ph->host->frame_right);
+				r->state_NewEnergy = r->state_energy = 0;
+				r->state_NewState = ResState::OUTLIER;
+				r->setState(ResState::INNER);
+				r->stereoResidualFlag = true;
+				ph->residuals.emplace_back(r);
+				ef->insertResidual(r);
+			}
+		}
+		else
+		{
+			// 初始化器中的特征点激活加入到firstFrame中
+			for (int idx = 0; idx < coarseInitializer->numPoints[0]; ++idx)
+			{
+				if (rand() / (float)RAND_MAX > keepPercentage) continue;
+
+				Pnt* point = coarseInitializer->points[0] + idx;
+				ImmaturePoint* pt = new ImmaturePoint(point->u + 0.5f, point->v + 0.5f, firstFrame, point->my_type, &Hcalib);
+
+				if (!std::isfinite(pt->energyTH)) { delete pt; continue; }
+
+				pt->idepth_max = pt->idepth_min = 1;
+				PointHessian* ph = new PointHessian(pt, &Hcalib);
+				if (pt != NULL) { delete pt; pt = NULL; }
+				if (!std::isfinite(ph->energyTH)) { delete ph; continue; }
+
+				ph->setIdepthScaled(point->iR*rescaleFactor);
+				ph->setIdepthZero(ph->idepth);
+				ph->hasDepthPrior = true;
+				ph->setPointStatus(PointHessian::ACTIVE);
+
+				firstFrame->pointHessians.emplace_back(ph);
+				ef->insertPoint(ph);
+			}
+		}
+
+		SE3 firstToNew = coarseInitializer->thisToNext;
+		firstToNew.translation() /= rescaleFactor;
+
+		// really no lock required, as we are initializing.
+		{
+			boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
+			//firstFrame->shell->camToWorld = SE3();
+			//firstFrame->shell->aff_g2l = AffLight(0,0);
+			//firstFrame->setEvalPT_scaled(firstFrame->shell->camToWorld.inverse(),firstFrame->shell->aff_g2l);
+			firstFrame->shell->trackingRef = 0;
+			firstFrame->shell->camToTrackingRef = SE3();
+			//LOG(INFO)<<"firstFrame pose: \n"<<firstFrame->shell->camToWorld.matrix();
+
+			newFrame->shell->camToWorld = firstFrame->shell->camToWorld*firstToNew.inverse();
+			newFrame->shell->aff_g2l = AffLight(0, 0);
+			newFrame->setEvalPT_scaled(newFrame->shell->camToWorld.inverse(), newFrame->shell->aff_g2l);
+			newFrame->shell->trackingRef = firstFrame->shell;
+			newFrame->shell->camToTrackingRef = firstToNew.inverse();
+			//LOG(INFO)<<"newFrame pose: \n"<<newFrame->shell->camToWorld.matrix();
+		}
+
+		initialized = true;
+		printf("INITIALIZE FROM INITIALIZER (%d pts)!\n", (int)firstFrame->pointHessians.size());
 	}
 
 	void FullSystem::addActiveFrame(ImageAndExposure* image, ImageAndExposure* image_right, int id)
 	{
-		LOG(INFO) << "id: " << id << "M_num: " << M_num << " M_num2: " << M_num2;
+		LOG(INFO) << "id: " << id << " M_num: " << M_num << " M_num2: " << M_num2;
 		LOG(INFO) << std::fixed << std::setprecision(12) << "timestamp: " << pic_time_stamp[id];
 
 		if (isLost) return;
 		boost::unique_lock<boost::mutex> lock(trackMutex);
 
-		if (use_stereo && (T_WD.scale() > 2 || T_WD.scale() < 0.6))
+		if (use_stereo && (T_WD.scale() > 2 || T_WD.scale() < 0.6)) 
 		{
 			initFailed = true;
 			first_track_flag = false;
+			LOG(INFO) << "tracking error scale.";
 		}
 
-		// 	LOG(INFO)<<"allKeyFramesHistory.size(): "<< allKeyFramesHistory.size();
-		if (use_stereo == false && (T_WD.scale() < 0.1 || T_WD.scale() > 10))
+		if (!use_stereo && (T_WD.scale() < 0.1 || T_WD.scale() > 10))
 		{
 			initFailed = true;
 			first_track_flag = false;
+			LOG(INFO) << "tracking error scale.";
 		}
 
 		// =========================== add into allFrameHistory =========================
@@ -1006,24 +1148,24 @@ namespace dso
 			fh->bias_g = fh->shell->bias_g = allFrameHistory.back()->bias_g + allFrameHistory.back()->delta_bias_g;
 			fh->bias_a = fh->shell->bias_a = allFrameHistory.back()->bias_a + allFrameHistory.back()->delta_bias_a;
 		}
-
 		allFrameHistory.emplace_back(shell);
 
+		// 系统还未完成初始化提供以下几种初始化方式
+		// 1、双目初始化并且加上惯导的信息
+		// 2、单目初始化并且加上惯导的信息
 		if (!initialized)
 		{
-			// use initializer!
-			if (coarseInitializer->frameID < 0 && use_stereo)	// first frame set. fh is kept by coarseInitializer.
+			if (coarseInitializer->frameID < 0 && use_stereo)
 			{
 				coarseInitializer->setFirstStereo(&Hcalib, fh, fh_right);
-				//coarseInitializer->setFirst(&Hcalib, fh);
 				initFirstFrame_imu(fh);
-
 				initializeFromInitializer(fh);
-				initialized = true;
+				//initialized = true;		// 使用一帧双目的数据就可以成功进行初始化
 				M_num = 0;
 				M_num2 = 0;
 			}
-			else if (coarseInitializer->frameID < 0) {
+			else if (coarseInitializer->frameID < 0) 
+			{
 				coarseInitializer->setFirst(&Hcalib, fh);
 				initFirstFrame_imu(fh);
 			}
@@ -1049,7 +1191,8 @@ namespace dso
 			f2.close();*/
 			return;
 		}
-		else	// do front-end operation.
+		// 系统已经初始化成功开始进行前端跟踪操作
+		else
 		{
 			// =========================== SWAP tracking reference?. =========================
 			if (coarseTracker_forNewKF->refFrameID > coarseTracker->refFrameID)
@@ -1060,14 +1203,10 @@ namespace dso
 				coarseTracker_forNewKF = tmp;
 			}
 
-			//if(allFrameHistory.size() == 2)
-			//{
-			//	  initializeFromInitializer(fh);
-			//}
 			Vec4 tres = trackNewCoarse(fh);
-			//LOG(INFO)<<"track done";
 
-			if (!std::isfinite((double)tres[0]) || !std::isfinite((double)tres[1]) || !std::isfinite((double)tres[2]) || !std::isfinite((double)tres[3]))
+			if (!std::isfinite((double)tres[0]) || !std::isfinite((double)tres[1]) || 
+				!std::isfinite((double)tres[2]) || !std::isfinite((double)tres[3]))
 			{
 				printf("Initial Tracking failed: LOST!\n");
 				isLost = true;
@@ -1085,7 +1224,7 @@ namespace dso
 				Vec2 refToFh = AffLight::fromToVecExposure(coarseTracker->lastRef->ab_exposure, fh->ab_exposure,
 					coarseTracker->lastRef_aff_g2l, fh->shell->aff_g2l);
 
-				// BRIGHTNESS CHECK
+				// 位置变化 & 亮度变化 & 时间间隔
 				needToMakeKF = allFrameHistory.size() == 1 ||
 					setting_kfGlobalWeight * setting_maxShiftWeightT *  sqrtf((double)tres[1]) / (wG[0] + hG[0]) +
 					setting_kfGlobalWeight * setting_maxShiftWeightR *  sqrtf((double)tres[2]) / (wG[0] + hG[0]) +
@@ -1096,34 +1235,19 @@ namespace dso
 					setting_kfGlobalWeight * setting_maxShiftWeightR *  sqrtf((double)tres[2]) / (wG[0] + hG[0]) +
 					setting_kfGlobalWeight * setting_maxShiftWeightRT * sqrtf((double)tres[3]) / (wG[0] + hG[0]) +
 					setting_kfGlobalWeight * setting_maxAffineWeight * fabs(logf((float)refToFh[0]));
-				//if(pic_time_stamp[fh->shell->incoming_id] - pic_time_stamp[coarseTracker->lastRef->shell->incoming_id]>=0.39&&delta>0.3f)
-				if (pic_time_stamp[fh->shell->incoming_id] - pic_time_stamp[coarseTracker->lastRef->shell->incoming_id] >= 0.45&&delta > 0.5f)
-					needToMakeKF = true;
-				//if(pic_time_stamp[fh->shell->incoming_id] - pic_time_stamp[coarseTracker->lastRef->shell->incoming_id]>=0.45)
-				// 	needToMakeKF = true;
-				//LOG(INFO)<<"delta: "<<delta;
-				//LOG(INFO)<<"tres: "<<tres.transpose()<<" refToFh[0]: "<<refToFh[0];
-			}
+				double interval = pic_time_stamp[fh->shell->incoming_id] - pic_time_stamp[coarseTracker->lastRef->shell->incoming_id];
 
-			//LOG(INFO)<<"needToMakeKF: "<<(int)needToMakeKF;
-			//LOG(INFO)<<"coarseTracker->firstCoarseRMSE: "<<coarseTracker->firstCoarseRMSE<<" tres[0]:"<<tres[0];
-			//LOG(INFO)<<"allFrameHistory.size(): "<<allFrameHistory.size();
+				if (interval >= 0.45 && delta > 0.5f) needToMakeKF = true;
+			}
 
 			for (IOWrap::Output3DWrapper* ow : outputWrapper)
 				ow->publishCamPose(fh->shell, &Hcalib);
 
 			lock.unlock();
 			deliverTrackedFrame(fh, fh_right, needToMakeKF);
-			//LOG(INFO)<<"fh->worldToCam_evalPT: "<<allFrameHistory[allFrameHistory.size()-1]->camToWorld.translation().transpose();
-			//LOG(INFO)<<"fh->shell->aff_g2l: "<<allFrameHistory[allFrameHistory.size()-1]->aff_g2l.vec().transpose();
-			//LOG(INFO)<<"fh->shell->camToTrackingRef: "<<fh->shell->camToTrackingRef.translation().transpose();
-			//LOG(INFO)<<"fh->shell->trackingRef->camToWorld : "<<fh->shell->trackingRef->camToWorld.translation().transpose();
-			//exit(1);
 
-			//Sophus::Matrix4d T = shell->camToWorld.matrix();
 			Sophus::Matrix4d T = T_WD.matrix()*shell->camToWorld.matrix()*T_WD.inverse().matrix();
 			savetrajectory_tum(SE3(T), run_time);
-			//savetrajectory(T);
 			return;
 		}
 	}
@@ -1255,15 +1379,13 @@ namespace dso
 			}
 			else handleKey(IOWrap::waitKey(1));
 
-
-
 			if (needKF) makeKeyFrame(fh, fh_right);
 			else makeNonKeyFrame(fh, fh_right);
 		}
 		else
 		{
 			boost::unique_lock<boost::mutex> lock(trackMapSyncMutex);
-			unmappedTrackedFrames.push_back(fh);
+			unmappedTrackedFrames.emplace_back(fh);
 			if (needKF) needNewKFAfter = fh->shell->trackingRef->id;
 			trackedFrameSignal.notify_all();
 
@@ -1517,171 +1639,6 @@ namespace dso
 
 		//printLogLine();
 		//printEigenValLine();
-	}
-
-	void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
-	{
-		boost::unique_lock<boost::mutex> lock(mapMutex);
-
-		// add firstframe.
-		FrameHessian* firstFrame = coarseInitializer->firstFrame;
-		firstFrame->idx = frameHessians.size();
-		frameHessians.push_back(firstFrame);
-		firstFrame->frameID = allKeyFramesHistory.size();
-		firstFrame->frame_right->frameID = 10000 + allKeyFramesHistory.size();
-		// 	firstFrame->frame_right->frameID = allKeyFramesHistory.size();
-		allKeyFramesHistory.push_back(firstFrame->shell);
-		ef->insertFrame(firstFrame, &Hcalib);
-		setPrecalcValues();
-
-		FrameHessian* firstFrameRight = coarseInitializer->firstFrame_right;
-
-		//int numPointsTotal = makePixelStatus(firstFrame->dI, selectionMap, wG[0], hG[0], setting_desiredDensity);
-		//int numPointsTotal = pixelSelector->makeMaps(firstFrame->dIp, selectionMap,setting_desiredDensity);
-
-		firstFrame->pointHessians.reserve(wG[0] * hG[0] * 0.2f);
-		firstFrame->pointHessiansMarginalized.reserve(wG[0] * hG[0] * 0.2f);
-		firstFrame->pointHessiansOut.reserve(wG[0] * hG[0] * 0.2f);
-
-		float idepthStereo = 0;
-		float sumID = 1e-5, numID = 1e-5;
-		for (int i = 0; i < coarseInitializer->numPoints[0]; i++)
-		{
-			sumID += coarseInitializer->points[0][i].iR;
-			numID++;
-		}
-		float rescaleFactor = 1 / (sumID / numID);
-
-		// randomly sub-select the points I need.
-		float keepPercentage = setting_desiredPointDensity / coarseInitializer->numPoints[0];
-
-		if (!setting_debugout_runquiet)
-			printf("Initialization: keep %.1f%% (need %d, have %d)!\n", 100 * keepPercentage,
-			(int)(setting_desiredPointDensity), coarseInitializer->numPoints[0]);
-		if (use_stereo) {
-			for (int i = 0; i < coarseInitializer->numPoints[0]; i++)
-			{
-				if (rand() / (float)RAND_MAX > keepPercentage) continue;
-
-				Pnt* point = coarseInitializer->points[0] + i;
-				ImmaturePoint* pt = new ImmaturePoint(point->u + 0.5f, point->v + 0.5f, firstFrame, point->my_type, &Hcalib);
-
-				pt->u_stereo = pt->u;
-				pt->v_stereo = pt->v;
-				pt->idepth_min_stereo = 0;
-				pt->idepth_max_stereo = NAN;
-
-				pt->traceStereo(firstFrameRight, &Hcalib, 1);
-
-				pt->idepth_min = pt->idepth_min_stereo;
-				pt->idepth_max = pt->idepth_max_stereo;
-				idepthStereo = pt->idepth_stereo;
-
-				double d_mid = 0.5*(1 / pt->idepth_min + 1 / pt->idepth_max);
-				if (!std::isfinite(pt->energyTH) || !std::isfinite(pt->idepth_min) || !std::isfinite(pt->idepth_max)
-					/*||d_mid<0||d_mid>100*/ || pt->idepth_min < 0 || pt->idepth_max < 0)
-				{
-					delete pt;
-					continue;
-
-				}
-				PointHessian* ph = new PointHessian(pt, &Hcalib);
-				delete pt;
-				if (!std::isfinite(ph->energyTH)) { delete ph; continue; }
-
-				ph->setIdepthScaled(idepthStereo);
-				ph->setIdepthZero(idepthStereo);
-				ph->hasDepthPrior = true;
-				ph->setPointStatus(PointHessian::ACTIVE);
-
-				// 		ph->setIdepthScaled(point->iR*rescaleFactor);
-				// 		ph->setIdepthZero(ph->idepth);
-				// 		ph->hasDepthPrior=true;
-				// 		ph->setPointStatus(PointHessian::ACTIVE);
-
-				firstFrame->pointHessians.push_back(ph);
-				ef->insertPoint(ph);
-				PointFrameResidual* r = new PointFrameResidual(ph, ph->host, ph->host->frame_right);
-				r->state_NewEnergy = r->state_energy = 0;
-				r->state_NewState = ResState::OUTLIER;
-				r->setState(ResState::INNER);
-				r->stereoResidualFlag = true;
-				ph->residuals.push_back(r);
-				ef->insertResidual(r);
-
-				// 		if(rand()/(float)RAND_MAX > keepPercentage) continue;
-				// 
-				// 		Pnt* point = coarseInitializer->points[0]+i;
-				// 		ImmaturePoint* pt = new ImmaturePoint(point->u+0.5f,point->v+0.5f,firstFrame,point->my_type, &Hcalib);
-				// 
-				// 		if(!std::isfinite(pt->energyTH)) { delete pt; continue; }
-				// 
-				// 
-				// 		pt->idepth_max=pt->idepth_min=1;
-				// 		PointHessian* ph = new PointHessian(pt, &Hcalib);
-				// 		delete pt;
-				// 		if(!std::isfinite(ph->energyTH)) {delete ph; continue;}
-				// 
-				// 		ph->setIdepthScaled(point->iR*rescaleFactor);
-				// 		ph->setIdepthZero(ph->idepth);
-				// 		ph->hasDepthPrior=true;
-				// 		ph->setPointStatus(PointHessian::ACTIVE);
-				// 
-				// 		firstFrame->pointHessians.push_back(ph);
-				// 		ef->insertPoint(ph);
-			}
-		}
-		else {
-			for (int i = 0; i < coarseInitializer->numPoints[0]; i++) {
-				if (rand() / (float)RAND_MAX > keepPercentage) continue;
-
-				Pnt* point = coarseInitializer->points[0] + i;
-				ImmaturePoint* pt = new ImmaturePoint(point->u + 0.5f, point->v + 0.5f, firstFrame, point->my_type, &Hcalib);
-
-				if (!std::isfinite(pt->energyTH)) { delete pt; continue; }
-
-
-				pt->idepth_max = pt->idepth_min = 1;
-				PointHessian* ph = new PointHessian(pt, &Hcalib);
-				delete pt;
-				if (!std::isfinite(ph->energyTH)) { delete ph; continue; }
-
-				ph->setIdepthScaled(point->iR*rescaleFactor);
-				ph->setIdepthZero(ph->idepth);
-				ph->hasDepthPrior = true;
-				ph->setPointStatus(PointHessian::ACTIVE);
-
-				firstFrame->pointHessians.push_back(ph);
-				ef->insertPoint(ph);
-			}
-		}
-
-		SE3 firstToNew = coarseInitializer->thisToNext;
-		firstToNew.translation() /= rescaleFactor;
-
-		// really no lock required, as we are initializing.
-		{
-			boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
-			// 		firstFrame->shell->camToWorld = SE3();
-			// 		firstFrame->shell->aff_g2l = AffLight(0,0);
-			// 		firstFrame->setEvalPT_scaled(firstFrame->shell->camToWorld.inverse(),firstFrame->shell->aff_g2l);
-			firstFrame->shell->trackingRef = 0;
-			firstFrame->shell->camToTrackingRef = SE3();
-			// 		LOG(INFO)<<"firstFrame pose: \n"<<firstFrame->shell->camToWorld.matrix();
-
-			newFrame->shell->camToWorld = firstFrame->shell->camToWorld*firstToNew.inverse();
-			newFrame->shell->aff_g2l = AffLight(0, 0);
-			newFrame->setEvalPT_scaled(newFrame->shell->camToWorld.inverse(), newFrame->shell->aff_g2l);
-			newFrame->shell->trackingRef = firstFrame->shell;
-			newFrame->shell->camToTrackingRef = firstToNew.inverse();
-
-			// 		LOG(INFO)<<"newFrame pose: \n"<<newFrame->shell->camToWorld.matrix();
-
-		}
-
-		initialized = true;
-		printf("INITIALIZE FROM INITIALIZER (%d pts)!\n", (int)firstFrame->pointHessians.size());
-		// 	if((int)firstFrame->pointHessians.size()<600)initFailed=true;
 	}
 
 	void FullSystem::makeNewTraces(FrameHessian* newFrame, float* gtDepth)

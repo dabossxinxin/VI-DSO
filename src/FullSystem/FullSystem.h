@@ -151,7 +151,7 @@ namespace dso
 
 		bool isLost;
 		bool initFailed;
-		bool initialized;
+		bool initialized;			// 系统是否成功初始化的标志位
 		bool linearizeOperation;
 
 		void setGammaFunction(float* BInv);
@@ -187,7 +187,7 @@ namespace dso
 
 		void removeOutliers();
 
-		// set precalc values.
+		// 计算滑窗关键帧之间的相互关系
 		void setPrecalcValues();
 
 		// solce. eventually migrate to ef.
@@ -247,8 +247,8 @@ namespace dso
 		Vec5 lastCoarseRMSE;
 
 		// ================== changed by mapper-thread. protected by mapMutex ===============
-		boost::mutex mapMutex;
-		std::vector<FrameShell*> allKeyFramesHistory;
+		boost::mutex mapMutex;							// 针对全局地图设置的互斥锁
+		std::vector<FrameShell*> allKeyFramesHistory;	// 记录系统中筛选出的所有关键帧
 
 		EnergyFunctional* ef;
 		IndexThreadReduce<Vec10> treadReduce;
@@ -257,8 +257,8 @@ namespace dso
 		PixelSelector* pixelSelector;
 		CoarseDistanceMap* coarseDistanceMap;
 
-		std::vector<FrameHessian*> frameHessians;	// ONLY changed in marginalizeFrame and addFrame.
-		std::vector<FrameHessian*> frameHessians_right;	// ONLY changed in marginalizeFrame and addFrame.
+		std::vector<FrameHessian*> frameHessians;		// 维护系统滑窗优化时滑窗中的关键帧
+		std::vector<FrameHessian*> frameHessians_right;	// 维护系统滑窗优化时滑窗中的关键帧，针对双目右相机图像
 		std::vector<PointFrameResidual*> activeResiduals;
 		float currentMinActDist;
 

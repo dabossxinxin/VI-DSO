@@ -12,13 +12,13 @@ dataname="MH_01_easy"
 #dataname="V1_01_easy"
 #dataname="V1_03_difficult"
     # run dso
-     ./build/bin/Release/dso_dataset \
- 	  files0=../VRData/${dataname}/mav0/cam0/data.zip \
+     ./build/bin/Debug/dso_dataset \
+ 	  files0=../../Data/${dataname}/mav0/cam0/data.zip \
  	  calib0=./calib/euroc/cam0.txt \
 	  imu_info=./calib/euroc/IMU_info.txt \
-	  groundtruth=../VRData/${dataname}/mav0/state_groundtruth_estimate0/data.csv \
-	  imudata=../VRData/${dataname}/mav0/imu0/data.csv \
-	  pic_timestamp=../VRData/${dataname}/mav0/cam0/data.csv \
+	  groundtruth=../../Data/${dataname}/mav0/state_groundtruth_estimate0/data.csv \
+	  imudata=../../Data/${dataname}/mav0/imu0/data.csv \
+	  pic_timestamp=../../Data/${dataname}/mav0/cam0/data.csv \
  	  preset=0 mode=1 \
 	  quiet=1 nomt=1 \
       savefile_tail=nt_${dataname}\
