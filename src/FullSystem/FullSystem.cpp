@@ -1553,35 +1553,31 @@ namespace dso
 
 		// =========================== OPTIMIZE ALL =========================
 		fh->frameEnergyTH = frameHessians.back()->frameEnergyTH;
-		// 	LOG(INFO)<<"optimize start";
 		float rmse = optimize(setting_maxOptIterations);
-		// 	LOG(INFO)<<"rmse: "<<rmse;
 
 		// =========================== Figure Out if INITIALIZATION FAILED =========================
 		if (allKeyFramesHistory.size() <= 4)
 		{
-			// 		LOG(INFO)<<"allKeyFramesHistory.size(): "<<allKeyFramesHistory.size()<<" rmse: "<<rmse;
 			if (allKeyFramesHistory.size() == 2 && rmse > 20 * benchmark_initializerSlackFactor)
 			{
-				printf("I THINK INITIALIZATINO FAILED! Resetting.\n");
+				printf("KeyFrames Size:%d,RMSE:%f,Initialize failed! Resetting.\n", allKeyFramesHistory.size(), rmse);
 				initFailed = true;
 			}
 			if (allKeyFramesHistory.size() == 3 && rmse > 13 * benchmark_initializerSlackFactor)
 			{
-				printf("I THINK INITIALIZATINO FAILED! Resetting.\n");
+				printf("KeyFrames Size:%d,RMSE:%f,Initialize failed! Resetting.\n", allKeyFramesHistory.size(), rmse);
 				initFailed = true;
 			}
 			if (allKeyFramesHistory.size() == 4 && rmse > 9 * benchmark_initializerSlackFactor)
 			{
-				printf("I THINK INITIALIZATINO FAILED! Resetting.\n");
+				printf("KeyFrames Size:%d,RMSE:%f,Initialize failed! Resetting.\n", allKeyFramesHistory.size(), rmse);
 				initFailed = true;
 			}
 		}
 
 		if (isLost) return;
 
-		// 	LOG(INFO)<<"remove outliers.";
-			// =========================== REMOVE OUTLIER =========================
+		// =========================== REMOVE OUTLIER =========================
 		removeOutliers();
 
 		{
@@ -1595,8 +1591,7 @@ namespace dso
 
 		debugPlot("post Optimize");
 
-		// 	LOG(INFO)<<"flagPointsForRemoval";
-			// =========================== (Activate-)Marginalize Points =========================
+		// =========================== (Activate-)Marginalize Points =========================
 		flagPointsForRemoval();
 		// 	LOG(INFO)<<"ef->dropPointsF()";
 		ef->dropPointsF();
