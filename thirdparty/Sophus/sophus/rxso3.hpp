@@ -680,10 +680,10 @@ public:
    * \pre quaternion must not be zero
    */
   inline explicit
-  RxSO3Group(const Quaternion<Scalar> & quat) : quaternion_(quat) {
-    if(quaternion_.squaredNorm() <= SophusConstants<Scalar>::epsilon()) {
-      throw ScaleNotPositive();
-    }
+	  RxSO3Group(const Quaternion<Scalar> & quat) : quaternion_(quat) {
+	  if (quaternion_.squaredNorm() <= SophusConstants<Scalar>::epsilon()) {
+		  throw ScaleNotPositive();
+	  }
   }
 
   /**

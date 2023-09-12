@@ -84,8 +84,8 @@ namespace dso
 
 		void setAdjointsF(CalibHessian* Hcalib);
 
-		std::vector<EFFrame*> frames;
-		int nPoints, nFrames, nResiduals;
+		std::vector<EFFrame*> frames;		// 滑窗中所有的关键帧
+		int nPoints, nFrames, nResiduals;	// 滑窗中参加优化的特征点、关键帧以及残差数量
 
 		MatXX HM;
 		VecX bM;

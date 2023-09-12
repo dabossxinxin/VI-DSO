@@ -963,13 +963,13 @@ namespace dso
 	{
 		boost::unique_lock<boost::mutex> lock(mapMutex);
 
-		FrameHessian* firstFrame = coarseInitializer->firstFrame;
-		firstFrame->idx = frameHessians.size();
-		frameHessians.emplace_back(firstFrame);
-		firstFrame->frameID = allKeyFramesHistory.size();
-		firstFrame->frame_right->frameID = 10000 + allKeyFramesHistory.size();
-		allKeyFramesHistory.emplace_back(firstFrame->shell);
-		ef->insertFrame(firstFrame, &Hcalib);
+		//FrameHessian* firstFrame = coarseInitializer->firstFrame;
+		coarseInitializer->firstFrame->idx = frameHessians.size();
+		frameHessians.emplace_back(coarseInitializer->firstFrame);
+		coarseInitializer->firstFrame->frameID = allKeyFramesHistory.size();
+		coarseInitializer->firstFrame->frame_right->frameID = 10000 + allKeyFramesHistory.size();
+		allKeyFramesHistory.emplace_back(coarseInitializer->firstFrame->shell);
+		ef->insertFrame(coarseInitializer->firstFrame, &Hcalib);
 
 		setPrecalcValues();
 
@@ -978,9 +978,9 @@ namespace dso
 		//int numPointsTotal = makePixelStatus(firstFrame->dI, selectionMap, wG[0], hG[0], setting_desiredDensity);
 		//int numPointsTotal = pixelSelector->makeMaps(firstFrame->dIp, selectionMap,setting_desiredDensity);
 
-		firstFrame->pointHessians.reserve(wG[0] * hG[0] * 0.2f);
-		firstFrame->pointHessiansMarginalized.reserve(wG[0] * hG[0] * 0.2f);
-		firstFrame->pointHessiansOut.reserve(wG[0] * hG[0] * 0.2f);
+		coarseInitializer->firstFrame->pointHessians.reserve(wG[0] * hG[0] * 0.2f);
+		coarseInitializer->firstFrame->pointHessiansMarginalized.reserve(wG[0] * hG[0] * 0.2f);
+		coarseInitializer->firstFrame->pointHessiansOut.reserve(wG[0] * hG[0] * 0.2f);
 
 		float idepthStereo = 0;
 		float sumIDepth = 1e-5;
@@ -1007,7 +1007,7 @@ namespace dso
 				if (rand() / (float)RAND_MAX > keepPercentage) continue;
 
 				Pnt* point = coarseInitializer->points[0] + idx;
-				ImmaturePoint* pt = new ImmaturePoint(point->u + 0.5f, point->v + 0.5f, firstFrame, point->my_type, &Hcalib);
+				ImmaturePoint* pt = new ImmaturePoint(point->u + 0.5f, point->v + 0.5f, coarseInitializer->firstFrame, point->my_type, &Hcalib);
 
 				pt->u_stereo = pt->u;
 				pt->v_stereo = pt->v;
@@ -1037,7 +1037,7 @@ namespace dso
 				ph->hasDepthPrior = true;
 				ph->setPointStatus(PointHessian::ACTIVE);
 
-				firstFrame->pointHessians.emplace_back(ph);
+				coarseInitializer->firstFrame->pointHessians.emplace_back(ph);
 				ef->insertPoint(ph);
 
 				PointFrameResidual* r = new PointFrameResidual(ph, ph->host, ph->host->frame_right);
@@ -1057,7 +1057,7 @@ namespace dso
 				if (rand() / (float)RAND_MAX > keepPercentage) continue;
 
 				Pnt* point = coarseInitializer->points[0] + idx;
-				ImmaturePoint* pt = new ImmaturePoint(point->u + 0.5f, point->v + 0.5f, firstFrame, point->my_type, &Hcalib);
+				ImmaturePoint* pt = new ImmaturePoint(point->u + 0.5f, point->v + 0.5f, coarseInitializer->firstFrame, point->my_type, &Hcalib);
 
 				if (!std::isfinite(pt->energyTH)) { delete pt; continue; }
 
@@ -1071,7 +1071,7 @@ namespace dso
 				ph->hasDepthPrior = true;
 				ph->setPointStatus(PointHessian::ACTIVE);
 
-				firstFrame->pointHessians.emplace_back(ph);
+				coarseInitializer->firstFrame->pointHessians.emplace_back(ph);
 				ef->insertPoint(ph);
 			}
 		}
@@ -1085,20 +1085,20 @@ namespace dso
 			//firstFrame->shell->camToWorld = SE3();
 			//firstFrame->shell->aff_g2l = AffLight(0,0);
 			//firstFrame->setEvalPT_scaled(firstFrame->shell->camToWorld.inverse(),firstFrame->shell->aff_g2l);
-			firstFrame->shell->trackingRef = 0;
-			firstFrame->shell->camToTrackingRef = SE3();
+			coarseInitializer->firstFrame->shell->trackingRef = 0;
+			coarseInitializer->firstFrame->shell->camToTrackingRef = SE3();
 			//LOG(INFO)<<"firstFrame pose: \n"<<firstFrame->shell->camToWorld.matrix();
 
-			newFrame->shell->camToWorld = firstFrame->shell->camToWorld*firstToNew.inverse();
+			newFrame->shell->camToWorld = coarseInitializer->firstFrame->shell->camToWorld*firstToNew.inverse();
 			newFrame->shell->aff_g2l = AffLight(0, 0);
 			newFrame->setEvalPT_scaled(newFrame->shell->camToWorld.inverse(), newFrame->shell->aff_g2l);
-			newFrame->shell->trackingRef = firstFrame->shell;
+			newFrame->shell->trackingRef = coarseInitializer->firstFrame->shell;
 			newFrame->shell->camToTrackingRef = firstToNew.inverse();
 			//LOG(INFO)<<"newFrame pose: \n"<<newFrame->shell->camToWorld.matrix();
 		}
 
 		initialized = true;
-		printf("INITIALIZE FROM INITIALIZER (%d pts)!\n", (int)firstFrame->pointHessians.size());
+		printf("INITIALIZE FROM INITIALIZER (%d pts)!\n", (int)coarseInitializer->firstFrame->pointHessians.size());
 	}
 
 	void FullSystem::addActiveFrame(ImageAndExposure* image, ImageAndExposure* image_right, int id)

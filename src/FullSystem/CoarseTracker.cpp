@@ -1021,17 +1021,17 @@ namespace dso
 				inc *= extrapFac;
 
 				Vec8 incScaled = inc;
-				// 			incScaled.segment<3>(0) *= SCALE_XI_ROT;
-				// 			incScaled.segment<3>(3) *= SCALE_XI_TRANS;
-				// 			incScaled.segment<1>(6) *= SCALE_A;
-				// 			incScaled.segment<1>(7) *= SCALE_B;
+				//incScaled.segment<3>(0) *= SCALE_XI_ROT;
+				//incScaled.segment<3>(3) *= SCALE_XI_TRANS;
+				//incScaled.segment<1>(6) *= SCALE_A;
+				//incScaled.segment<1>(7) *= SCALE_B;
 				incScaled.segment<3>(0) *= SCALE_XI_TRANS;
 				incScaled.segment<3>(3) *= SCALE_XI_ROT;
 				incScaled.segment<1>(6) *= SCALE_A;
 				incScaled.segment<1>(7) *= SCALE_B;
 
 				if (!std::isfinite(incScaled.sum())) incScaled.setZero();
-				// 			LOG(INFO)<<"incScaled: "<<incScaled.transpose();s
+				//LOG(INFO)<<"incScaled: "<<incScaled.transpose();s
 
 				SE3 refToNew_new = SE3::exp((Vec6)(incScaled.head<6>())) * refToNew_current;
 				AffLight aff_g2l_new = aff_g2l_current;

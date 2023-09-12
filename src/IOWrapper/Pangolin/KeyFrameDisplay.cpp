@@ -310,12 +310,8 @@ namespace dso
 			Sophus::Matrix4f m = camToWorld.matrix().cast<float>();
 			glMultMatrixf((GLfloat*)m.data());
 
-			if (color == 0)
-			{
-				glColor3f(1, 0, 0);
-			}
-			else
-				glColor3f(color[0], color[1], color[2]);
+			if (color == 0) glColor3f(1, 0, 0);
+			else glColor3f(color[0], color[1], color[2]);
 
 			glLineWidth(lineWidth);
 			glBegin(GL_LINES);
