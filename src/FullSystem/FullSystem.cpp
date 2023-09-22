@@ -1254,6 +1254,7 @@ namespace dso
 
 	void FullSystem::initFirstFrame_imu(FrameHessian* fh)
 	{
+<<<<<<< Updated upstream
 		int imuStartIdx = 0;
 		int imuStartIdxGT = 0;
 
@@ -1266,11 +1267,23 @@ namespace dso
 					std::fabs(imu_time_stamp[idx] - pic_time_stamp[fh->shell->incoming_id]) < 0.001)
 				{
 					imuStartIdx = idx;
+=======
+		int index;
+		if (imu_time_stamp.size() > 0) 
+		{
+			for (int idx = 0; idx < imu_time_stamp.size(); ++idx) 
+			{
+				if (imu_time_stamp[idx] >= pic_time_stamp[fh->shell->incoming_id] ||
+					std::fabs(imu_time_stamp[idx] - pic_time_stamp[fh->shell->incoming_id]) < 0.001) 
+				{
+					index = idx;
+>>>>>>> Stashed changes
 					break;
 				}
 			}
 		}
 
+<<<<<<< Updated upstream
 		if (!gt_time_stamp.empty())
 		{
 			for (int idx = 0; idx < gt_time_stamp.size(); ++idx)
@@ -1279,6 +1292,17 @@ namespace dso
 					fabs(gt_time_stamp[idx] - pic_time_stamp[fh->shell->incoming_id]) < 0.001)
 				{
 					imuStartIdxGT = idx;
+=======
+		int index2 = 0;
+		if (gt_time_stamp.size() > 0) 
+		{
+			for (int idx = 0; idx < gt_time_stamp.size(); ++idx) 
+			{
+				if (gt_time_stamp[idx] >= pic_time_stamp[fh->shell->incoming_id] || 
+					std::fabs(gt_time_stamp[idx] - pic_time_stamp[fh->shell->incoming_id]) < 0.001)
+				{
+					index2 = idx;2222222222334
+>>>>>>> Stashed changes
 					break;
 				}
 			}
