@@ -20,16 +20,15 @@
 * You should have received a copy of the GNU General Public License
 * along with DSO. If not, see <http://www.gnu.org/licenses/>.
 */
-
-
 #pragma once
 
+#include <map>
 #include <vector>
 #include <math.h>
-#include <map>
 
 #include "util/NumType.h"
-#include "util/IndexThreadReduce.h"
+//#include "util/IndexThreadReduce.h"
+#include "util/IndexThreadReduceNB.h"
 
 #include "FullSystem/Residuals.h"
 #include "FullSystem/HessianBlocks.h"
@@ -74,6 +73,8 @@ namespace dso
 
 		void marginalizePointsF();
 		void dropPointsF();
+
+		// 滑窗优化函数
 		void solveSystemF(int iteration, double lambda, CalibHessian* HCalib);
 		double calcMEnergyF();
 		double calcLEnergyF_MT();
@@ -115,6 +116,7 @@ namespace dso
 		std::vector<VecX> lastNullspaces_affA;
 		std::vector<VecX> lastNullspaces_affB;
 
+		ThreadPool* threadPool;
 		IndexThreadReduce<Vec10>* red;
 
 		std::map<uint64_t,
@@ -126,6 +128,7 @@ namespace dso
 
 		VecX getStitchedDeltaF() const;
 
+		// 根据求解得到的相机位姿以及相机内参更新量计算特征点逆深度的更新量 
 		void resubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT);
 		void resubstituteFPt(const VecCf &xc, Mat18f* xAd, int min, int max, Vec10* stats, int tid);
 
@@ -135,7 +138,7 @@ namespace dso
 
 		void calcLEnergyPt(int min, int max, Vec10* stats, int tid);
 
-		void getIMUHessian(MatXX &H, VecX &b);
+		void calcIMUHessian(MatXX &H, VecX &b);
 
 		void orthogonalize(VecX* b, MatXX* H);
 		Mat18f* adHTdeltaF;
@@ -159,5 +162,7 @@ namespace dso
 		std::vector<EFPoint*> allPointsToMarg;
 
 		float currentLambda;
+
+		ThreadPool 
 	};
 }

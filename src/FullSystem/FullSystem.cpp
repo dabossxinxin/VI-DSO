@@ -1254,52 +1254,62 @@ namespace dso
 
 	void FullSystem::initFirstFrame_imu(FrameHessian* fh)
 	{
-		int index;
-		if (imu_time_stamp.size() > 0) {
-			for (int i = 0; i < imu_time_stamp.size(); ++i) {
-				if (imu_time_stamp[i] >= pic_time_stamp[fh->shell->incoming_id] || fabs(imu_time_stamp[i] - pic_time_stamp[fh->shell->incoming_id]) < 0.001) {
-					index = i;
+		int imuStartIdx = 0;
+		int imuStartIdxGT = 0;
+
+		// 获取fh帧时刻对应的IMU数据索引
+		if (!imu_time_stamp.empty())
+		{
+			for (int idx = 0; idx < imu_time_stamp.size(); ++idx)
+			{
+				if (imu_time_stamp[idx] >= pic_time_stamp[fh->shell->incoming_id] ||
+					std::fabs(imu_time_stamp[idx] - pic_time_stamp[fh->shell->incoming_id]) < 0.001)
+				{
+					imuStartIdx = idx;
 					break;
 				}
 			}
 		}
-		int index2 = 0;
-		if (gt_time_stamp.size() > 0) {
-			for (int i = 0; i < gt_time_stamp.size(); ++i) {
-				if (gt_time_stamp[i] >= pic_time_stamp[fh->shell->incoming_id] || fabs(gt_time_stamp[i] - pic_time_stamp[fh->shell->incoming_id]) < 0.001) {
-					index2 = i;
+
+		if (!gt_time_stamp.empty())
+		{
+			for (int idx = 0; idx < gt_time_stamp.size(); ++idx)
+			{
+				if (gt_time_stamp[idx] >= pic_time_stamp[fh->shell->incoming_id] ||
+					fabs(gt_time_stamp[idx] - pic_time_stamp[fh->shell->incoming_id]) < 0.001)
+				{
+					imuStartIdxGT = idx;
 					break;
 				}
 			}
 		}
+
 		Vec3 g_b = Vec3::Zero();
-		Vec3 g_w;
-		g_w << 0, 0, -1;
-		for (int j = 0; j < 40; j++) {
-			g_b = g_b + m_acc[index - j];
-		}
-		double norm = g_b.norm();
-		g_b = -g_b / norm;
+		Vec3 g_w; g_w << 0, 0, -1;	// 世界坐标系下的重力方向
+
+		// IMU开始工作时要求机器人静止一段时间采集静态IMU数据
+		// 此时采集到的IMU加速度计数据等于重力数据取负数
+		for (int j = 0; j < 40; j++)
+			g_b = g_b + m_acc[imuStartIdx - j];
+
+		g_b = -g_b / g_b.norm();
 		Vec3 g_c = T_BC.inverse().rotationMatrix()*g_b;
 
-		norm = g_c.norm();
-		g_c = g_c / norm;
-		Vec3 n = Sophus::SO3::hat(g_c)*g_w;
+		g_c = g_c / g_c.norm();
+		Vec3 rAxis_wc = Sophus::SO3::hat(g_c)*g_w;
 
-		norm = n.norm();
-		n = n / norm;
-		double sin_theta = norm;
+		// 罗德里格斯公式计算相机系到世界系的旋转
+		double nNorm = rAxis_wc.norm();
+		rAxis_wc = rAxis_wc / nNorm;
+		double sin_theta = nNorm;
 		double cos_theta = g_c.dot(g_w);
 
-		Mat33 R_wc = cos_theta * Mat33::Identity() + (1 - cos_theta)*n*n.transpose() + sin_theta * Sophus::SO3::hat(n);
+		Mat33 R_wc = cos_theta * Mat33::Identity() + (1 - cos_theta)*rAxis_wc*rAxis_wc.transpose() + sin_theta * Sophus::SO3::hat(rAxis_wc);
 
 		SE3 T_wc(R_wc, Vec3::Zero());
-		if (gt_path.size() > 0)
-			T_WR_align = T_wc * T_BC.inverse()*gt_pose[index2].inverse();
-		else
-			T_WR_align = SE3();
+		if (gt_path.empty()) T_WR_align = SE3();
+		else T_WR_align = T_wc * T_BC.inverse()*gt_pose[imuStartIdxGT].inverse();
 
-		//LOG(INFO)<<"first pose: \n"<<T_wc.matrix();
 		fh->shell->camToWorld = T_wc;
 		fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(), fh->shell->aff_g2l);
 

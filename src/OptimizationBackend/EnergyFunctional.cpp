@@ -40,10 +40,13 @@ namespace dso
 	bool EFIndicesValid = false;
 	bool EFDeltaValid = false;
 
-	void EnergyFunctional::getIMUHessian(MatXX &H, VecX &b)
+	void EnergyFunctional::calcIMUHessian(MatXX &H, VecX &b)
 	{
 		b = VecX::Zero(7 + nFrames * 15);
 		H = MatXX::Zero(7 + nFrames * 15, 7 + nFrames * 15);
+
+		//std::cout << "H: " << std::endl << H << std::endl;
+		//std::cout << "b: " << std::endl << b << std::endl;
 
 		if (nFrames == 1) return;
 		int imuResCounter = 0;
@@ -60,7 +63,7 @@ namespace dso
 			// P、V、Q
 			VecX r_pvq = VecX::Zero(9);
 			MatXX J_pvq = MatXX::Zero(9, 7 + nFrames * 15);
-			
+
 			IMUPreintegrator IMU_preintegrator;
 			IMU_preintegrator.reset();
 
@@ -113,11 +116,11 @@ namespace dso
 			}
 
 			// 从当前帧时刻到下一帧时刻内的IMU测量值预积分
-			while (true) 
+			while (true)
 			{
 				if (imu_time_stamp[imuStartStamp + 1] < timeEnd)
 					delta_t = imu_time_stamp[imuStartStamp + 1] - imu_time_stamp[imuStartStamp];
-				else 
+				else
 				{
 					delta_t = timeEnd - imu_time_stamp[imuStartStamp];
 					if (delta_t < 0.000001) break;
@@ -148,9 +151,8 @@ namespace dso
 			Mat33 R_WBj2 = T_WBj2.rotationMatrix();
 			Vec3 t_WBj2 = T_WBj2.translation();
 
-			// 	LOG(INFO)<<"a";
-				//calculate res
-			// 	Vec3 so3 = IMU_preintegrator.getJRBiasg()*Framei->delta_bias_g;
+			//calculate res
+			//Vec3 so3 = IMU_preintegrator.getJRBiasg()*Framei->delta_bias_g;
 			Mat33 R_temp = SO3::exp(IMU_preintegrator.getJRBiasg()*Framei->delta_bias_g).matrix();
 			// 	Mat33 res_R = (IMU_preintegrator.getDeltaR()*R_temp).transpose()*R_WB.transpose()*R_WBj;
 			// 	Vec3 res_phi = SO3(res_R).log();
@@ -418,7 +420,6 @@ namespace dso
 				AH.topLeftCorner<6, 6>() = -hostToTarget.Adj().transpose();
 				AT.topLeftCorner<6, 6>() = Mat66::Identity();
 
-
 				Vec2f affLL = AffLight::fromToVecExposure(host->ab_exposure, target->ab_exposure, host->aff_g2l_0(), target->aff_g2l_0()).cast<float>();
 				AT(6, 6) = -affLL[0];
 				AH(6, 6) = affLL[0];
@@ -483,7 +484,6 @@ namespace dso
 
 		HM_imu_half = MatXX::Zero(CPARS + 7, CPARS + 7);
 		bM_imu_half = VecX::Zero(CPARS + 7);
-
 
 		accSSE_top_L = new AccumulatedTopHessianSSE();
 		accSSE_top_A = new AccumulatedTopHessianSSE();
@@ -604,7 +604,7 @@ namespace dso
 		}
 		else
 		{
-			accSSE_bot->setZero(nFrames);
+			accSSE_bot->setZero(nFrames); 
 			for (EFFrame* f : frames)
 				for (EFPoint* p : f->points)
 					accSSE_bot->addPoint(p, true);
@@ -612,23 +612,29 @@ namespace dso
 		}
 	}
 
+	// x：相机姿态以及内参负更新量
+	// Hcalib：相机相机内参信息
+	// MT：是否开启多线程的标志
 	void EnergyFunctional::resubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT)
 	{
 		assert(x.size() == CPARS + nFrames * 8);
 
-		VecXf xF = x.cast<float>();
-		HCalib->step = -x.head<CPARS>();
-
+		VecXf xF = x.cast<float>();			// 相机姿态以及内参负更新量
 		Mat18f* xAd = new Mat18f[nFrames*nFrames];
-		VecCf cstep = xF.head<CPARS>();
+
+		HCalib->step = -x.head<CPARS>();	// 相机内参更新量
+		VecCf cstep = xF.head<CPARS>();		// 相机内参负更新量
+
 		for (EFFrame* h : frames)
 		{
-			h->data->step.head<8>() = -x.segment<8>(CPARS + 8 * h->idx);
+			h->data->step.head<8>() = -x.segment<8>(CPARS + 8 * h->idx);	// 相机相对姿态更新量
 			h->data->step.tail<2>().setZero();
 
 			for (EFFrame* t : frames)
-				xAd[nFrames*h->idx + t->idx] = xF.segment<8>(CPARS + 8 * h->idx).transpose() *   adHostF[h->idx + nFrames * t->idx]
-				+ xF.segment<8>(CPARS + 8 * t->idx).transpose() * adTargetF[h->idx + nFrames * t->idx];
+			{
+				xAd[nFrames * h->idx + t->idx] = xF.segment<8>(CPARS + 8 * h->idx).transpose() * adHostF[h->idx + nFrames * t->idx]
+					+ xF.segment<8>(CPARS + 8 * t->idx).transpose() * adTargetF[h->idx + nFrames * t->idx];
+			}
 		}
 
 		if (MT)
@@ -640,21 +646,28 @@ namespace dso
 		delete[] xAd;
 	}
 
+	// xc：相机内参负更新量
+	// xAd：Xh*dXth/dXh+Xt*dXth/dXt:即将相对位姿转化为host以及target上的绝对位姿
+	// min：用于索引需更新逆深度的特征点
+	// max：用于索引需更新逆深度的特征点
+	// stats：
+	// tid：线程ID
 	void EnergyFunctional::resubstituteFPt(const VecCf &xc, Mat18f* xAd, int min, int max, Vec10* stats, int tid)
 	{
 		for (int k = min; k < max; k++)
 		{
 			EFPoint* p = allPoints[k];
 
+			// 特征点对应的残差若无效那么这个特征不更新
 			int ngoodres = 0;
-			/*for(EFResidual* r : p->residualsAll) if(r->isActive()) ngoodres++;
-			for(EFResidual* r : p->residualsAll) if(r->isActive()&&r->data->stereoResidualFlag==false) ngoodres++;*/
-			for (EFResidual* r : p->residualsAll) if (r->isActive()) ngoodres++;
+			//for(EFResidual* r : p->residualsAll) if(r->isActive()&&r->data->stereoResidualFlag==false) ngoodres++;
+			for(EFResidual* r : p->residualsAll) if (r->isActive()) ngoodres++;
 			if (ngoodres == 0)
 			{
 				p->data->step = 0;
 				continue;
 			}
+
 			float b = p->bdSumF;
 			b -= xc.dot(p->Hcd_accAF + p->Hcd_accLF);
 
@@ -1679,7 +1692,7 @@ namespace dso
 		//	if(setting_affineOptModeB <= 0)
 		//		ns.insert(ns.end(), lastNullspaces_affB.begin(), lastNullspaces_affB.end());
 
-			// make Nullspaces matrix
+		// make Nullspaces matrix
 		MatXX N(ns[0].rows(), ns.size());
 		for (unsigned int i = 0; i < ns.size(); i++)
 			N.col(i) = ns[i].normalized();
@@ -1713,6 +1726,9 @@ namespace dso
 		//	std::cout << "EigPost:: " << eigenvaluesPost.transpose() << "\n";
 	}
 
+	// iteration：优化迭代次数
+	// lambda：优化迭代中的控制迭代收敛速度的因子
+	// HCalib：相机内参数信息
 	void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* HCalib)
 	{
 		if (setting_solverMode & SOLVER_USE_GN) lambda = 0;
@@ -1722,43 +1738,36 @@ namespace dso
 		assert(EFAdjointsValid);
 		assert(EFIndicesValid);
 
-		MatXX HL_top, HA_top, H_sc;
-		VecX  bL_top, bA_top, bM_top, b_sc;
+		MatXX HL_top, HA_top, H_sc, H_imu, HFinal_top;
+		VecX  bL_top, bA_top, b_sc, b_imu, bFinal_top;
+
+		calcIMUHessian(H_imu, b_imu);
+
+		//std::cout << "Himu: " << std::endl << H_imu << std::endl;
+		//std::cout << "bimu: " << std::endl << b_imu << std::endl;
 
 		accumulateAF_MT(HA_top, bA_top, multiThreading);
 		accumulateLF_MT(HL_top, bL_top, multiThreading);
 		accumulateSCF_MT(H_sc, b_sc, multiThreading);
 
-		bM_top = (bM + HM * getStitchedDeltaF());
-
-		VecX StitchedDelta = getStitchedDeltaF();
-		VecX StitchedDelta2 = VecX::Zero(CPARS + 7 + nFrames * 17);
+		VecX StitchedDeltaVisual = getStitchedDeltaF();
+		VecX StitchedDeltaIMU = VecX::Zero(CPARS + 7 + nFrames * 17);
 		// 	StitchedDelta2.block(0,0,CPARS,1) = StitchedDelta.block(0,0,CPARS,1);
-		for (int i = 0; i < nFrames; ++i)
+		for (int idx = 0; idx < nFrames; ++idx)
 		{
-			if (frames[i]->m_flag)
-				StitchedDelta2.block(CPARS + 7 + 17 * i, 0, 6, 1) = StitchedDelta.block(CPARS + 8 * i, 0, 6, 1);
+			if (frames[idx]->m_flag)
+				StitchedDeltaIMU.block(CPARS + 7 + 17 * idx, 0, 6, 1) = StitchedDeltaVisual.block(CPARS + 8 * idx, 0, 6, 1);
 		}
-		// 	for(int i=0;i<nFrames;++i){
-		// 	    VecX temp = frames[i]->data->get_state();
-		// 	    StitchedDelta2.block(CPARS+7+17*i,0,6,1) = temp.block(0,0,6,1);
-		// 	}
-		StitchedDelta2.block(CPARS, 0, 7, 1) = state_twd;
+		StitchedDeltaIMU.block(CPARS, 0, 7, 1) = state_twd;
 
-		VecX bM_top_imu = (bM_imu + HM_imu * StitchedDelta2);
-
-		MatXX H_imu;
-		VecX b_imu;
-		getIMUHessian(H_imu, b_imu);
-
-		MatXX HFinal_top;
-		VecX bFinal_top;
+		VecX bM_top = (bM + HM * StitchedDeltaVisual);
+		VecX bM_top_imu = (bM_imu + HM_imu * StitchedDeltaIMU);
 
 		if (setting_solverMode & SOLVER_ORTHOGONALIZE_SYSTEM)
 		{
-			// have a look if prior is there.
 			bool haveFirstFrame = false;
-			for (EFFrame* f : frames) if (f->frameID == 0) haveFirstFrame = true;
+			for (EFFrame* f : frames)
+				if (f->frameID == 0) haveFirstFrame = true;
 
 			MatXX HT_act = HL_top + HA_top - H_sc;
 			VecX bT_act = bL_top + bA_top - b_sc;
@@ -1772,7 +1781,8 @@ namespace dso
 			lastHS = HFinal_top;
 			lastbS = bFinal_top;
 
-			for (int i = 0; i < 8 * nFrames + CPARS; i++) HFinal_top(i, i) *= (1 + lambda);
+			for (int idx = 0; idx < 8 * nFrames + CPARS; idx++)
+				HFinal_top(idx, idx) *= (1 + lambda);
 		}
 		else
 		{
@@ -1782,70 +1792,73 @@ namespace dso
 			lastHS = HFinal_top - H_sc;
 			lastbS = bFinal_top;
 
-			for (int i = 0; i < 8 * nFrames + CPARS; i++) HFinal_top(i, i) *= (1 + lambda);
+			for (int idx = 0; idx < 8 * nFrames + CPARS; idx++)
+				HFinal_top(idx, idx) *= (1 + lambda);
 			HFinal_top -= H_sc * (1.0f / (1 + lambda));
 		}
 
-		// 	HFinal_top = MatXX::Zero(CPARS+8*nFrames,CPARS+8*nFrames);
-		// 	bFinal_top = VecX::Zero(CPARS+8*nFrames);
-
-		H_imu.block(3, 3, 3, 3) += setting_initialIMUHessian * Mat33::Identity();
 		H_imu(6, 6) += setting_initialScaleHessian;
-		for (int i = 0; i < nFrames; ++i)
+		H_imu.block(3, 3, 3, 3) += setting_initialIMUHessian * Mat33::Identity();
+		
+		for (int idx = 0; idx < nFrames; ++idx)
 		{
-			H_imu.block(7 + 15 * i + 9, 7 + 15 * i + 9, 3, 3) += setting_initialbgHessian * Mat33::Identity();
-			H_imu.block(7 + 15 * i + 12, 7 + 15 * i + 12, 3, 3) += setting_initialbaHessian * Mat33::Identity();
+			H_imu.block(7 + 15 * idx + 9, 7 + 15 * idx + 9, 3, 3) += setting_initialbgHessian * Mat33::Identity();
+			H_imu.block(7 + 15 * idx + 12, 7 + 15 * idx + 12, 3, 3) += setting_initialbaHessian * Mat33::Identity();
 		}
-		for (int i = 0; i < 7 + 15 * nFrames; i++)H_imu(i, i) *= (1 + lambda);
+		for (int idx = 0; idx < 7 + 15 * nFrames; ++idx) H_imu(idx, idx) *= (1 + lambda);
 
-		//imu_term
-		MatXX HFinal_top2 = MatXX::Zero(CPARS + 7 + 17 * nFrames, CPARS + 7 + 17 * nFrames);//Cam,Twd,pose,a,b,v,bg,ba
+		// 构造结合惯导信息以及视觉信息的Hessian以及b且Hessian矩阵的排列顺序如下
+		// 相机内参、世界系与DSO系的变化、帧姿态、光度参数、速度、陀螺仪偏置、加速度计偏置
+		MatXX HFinal_top2 = MatXX::Zero(CPARS + 7 + 17 * nFrames, CPARS + 7 + 17 * nFrames);
 		VecX bFinal_top2 = VecX::Zero(CPARS + 7 + 17 * nFrames);
 		HFinal_top2.block(0, 0, CPARS, CPARS) = HFinal_top.block(0, 0, CPARS, CPARS);
 		HFinal_top2.block(CPARS, CPARS, 7, 7) = H_imu.block(0, 0, 7, 7);
 		bFinal_top2.block(0, 0, CPARS, 1) = bFinal_top.block(0, 0, CPARS, 1);
 		bFinal_top2.block(CPARS, 0, 7, 1) = b_imu.block(0, 0, 7, 1);
-		for (int i = 0; i < nFrames; ++i)
-		{
-			//cam
-			HFinal_top2.block(0, CPARS + 7 + i * 17, CPARS, 8) += HFinal_top.block(0, CPARS + i * 8, CPARS, 8);
-			HFinal_top2.block(CPARS + 7 + i * 17, 0, 8, CPARS) += HFinal_top.block(CPARS + i * 8, 0, 8, CPARS);
-			//Twd
-			HFinal_top2.block(CPARS, CPARS + 7 + i * 17, 7, 6) += H_imu.block(0, 7 + i * 15, 7, 6);
-			HFinal_top2.block(CPARS + 7 + i * 17, CPARS, 6, 7) += H_imu.block(7 + i * 15, 0, 6, 7);
-			HFinal_top2.block(CPARS, CPARS + 7 + i * 17 + 8, 7, 9) += H_imu.block(0, 7 + i * 15 + 6, 7, 9);
-			HFinal_top2.block(CPARS + 7 + i * 17 + 8, CPARS, 9, 7) += H_imu.block(7 + i * 15 + 6, 0, 9, 7);
-			//pose a b
-			HFinal_top2.block(CPARS + 7 + i * 17, CPARS + 7 + i * 17, 8, 8) += HFinal_top.block(CPARS + i * 8, CPARS + i * 8, 8, 8);
-			//pose
-			HFinal_top2.block(CPARS + 7 + i * 17, CPARS + 7 + i * 17, 6, 6) += H_imu.block(7 + i * 15, 7 + i * 15, 6, 6);
-			//v bg ba
-			HFinal_top2.block(CPARS + 7 + i * 17 + 8, CPARS + 7 + i * 17 + 8, 9, 9) += H_imu.block(7 + i * 15 + 6, 7 + i * 15 + 6, 9, 9);
-			//v bg ba,pose
-			HFinal_top2.block(CPARS + 7 + i * 17 + 8, CPARS + 7 + i * 17, 9, 6) += H_imu.block(7 + i * 15 + 6, 7 + i * 15, 9, 6);
-			//pose,v bg ba
-			HFinal_top2.block(CPARS + 7 + i * 17, CPARS + 7 + i * 17 + 8, 6, 9) += H_imu.block(7 + i * 15, 7 + i * 15 + 6, 6, 9);
 
-			for (int j = i + 1; j < nFrames; ++j) {
+		for (int idx = 0; idx < nFrames; ++idx)
+		{
+			// 相机内参与其它关键帧位姿和光度参数的关系
+			HFinal_top2.block(0, CPARS + 7 + idx * 17, CPARS, 8) += HFinal_top.block(0, CPARS + idx * 8, CPARS, 8);
+			HFinal_top2.block(CPARS + 7 + idx * 17, 0, 8, CPARS) += HFinal_top.block(CPARS + idx * 8, 0, 8, CPARS);
+
+			// Twd与IMU的P、V、Q、Bias之间的关系
+			HFinal_top2.block(CPARS, CPARS + 7 + idx * 17, 7, 6) += H_imu.block(0, 7 + idx * 15, 7, 6);
+			HFinal_top2.block(CPARS + 7 + idx * 17, CPARS, 6, 7) += H_imu.block(7 + idx * 15, 0, 6, 7);
+			HFinal_top2.block(CPARS, CPARS + 7 + idx * 17 + 8, 7, 9) += H_imu.block(0, 7 + idx * 15 + 6, 7, 9);
+			HFinal_top2.block(CPARS + 7 + idx * 17 + 8, CPARS, 9, 7) += H_imu.block(7 + idx * 15 + 6, 0, 9, 7);
+
+			// 相机位姿、光度参数
+			HFinal_top2.block(CPARS + 7 + idx * 17, CPARS + 7 + idx * 17, 8, 8) += HFinal_top.block(CPARS + idx * 8, CPARS + idx * 8, 8, 8);
+			HFinal_top2.block(CPARS + 7 + idx * 17, CPARS + 7 + idx * 17, 6, 6) += H_imu.block(7 + idx * 15, 7 + idx * 15, 6, 6);
+
+			// 速度、加速度偏置、陀螺仪偏置
+			HFinal_top2.block(CPARS + 7 + idx * 17 + 8, CPARS + 7 + idx * 17 + 8, 9, 9) += H_imu.block(7 + idx * 15 + 6, 7 + idx * 15 + 6, 9, 9);
+			HFinal_top2.block(CPARS + 7 + idx * 17 + 8, CPARS + 7 + idx * 17, 9, 6) += H_imu.block(7 + idx * 15 + 6, 7 + idx * 15, 9, 6);
+			HFinal_top2.block(CPARS + 7 + idx * 17, CPARS + 7 + idx * 17 + 8, 6, 9) += H_imu.block(7 + idx * 15, 7 + idx * 15 + 6, 6, 9);
+
+			for (int j = idx + 1; j < nFrames; ++j) 
+			{
 				//pose a b
-				HFinal_top2.block(CPARS + 7 + i * 17, CPARS + 7 + j * 17, 8, 8) += HFinal_top.block(CPARS + i * 8, CPARS + j * 8, 8, 8);
-				HFinal_top2.block(CPARS + 7 + j * 17, CPARS + 7 + i * 17, 8, 8) += HFinal_top.block(CPARS + j * 8, CPARS + i * 8, 8, 8);
+				HFinal_top2.block(CPARS + 7 + idx * 17, CPARS + 7 + j * 17, 8, 8) += HFinal_top.block(CPARS + idx * 8, CPARS + j * 8, 8, 8);
+				HFinal_top2.block(CPARS + 7 + j * 17, CPARS + 7 + idx * 17, 8, 8) += HFinal_top.block(CPARS + j * 8, CPARS + idx * 8, 8, 8);
 				//pose
-				HFinal_top2.block(CPARS + 7 + i * 17, CPARS + 7 + j * 17, 6, 6) += H_imu.block(7 + i * 15, 7 + j * 15, 6, 6);
-				HFinal_top2.block(CPARS + 7 + j * 17, CPARS + 7 + i * 17, 6, 6) += H_imu.block(7 + j * 15, 7 + i * 15, 6, 6);
+				HFinal_top2.block(CPARS + 7 + idx * 17, CPARS + 7 + j * 17, 6, 6) += H_imu.block(7 + idx * 15, 7 + j * 15, 6, 6);
+				HFinal_top2.block(CPARS + 7 + j * 17, CPARS + 7 + idx * 17, 6, 6) += H_imu.block(7 + j * 15, 7 + idx * 15, 6, 6);
 				//v bg ba
-				HFinal_top2.block(CPARS + 7 + i * 17 + 8, CPARS + 7 + j * 17 + 8, 9, 9) += H_imu.block(7 + i * 15 + 6, 7 + j * 15 + 6, 9, 9);
-				HFinal_top2.block(CPARS + 7 + j * 17 + 8, CPARS + 7 + i * 17 + 8, 9, 9) += H_imu.block(7 + j * 15 + 6, 7 + i * 15 + 6, 9, 9);
+				HFinal_top2.block(CPARS + 7 + idx * 17 + 8, CPARS + 7 + j * 17 + 8, 9, 9) += H_imu.block(7 + idx * 15 + 6, 7 + j * 15 + 6, 9, 9);
+				HFinal_top2.block(CPARS + 7 + j * 17 + 8, CPARS + 7 + idx * 17 + 8, 9, 9) += H_imu.block(7 + j * 15 + 6, 7 + idx * 15 + 6, 9, 9);
 				//v bg ba,pose
-				HFinal_top2.block(CPARS + 7 + i * 17 + 8, CPARS + 7 + j * 17, 9, 6) += H_imu.block(7 + i * 15 + 6, 7 + j * 15, 9, 6);
-				HFinal_top2.block(CPARS + 7 + j * 17, CPARS + 7 + i * 17 + 8, 6, 9) += H_imu.block(7 + j * 15, 7 + i * 15 + 6, 6, 9);
+				HFinal_top2.block(CPARS + 7 + idx * 17 + 8, CPARS + 7 + j * 17, 9, 6) += H_imu.block(7 + idx * 15 + 6, 7 + j * 15, 9, 6);
+				HFinal_top2.block(CPARS + 7 + j * 17, CPARS + 7 + idx * 17 + 8, 6, 9) += H_imu.block(7 + j * 15, 7 + idx * 15 + 6, 6, 9);
 				//pose,v bg ba
-				HFinal_top2.block(CPARS + 7 + i * 17, CPARS + 7 + j * 17 + 8, 6, 9) += H_imu.block(7 + i * 15, 7 + j * 15 + 6, 6, 9);
-				HFinal_top2.block(CPARS + 7 + j * 17 + 8, CPARS + 7 + i * 17, 9, 6) += H_imu.block(7 + j * 15 + 6, 7 + i * 15, 9, 6);
+				HFinal_top2.block(CPARS + 7 + idx * 17, CPARS + 7 + j * 17 + 8, 6, 9) += H_imu.block(7 + idx * 15, 7 + j * 15 + 6, 6, 9);
+				HFinal_top2.block(CPARS + 7 + j * 17 + 8, CPARS + 7 + idx * 17, 9, 6) += H_imu.block(7 + j * 15 + 6, 7 + idx * 15, 9, 6);
 			}
-			bFinal_top2.block(CPARS + 7 + 17 * i, 0, 8, 1) += bFinal_top.block(CPARS + 8 * i, 0, 8, 1);
-			bFinal_top2.block(CPARS + 7 + 17 * i, 0, 6, 1) += b_imu.block(7 + 15 * i, 0, 6, 1);
-			bFinal_top2.block(CPARS + 7 + 17 * i + 8, 0, 9, 1) += b_imu.block(7 + 15 * i + 6, 0, 9, 1);
+
+			bFinal_top2.block(CPARS + 7 + 17 * idx, 0, 8, 1) += bFinal_top.block(CPARS + 8 * idx, 0, 8, 1);
+			bFinal_top2.block(CPARS + 7 + 17 * idx, 0, 6, 1) += b_imu.block(7 + 15 * idx, 0, 6, 1);
+			bFinal_top2.block(CPARS + 7 + 17 * idx + 8, 0, 9, 1) += b_imu.block(7 + 15 * idx + 6, 0, 9, 1);
 		}
 
 		HFinal_top2 += (HM_imu + HM_bias);
@@ -1890,28 +1903,34 @@ namespace dso
 		}
 		else
 		{
-			if (!imu_use_flag) {
+			if (!imu_use_flag)
+			{
 				VecX SVecI = (HFinal_top.diagonal() + VecX::Constant(HFinal_top.cols(), 10)).cwiseSqrt().cwiseInverse();
 				MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_top * SVecI.asDiagonal();
 				x = SVecI.asDiagonal() * HFinalScaled.ldlt().solve(SVecI.asDiagonal() * bFinal_top);//  SVec.asDiagonal() * svd.matrixV() * Ub;
 			}
-			else {
+			else
+			{
+				//std::cout << "Himu: " << H_imu << std::endl;
+				//std::cout << "HFinal_top: " << HFinal_top << std::endl;
+				//std::cout << "HFinal_top2: " << HFinal_top2 << std::endl;
+				//std::cout << "bFinal_top2: " << bFinal_top2 << std::endl;
+
 				VecX SVecI = (HFinal_top2.diagonal() + VecX::Constant(HFinal_top2.cols(), 10)).cwiseSqrt().cwiseInverse();
 				MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_top2 * SVecI.asDiagonal();
 				x2 = SVecI.asDiagonal() * HFinalScaled.ldlt().solve(SVecI.asDiagonal() * bFinal_top2);//  SVec.asDiagonal() * svd.matrixV() * Ub;
-	// 		    LOG(INFO)<<"HFinal_top2: \n"<<HFinal_top2;
-	// 		    LOG(INFO)<<"bFinal_top2: "<<bFinal_top2.transpose();
-	// 		    LOG(INFO)<<"x2: "<<x2.transpose();
-	// 		    exit(1);
+
+				//std::cout << "SVecI: " << SVecI << std::endl;
+				//std::cout << "HFinal_top: " << HFinal_top2 << std::endl;
+				//std::cout << "bFinal_top: " << bFinal_top2 << std::endl;
+
 				x.block(0, 0, CPARS, 1) = x2.block(0, 0, CPARS, 1);
-				for (int i = 0; i < nFrames; ++i) {
+				for (int i = 0; i < nFrames; ++i)
+				{
 					x.block(CPARS + i * 8, 0, 8, 1) = x2.block(CPARS + 7 + 17 * i, 0, 8, 1);
-					// 			LOG(INFO)<<"x.block(CPARS+i*8,0,8,1): "<<x.block(CPARS+i*8,0,8,1).transpose();
 					frames[i]->data->step_imu = -x2.block(CPARS + 7 + 17 * i + 8, 0, 9, 1);
-					// 			LOG(INFO)<<"frames[i]->data->step_imu: "<<frames[i]->data->step_imu.transpose();
 				}
 				step_twd = -x2.block(CPARS, 0, 7, 1);
-				// 		    LOG(INFO)<<"step_twd: "<<step_twd.transpose();
 			}
 		}
 
@@ -1922,17 +1941,6 @@ namespace dso
 		}
 
 		lastX = x;
-		// 	LOG(INFO)<<"x: "<<x.transpose();
-		// 	exit(1);
-		// 	if(std::isfinite(x(0))==false){
-		// 	    LOG(INFO)<<"x: "<<x.transpose();
-		// 	    LOG(INFO)<<"HA_top: \n"<<HA_top;
-		// // 	    LOG(INFO)<<"HL_top: \n"<<HL_top;
-		// 	    LOG(INFO)<<"H_sc: \n"<<H_sc;
-		// 	    LOG(INFO)<<"HM: \n"<<HM;
-		// 	    LOG(INFO)<<"bFinal_top: \n"<<bFinal_top.transpose();
-		// 	}
-			//resubstituteF(x, HCalib);
 		currentLambda = lambda;
 		resubstituteF_MT(x, HCalib, multiThreading);
 		currentLambda = 0;
@@ -1946,6 +1954,7 @@ namespace dso
 		allPoints.clear();
 
 		for (EFFrame* f : frames)
+		{
 			for (EFPoint* p : f->points)
 			{
 				allPoints.push_back(p);
@@ -1958,13 +1967,17 @@ namespace dso
 					}
 				}
 			}
+		}
+
 		EFIndicesValid = true;
 	}
 
 	VecX EnergyFunctional::getStitchedDeltaF() const
 	{
-		VecX d = VecX(CPARS + nFrames * 8); d.head<CPARS>() = cDeltaF.cast<double>();
-		for (int h = 0; h < nFrames; h++) d.segment<8>(CPARS + 8 * h) = frames[h]->delta;
+		VecX d = VecX(CPARS + nFrames * 8); 
+		d.head<CPARS>() = cDeltaF.cast<double>();
+		for (int h = 0; h < nFrames; h++) 
+			d.segment<8>(CPARS + 8 * h) = frames[h]->delta;
 		return d;
 	}
 }

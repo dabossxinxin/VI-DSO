@@ -22,9 +22,9 @@
 */
 #pragma once
 
-#include <boost/thread.hpp>
 #include <stdio.h>
 #include <iostream>
+#include <boost/thread.hpp>
 
 #include "util/settings.h"
 
@@ -50,7 +50,6 @@ namespace dso
 				gotOne[i] = true;
 				workerThreads[i] = boost::thread(&IndexThreadReduce::workerLoop, this, i);
 			}
-
 		}
 
 		inline ~IndexThreadReduce()
@@ -64,14 +63,11 @@ namespace dso
 			for (int i = 0; i < NUM_THREADS; i++)
 				workerThreads[i].join();
 
-
 			printf("destroyed ThreadReduce\n");
-
 		}
 
 		inline void reduce(boost::function<void(int, int, Running*, int)> callPerIndex, int first, int end, int stepSize = 0)
 		{
-
 			memset(&stats, 0, sizeof(Running));
 
 			//		if(!multiThreading)
