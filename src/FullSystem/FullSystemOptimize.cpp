@@ -142,7 +142,8 @@ namespace dso
 
 		if (multiThreading)
 		{
-			treadReduce.reduce(boost::bind(&FullSystem::linearizeAll_Reductor, this, fixLinearization, toRemove, _1, _2, _3, _4), 0, activeResiduals.size(), 0);
+			treadReduce.reduce(std::bind(&FullSystem::linearizeAll_Reductor, this, fixLinearization, toRemove, 
+				std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, activeResiduals.size(), 0);
 			lastEnergyP = treadReduce.stats[0];
 		}
 		else
@@ -443,13 +444,14 @@ namespace dso
 		double lastEnergyM = calcMEnergy();
 
 		if (multiThreading)
-			treadReduce.reduce(boost::bind(&FullSystem::applyRes_Reductor, this, true, _1, _2, _3, _4), 0, activeResiduals.size(), 50);
+			treadReduce.reduce(std::bind(&FullSystem::applyRes_Reductor, this, true, 
+				std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, activeResiduals.size(), 50);
 		else
 			applyRes_Reductor(true, 0, activeResiduals.size(), 0, 0);
 
 		if (!setting_debugout_runquiet)
 		{
-			printf("Initial Error       \t");
+			printf("Initial Error\t");
 			printOptRes(lastEnergy, lastEnergyL, lastEnergyM, 0, 0, frameHessians.back()->aff_g2l().a, frameHessians.back()->aff_g2l().b);
 		}
 
@@ -501,7 +503,8 @@ namespace dso
 				lastEnergy[0] + lastEnergy[1] + lastEnergyL + lastEnergyM))
 			{
 				if (multiThreading)
-					treadReduce.reduce(boost::bind(&FullSystem::applyRes_Reductor, this, true, _1, _2, _3, _4), 0, activeResiduals.size(), 50);
+					treadReduce.reduce(std::bind(&FullSystem::applyRes_Reductor, this, true, 
+						std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, activeResiduals.size(), 50);
 				else
 					applyRes_Reductor(true, 0, activeResiduals.size(), 0, 0);
 
@@ -567,7 +570,7 @@ namespace dso
 		}
 
 		{
-			boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
+			std::unique_lock<std::mutex> crlock(shellPoseMutex);
 			for (FrameHessian* fh : frameHessians)
 			{
 				fh->shell->camToWorld = fh->PRE_camToWorld;

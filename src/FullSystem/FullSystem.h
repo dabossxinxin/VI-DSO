@@ -241,13 +241,13 @@ namespace dso
 		float statistics_lastFineTrackRMSE;
 
 		// =================== changed by tracker-thread. protected by trackMutex ============
-		boost::mutex trackMutex;
+		std::mutex trackMutex;
 		std::vector<FrameShell*> allFrameHistory;
 		CoarseInitializer* coarseInitializer;
 		Vec5 lastCoarseRMSE;
 
 		// ================== changed by mapper-thread. protected by mapMutex ===============
-		boost::mutex mapMutex;							// 针对全局地图设置的互斥锁
+		std::mutex mapMutex;							// 针对全局地图设置的互斥锁
 		std::vector<FrameShell*> allKeyFramesHistory;	// 记录系统中筛选出的所有关键帧
 
 		EnergyFunctional* ef;
@@ -265,14 +265,14 @@ namespace dso
 		std::vector<float> allResVec;
 
 		// mutex etc. for tracker exchange.
-		boost::mutex coarseTrackerSwapMutex;			// if tracker sees that there is a new reference, tracker locks [coarseTrackerSwapMutex] and swaps the two.
+		std::mutex coarseTrackerSwapMutex;			// if tracker sees that there is a new reference, tracker locks [coarseTrackerSwapMutex] and swaps the two.
 		CoarseTracker* coarseTracker_forNewKF;			// set as as reference. protected by [coarseTrackerSwapMutex].
 		CoarseTracker* coarseTracker;					// always used to track new frames. protected by [trackMutex].
 		float minIdJetVisTracker, maxIdJetVisTracker;
 		float minIdJetVisDebug, maxIdJetVisDebug;
 
 		// mutex for camToWorl's in shells (these are always in a good configuration).
-		boost::mutex shellPoseMutex;
+		std::mutex shellPoseMutex;
 
 		// tracking always uses the newest KF as reference
 		void makeKeyFrame(FrameHessian* fh, FrameHessian* fh_right);
@@ -281,13 +281,13 @@ namespace dso
 		void mappingLoop();
 
 		// tracking / mapping synchronization. All protected by [trackMapSyncMutex].
-		boost::mutex trackMapSyncMutex;
-		boost::condition_variable trackedFrameSignal;
-		boost::condition_variable mappedFrameSignal;
+		std::mutex trackMapSyncMutex;
+		std::condition_variable trackedFrameSignal;
+		std::condition_variable mappedFrameSignal;
 		std::deque<FrameHessian*> unmappedTrackedFrames;
 		std::deque<FrameHessian*> unmappedTrackedFrames_right;
 		int needNewKFAfter;	// Otherwise, a new KF is *needed that has ID bigger than [needNewKFAfter]*.
-		boost::thread mappingThread;
+		std::thread mappingThread;
 		bool runMapping;
 		bool needToKetchupMapping;
 

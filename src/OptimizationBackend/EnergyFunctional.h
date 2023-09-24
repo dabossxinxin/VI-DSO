@@ -27,8 +27,8 @@
 #include <math.h>
 
 #include "util/NumType.h"
-//#include "util/IndexThreadReduce.h"
-#include "util/IndexThreadReduceNB.h"
+#include "util/IndexThreadReduce.h"
+#include "util/threading.h"
 
 #include "FullSystem/Residuals.h"
 #include "FullSystem/HessianBlocks.h"
@@ -116,7 +116,7 @@ namespace dso
 		std::vector<VecX> lastNullspaces_affA;
 		std::vector<VecX> lastNullspaces_affB;
 
-		ThreadPool* threadPool;
+		//ThreadPool* threadPool;
 		IndexThreadReduce<Vec10>* red;
 
 		std::map<uint64_t,
@@ -162,7 +162,5 @@ namespace dso
 		std::vector<EFPoint*> allPointsToMarg;
 
 		float currentLambda;
-
-		ThreadPool 
 	};
 }

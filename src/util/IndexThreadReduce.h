@@ -24,7 +24,9 @@
 
 #include <stdio.h>
 #include <iostream>
-#include <boost/thread.hpp>
+#include <thread>
+#include <functional>
+#include <condition_variable>
 
 #include "util/settings.h"
 
@@ -41,14 +43,15 @@ namespace dso
 			nextIndex = 0;
 			maxIndex = 0;
 			stepSize = 1;
-			callPerIndex = boost::bind(&IndexThreadReduce::callPerIndexDefault, this, _1, _2, _3, _4);
+			callPerIndex = std::bind(&IndexThreadReduce::callPerIndexDefault, this,
+				std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4);
 
 			running = true;
-			for (int i = 0; i < NUM_THREADS; i++)
+			for (int it = 0; it < NUM_THREADS; ++it)
 			{
-				isDone[i] = false;
-				gotOne[i] = true;
-				workerThreads[i] = boost::thread(&IndexThreadReduce::workerLoop, this, i);
+				isDone[it] = false;
+				gotOne[it] = true;
+				workerThreads[it] = std::thread(&IndexThreadReduce::workerLoop, this, it);
 			}
 		}
 
@@ -66,22 +69,16 @@ namespace dso
 			printf("destroyed ThreadReduce\n");
 		}
 
-		inline void reduce(boost::function<void(int, int, Running*, int)> callPerIndex, int first, int end, int stepSize = 0)
+		inline void reduce(std::function<void(int, int, Running*, int)> callPerIndex, int first, int end, int stepSize = 0)
 		{
 			memset(&stats, 0, sizeof(Running));
-
-			//		if(!multiThreading)
-			//		{
-			//			callPerIndex(first, end, &stats, 0);
-			//			return;
-			//		}
 
 			if (stepSize == 0)
 				stepSize = ((end - first) + NUM_THREADS - 1) / NUM_THREADS;
 
 			//printf("reduce called\n");
 
-			boost::unique_lock<boost::mutex> lock(exMutex);
+			std::unique_lock<std::mutex> lock(exMutex);
 
 			// save
 			this->callPerIndex = callPerIndex;
@@ -120,7 +117,8 @@ namespace dso
 
 			nextIndex = 0;
 			maxIndex = 0;
-			this->callPerIndex = boost::bind(&IndexThreadReduce::callPerIndexDefault, this, _1, _2, _3, _4);
+			this->callPerIndex = std::bind(&IndexThreadReduce::callPerIndexDefault, this,
+				std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4);
 
 			//printf("reduce done (all threads finished)\n");
 		}
@@ -128,13 +126,13 @@ namespace dso
 		Running stats;
 
 	private:
-		boost::thread workerThreads[NUM_THREADS];
+		std::thread workerThreads[NUM_THREADS];
 		bool isDone[NUM_THREADS];
 		bool gotOne[NUM_THREADS];
 
-		boost::mutex exMutex;
-		boost::condition_variable todo_signal;
-		boost::condition_variable done_signal;
+		std::mutex exMutex;
+		std::condition_variable todo_signal;
+		std::condition_variable done_signal;
 
 		int nextIndex;
 		int maxIndex;
@@ -142,7 +140,7 @@ namespace dso
 
 		bool running;
 
-		boost::function<void(int, int, Running*, int)> callPerIndex;
+		std::function<void(int, int, Running*, int)> callPerIndex;
 
 		void callPerIndexDefault(int i, int j, Running* k, int tid)
 		{
@@ -152,16 +150,15 @@ namespace dso
 
 		void workerLoop(int idx)
 		{
-			boost::unique_lock<boost::mutex> lock(exMutex);
+			std::unique_lock<std::mutex> lock(exMutex);
 
 			while (running)
 			{
-				// try to get something to do.
+				// 线程池中单个线程获取需执行的任务
 				int todo = 0;
 				bool gotSomething = false;
 				if (nextIndex < maxIndex)
 				{
-					// got something!
 					todo = nextIndex;
 					nextIndex += stepSize;
 					gotSomething = true;
@@ -181,7 +178,8 @@ namespace dso
 					stats += s;
 				}
 
-				// otherwise wait on signal, releasing lock in the meantime.
+				// 线程拿不到任务了说明需执行的任务已经执行完毕
+				// 此时
 				else
 				{
 					if (!gotOne[idx])

@@ -20,9 +20,6 @@
 * You should have received a copy of the GNU General Public License
 * along with DSO. If not, see <http://www.gnu.org/licenses/>.
 */
-
-
-
 #include "PangolinDSOViewer.h"
 #include "KeyFrameDisplay.h"
 
@@ -43,7 +40,7 @@ namespace dso
 			running = true;
 
 			{
-				boost::unique_lock<boost::mutex> lk(openImagesMutex);
+				std::unique_lock<std::mutex> lk(openImagesMutex);
 				internalVideoImg = new MinimalImageB3(w, h);
 				internalKFImg = new MinimalImageB3(w, h);
 				internalResImg = new MinimalImageB3(w, h);
@@ -61,7 +58,7 @@ namespace dso
 			needReset = false;
 
 			if (startRunThread)
-				runThread = boost::thread(&PangolinDSOViewer::run, this);
+				runThread = std::thread(&PangolinDSOViewer::run, this);
 		}
 
 		PangolinDSOViewer::~PangolinDSOViewer()
@@ -159,7 +156,7 @@ namespace dso
 				{
 					// Activate efficiently by object
 					Visualization3D_display.Activate(Visualization3D_camera);
-					boost::unique_lock<boost::mutex> lk3d(model3DMutex);
+					std::unique_lock<std::mutex> lk3d(model3DMutex);
 					//pangolin::glDrawColouredCube();
 					int refreshed = 0;
 					for (KeyFrameDisplay* fh : keyframes)
@@ -449,7 +446,7 @@ namespace dso
 			if (!setting_render_display3D) return;
 			if (disableAllDisplay) return;
 
-			boost::unique_lock<boost::mutex> lk(model3DMutex);
+			std::unique_lock<std::mutex> lk(model3DMutex);
 			for (FrameHessian* fh : frames)
 			{
 				if (keyframesByKFID.find(fh->frameID) == keyframesByKFID.end())
@@ -467,7 +464,7 @@ namespace dso
 			if (!setting_render_display3D) return;
 			if (disableAllDisplay) return;
 
-			boost::unique_lock<boost::mutex> lk(model3DMutex);
+			std::unique_lock<std::mutex> lk(model3DMutex);
 			timedso time_now;
 			gettimeofday(&time_now, NULL);
 			lastNTrackingMs.push_back(((time_now.tv_sec - last_track.tv_sec)*1000.0f + (time_now.tv_usec - last_track.tv_usec) / 1000.0f));
@@ -485,7 +482,7 @@ namespace dso
 			if (!setting_render_displayVideo) return;
 			if (disableAllDisplay) return;
 
-			boost::unique_lock<boost::mutex> lk(openImagesMutex);
+			std::unique_lock<std::mutex> lk(openImagesMutex);
 
 			for (int i = 0; i < w*h; i++)
 				internalVideoImg->data[i][0] =
@@ -506,7 +503,7 @@ namespace dso
 			if (!setting_render_displayDepth) return;
 			if (disableAllDisplay) return;
 
-			boost::unique_lock<boost::mutex> lk(openImagesMutex);
+			std::unique_lock<std::mutex> lk(openImagesMutex);
 
 			timedso time_now;
 			gettimeofday(&time_now, NULL);

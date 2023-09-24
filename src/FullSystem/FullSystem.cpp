@@ -22,6 +22,8 @@
 */
 #include <cmath>
 #include <stdio.h>
+#include <iostream>
+#include <iomanip>
 #include <algorithm>
 
 #include <Eigen/LU>
@@ -153,7 +155,7 @@ namespace dso
 		minIdJetVisTracker = -1;
 		maxIdJetVisTracker = -1;
 
-		mappingThread = boost::thread(&FullSystem::mappingLoop, this);
+		mappingThread = std::thread(&FullSystem::mappingLoop, this);
 	}
 
 	FullSystem::~FullSystem()
@@ -223,8 +225,8 @@ namespace dso
 
 	void FullSystem::printResult(std::string file)
 	{
-		boost::unique_lock<boost::mutex> lock(trackMutex);
-		boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
+		std::unique_lock<std::mutex> lock(trackMutex);
+		std::unique_lock<std::mutex> crlock(shellPoseMutex);
 
 		std::ofstream myfile;
 		myfile.open(file.c_str());
@@ -308,7 +310,7 @@ namespace dso
 			SE3 slast_2_sprelast;
 			SE3 lastF_2_slast;
 			{	// lock on global pose consistency!
-				boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
+				std::unique_lock<std::mutex> crlock(shellPoseMutex);
 				slast_2_sprelast = sprelast->camToWorld.inverse() * slast->camToWorld;
 				lastF_2_slast = slast->camToWorld.inverse() * lastF->shell->camToWorld;
 				aff_last_2_l = slast->aff_g2l;
@@ -483,7 +485,7 @@ namespace dso
 
 	void FullSystem::traceNewCoarse(FrameHessian* fh)
 	{
-		boost::unique_lock<boost::mutex> lock(mapMutex);
+		std::unique_lock<std::mutex> lock(mapMutex);
 
 		int trace_total = 0, trace_good = 0, trace_oob = 0, trace_out = 0, trace_skip = 0, trace_badcondition = 0, trace_uninitialized = 0;
 
@@ -528,7 +530,7 @@ namespace dso
 	// process nonkey frame to refine key frame idepth
 	void FullSystem::traceNewCoarseNonKey(FrameHessian *fh, FrameHessian *fh_right)
 	{
-		boost::unique_lock<boost::mutex> lock(mapMutex);
+		std::unique_lock<std::mutex> lock(mapMutex);
 		// new idepth after refinement
 		float idepth_min_update = 0;
 		float idepth_max_update = 0;
@@ -642,7 +644,7 @@ namespace dso
 	//process keyframe
 	void FullSystem::traceNewCoarseKey(FrameHessian* fh, FrameHessian* fh_right)
 	{
-		boost::unique_lock<boost::mutex> lock(mapMutex);
+		std::unique_lock<std::mutex> lock(mapMutex);
 
 		int trace_total = 0, trace_good = 0, trace_oob = 0, trace_out = 0, trace_skip = 0, trace_badcondition = 0, trace_uninitialized = 0;
 
@@ -808,7 +810,8 @@ namespace dso
 		std::vector<PointHessian*> optimized; optimized.resize(toOptimize.size());
 
 		if (multiThreading)
-			treadReduce.reduce(boost::bind(&FullSystem::activatePointsMT_Reductor, this, &optimized, &toOptimize, _1, _2, _3, _4), 0, toOptimize.size(), 50);
+			treadReduce.reduce(std::bind(&FullSystem::activatePointsMT_Reductor, this, &optimized, &toOptimize,
+				std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, toOptimize.size(), 50);
 
 		else
 			activatePointsMT_Reductor(&optimized, &toOptimize, 0, toOptimize.size(), 0, 0);
@@ -961,7 +964,7 @@ namespace dso
 
 	void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 	{
-		boost::unique_lock<boost::mutex> lock(mapMutex);
+		std::unique_lock<std::mutex> lock(mapMutex);
 
 		//FrameHessian* firstFrame = coarseInitializer->firstFrame;
 		coarseInitializer->firstFrame->idx = frameHessians.size();
@@ -1081,7 +1084,7 @@ namespace dso
 
 		// really no lock required, as we are initializing.
 		{
-			boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
+			std::unique_lock<std::mutex> crlock(shellPoseMutex);
 			//firstFrame->shell->camToWorld = SE3();
 			//firstFrame->shell->aff_g2l = AffLight(0,0);
 			//firstFrame->setEvalPT_scaled(firstFrame->shell->camToWorld.inverse(),firstFrame->shell->aff_g2l);
@@ -1107,7 +1110,7 @@ namespace dso
 		LOG(INFO) << std::fixed << std::setprecision(12) << "timestamp: " << pic_time_stamp[id];
 
 		if (isLost) return;
-		boost::unique_lock<boost::mutex> lock(trackMutex);
+		std::unique_lock<std::mutex> lock(trackMutex);
 
 		if (use_stereo && (T_WD.scale() > 2 || T_WD.scale() < 0.6)) 
 		{
@@ -1197,7 +1200,7 @@ namespace dso
 			// =========================== SWAP tracking reference?. =========================
 			if (coarseTracker_forNewKF->refFrameID > coarseTracker->refFrameID)
 			{
-				boost::unique_lock<boost::mutex> crlock(coarseTrackerSwapMutex);
+				std::unique_lock<std::mutex> crlock(coarseTrackerSwapMutex);
 				CoarseTracker* tmp = coarseTracker;
 				coarseTracker = coarseTracker_forNewKF;
 				coarseTracker_forNewKF = tmp;
@@ -1254,7 +1257,6 @@ namespace dso
 
 	void FullSystem::initFirstFrame_imu(FrameHessian* fh)
 	{
-<<<<<<< Updated upstream
 		int imuStartIdx = 0;
 		int imuStartIdxGT = 0;
 
@@ -1267,23 +1269,11 @@ namespace dso
 					std::fabs(imu_time_stamp[idx] - pic_time_stamp[fh->shell->incoming_id]) < 0.001)
 				{
 					imuStartIdx = idx;
-=======
-		int index;
-		if (imu_time_stamp.size() > 0) 
-		{
-			for (int idx = 0; idx < imu_time_stamp.size(); ++idx) 
-			{
-				if (imu_time_stamp[idx] >= pic_time_stamp[fh->shell->incoming_id] ||
-					std::fabs(imu_time_stamp[idx] - pic_time_stamp[fh->shell->incoming_id]) < 0.001) 
-				{
-					index = idx;
->>>>>>> Stashed changes
 					break;
 				}
 			}
 		}
 
-<<<<<<< Updated upstream
 		if (!gt_time_stamp.empty())
 		{
 			for (int idx = 0; idx < gt_time_stamp.size(); ++idx)
@@ -1292,17 +1282,6 @@ namespace dso
 					fabs(gt_time_stamp[idx] - pic_time_stamp[fh->shell->incoming_id]) < 0.001)
 				{
 					imuStartIdxGT = idx;
-=======
-		int index2 = 0;
-		if (gt_time_stamp.size() > 0) 
-		{
-			for (int idx = 0; idx < gt_time_stamp.size(); ++idx) 
-			{
-				if (gt_time_stamp[idx] >= pic_time_stamp[fh->shell->incoming_id] || 
-					std::fabs(gt_time_stamp[idx] - pic_time_stamp[fh->shell->incoming_id]) < 0.001)
-				{
-					index2 = idx;2222222222334
->>>>>>> Stashed changes
 					break;
 				}
 			}
@@ -1418,7 +1397,7 @@ namespace dso
 		}
 		else
 		{
-			boost::unique_lock<boost::mutex> lock(trackMapSyncMutex);
+			std::unique_lock<std::mutex> lock(trackMapSyncMutex);
 			unmappedTrackedFrames.emplace_back(fh);
 			if (needKF) needNewKFAfter = fh->shell->trackingRef->id;
 			trackedFrameSignal.notify_all();
@@ -1434,7 +1413,7 @@ namespace dso
 
 	void FullSystem::mappingLoop()
 	{
-		boost::unique_lock<boost::mutex> lock(trackMapSyncMutex);
+		std::unique_lock<std::mutex> lock(trackMapSyncMutex);
 
 		while (runMapping)
 		{
@@ -1474,7 +1453,7 @@ namespace dso
 					FrameHessian* fh = unmappedTrackedFrames.front();
 					unmappedTrackedFrames.pop_front();
 					{
-						boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
+						std::unique_lock<std::mutex> crlock(shellPoseMutex);
 						assert(fh->shell->trackingRef != 0);
 						fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef;
 						fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(), fh->shell->aff_g2l);
@@ -1506,7 +1485,7 @@ namespace dso
 
 	void FullSystem::blockUntilMappingIsFinished()
 	{
-		boost::unique_lock<boost::mutex> lock(trackMapSyncMutex);
+		std::unique_lock<std::mutex> lock(trackMapSyncMutex);
 		runMapping = false;
 		trackedFrameSignal.notify_all();
 		lock.unlock();
@@ -1518,7 +1497,7 @@ namespace dso
 	{
 		//needs to be set by mapping thread. no lock required since we are in mapping thread.
 		{
-			boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
+			std::unique_lock<std::mutex> crlock(shellPoseMutex);
 			assert(fh->shell->trackingRef != 0);
 			fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef;
 			fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(), fh->shell->aff_g2l);
@@ -1535,7 +1514,7 @@ namespace dso
 	{
 		// needs to be set by mapping thread
 		{
-			boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
+			std::unique_lock<std::mutex> crlock(shellPoseMutex);
 			assert(fh->shell->trackingRef != 0);
 			fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef;
 			fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(), fh->shell->aff_g2l);
@@ -1545,7 +1524,7 @@ namespace dso
 		// 	traceNewCoarseKey(fh, fh_right);
 		// 	traceNewCoarseNonKey(fh, fh_right);
 
-		boost::unique_lock<boost::mutex> lock(mapMutex);
+		std::unique_lock<std::mutex> lock(mapMutex);
 
 		// =========================== Flag Frames to be Marginalized. =========================
 		flagFramesForMarginalization(fh);
@@ -1615,7 +1594,7 @@ namespace dso
 		removeOutliers();
 
 		{
-			boost::unique_lock<boost::mutex> crlock(coarseTrackerSwapMutex);
+			std::unique_lock<std::mutex> crlock(coarseTrackerSwapMutex);
 			coarseTracker_forNewKF->makeK(&Hcalib);
 			coarseTracker_forNewKF->setCoarseTrackingRef(frameHessians, fh_right, Hcalib);
 
@@ -1839,7 +1818,7 @@ namespace dso
 	{
 		if (!setting_logStuff) return;
 
-		boost::unique_lock<boost::mutex> lock(trackMutex);
+		std::unique_lock<std::mutex> lock(trackMutex);
 
 		std::ofstream* lg = new std::ofstream();
 		lg->open("logs/lifetimeLog.txt", std::ios::trunc | std::ios::out);

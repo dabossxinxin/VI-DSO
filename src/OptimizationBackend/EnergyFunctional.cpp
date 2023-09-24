@@ -45,21 +45,24 @@ namespace dso
 		b = VecX::Zero(7 + nFrames * 15);
 		H = MatXX::Zero(7 + nFrames * 15, 7 + nFrames * 15);
 
-		//std::cout << "H: " << std::endl << H << std::endl;
-		//std::cout << "b: " << std::endl << b << std::endl;
-
+		// 两帧图像之间具有IMU测量数据
 		if (nFrames == 1) return;
+
 		int imuResCounter = 0;
 		int imuStartStamp = 0;
 		double Energy = 0;
 		double timeStart = 0, timeEnd = 0;
 		double dt = 0, delta_t = 0;
+		int fhIdxS = 0, fhIdxE = 0;
 
 		Vec3 g_w;
 		g_w << 0, 0, -G_norm;
 
 		for (int fhIdx = 0; fhIdx < frames.size() - 1; ++fhIdx)
 		{
+			fhIdxS = fhIdx;
+			fhIdxE = fhIdx + 1;
+
 			// P、V、Q
 			VecX r_pvq = VecX::Zero(9);
 			MatXX J_pvq = MatXX::Zero(9, 7 + nFrames * 15);
@@ -67,25 +70,25 @@ namespace dso
 			IMUPreintegrator IMU_preintegrator;
 			IMU_preintegrator.reset();
 
-			timeStart = pic_time_stamp[frames[fhIdx]->data->shell->incoming_id];
-			timeEnd = pic_time_stamp[frames[fhIdx + 1]->data->shell->incoming_id];
+			timeStart = pic_time_stamp[frames[fhIdxS]->data->shell->incoming_id];
+			timeEnd = pic_time_stamp[frames[fhIdxE]->data->shell->incoming_id];
 			dt = timeEnd - timeStart;
 
 			imuResCounter++;
-			FrameHessian* Framei = frames[fhIdx]->data;
-			FrameHessian* Framej = frames[fhIdx + 1]->data;
+			FrameHessian* Framei = frames[fhIdxS]->data;
+			FrameHessian* Framej = frames[fhIdxE]->data;
 
-			// Bias：GYR、ACC
+			// 计算两帧之间IMU偏置相对残差相对于偏置的Jacobian
 			VecX r_bias = VecX::Zero(6);
 			MatXX J_bias = MatXX::Zero(6, 7 + nFrames * 15);
 
 			r_bias.block(0, 0, 3, 1) = Framej->bias_g + Framej->delta_bias_g - (Framei->bias_g + Framei->delta_bias_g);
 			r_bias.block(3, 0, 3, 1) = Framej->bias_a + Framej->delta_bias_a - (Framei->bias_a + Framei->delta_bias_a);
 
-			J_bias.block(0, 7 + fhIdx * 15 + 9, 3, 3) = -Mat33::Identity();
-			J_bias.block(0, 7 + (fhIdx + 1) * 15 + 9, 3, 3) = Mat33::Identity();
-			J_bias.block(3, 7 + fhIdx * 15 + 12, 3, 3) = -Mat33::Identity();
-			J_bias.block(3, 7 + (fhIdx + 1) * 15 + 12, 3, 3) = Mat33::Identity();
+			J_bias.block(0, 7 + fhIdxS * 15 + 9, 3, 3) = -Mat33::Identity();
+			J_bias.block(0, 7 + fhIdxE * 15 + 9, 3, 3) = Mat33::Identity();
+			J_bias.block(3, 7 + fhIdxS * 15 + 12, 3, 3) = -Mat33::Identity();
+			J_bias.block(3, 7 + fhIdxE * 15 + 12, 3, 3) = Mat33::Identity();
 
 			// 陀螺仪偏置建模为随机游走,以随机游走的方差的逆作为偏置的权重
 			Mat66 covBias = Mat66::Zero();
@@ -95,12 +98,9 @@ namespace dso
 			H += J_bias.transpose()*weightBias*J_bias;
 			b += J_bias.transpose()*weightBias*r_bias;
 
+			// 如果两帧之间的时间间隔大于0.5s了放弃此次预积分
+			// 原因是IMU测量在较短时间内可保证一定精度
 			if (dt > 0.5) continue;
-
-			SE3 worldToCam_i = Framei->get_worldToCam_evalPT();
-			SE3 worldToCam_j = Framej->get_worldToCam_evalPT();
-			SE3 worldToCam_i2 = Framei->PRE_worldToCam;
-			SE3 worldToCam_j2 = Framej->PRE_worldToCam;
 
 			// TODO:这里时刻应该精准对齐，也就是说需要对IMU的测量进行插值
 			// 搜索当前帧时刻对应的IMU数据索引
@@ -131,95 +131,63 @@ namespace dso
 				imuStartStamp++;
 			}
 
-			Mat44 M_WB = T_WD.matrix()*worldToCam_i.inverse().matrix()*T_WD.inverse().matrix()*T_BC.inverse().matrix();
-			SE3 T_WB(M_WB);
-			Mat33 R_WB = T_WB.rotationMatrix();
-			Vec3 t_WB = T_WB.translation();
+			SE3 worldToCam_i = Framei->PRE_worldToCam;
+			SE3 worldToCam_j = Framej->PRE_worldToCam;
+			SE3 worldToCam_i_evalPT = Framei->get_worldToCam_evalPT();
+			SE3 worldToCam_j_evalPT = Framej->get_worldToCam_evalPT();
 
-			Mat44 M_WB2 = T_WD.matrix()*worldToCam_i2.inverse().matrix()*T_WD.inverse().matrix()*T_BC.inverse().matrix();
-			SE3 T_WB2(M_WB2);
-			Mat33 R_WB2 = T_WB2.rotationMatrix();
-			Vec3 t_WB2 = T_WB2.translation();
+			//利用伴随性质将坐标系转换到世界系中 
+			Mat44 M_WC_I_PT = T_WD.matrix()*worldToCam_i_evalPT.inverse().matrix()*T_WD.inverse().matrix();
+			SE3 T_WB_I_PT(M_WC_I_PT * T_BC.inverse().matrix());
+			Mat33 R_WB_I_PT = T_WB_I_PT.rotationMatrix();
+			Vec3 t_WB_I_PT = T_WB_I_PT.translation();
 
-			Mat44 M_WBj = T_WD.matrix()*worldToCam_j.inverse().matrix()*T_WD.inverse().matrix()*T_BC.inverse().matrix();
-			SE3 T_WBj(M_WBj);
-			Mat33 R_WBj = T_WBj.rotationMatrix();
-			Vec3 t_WBj = T_WBj.translation();
+			Mat44 M_WC_J_PT = T_WD.matrix()*worldToCam_j_evalPT.inverse().matrix()*T_WD.inverse().matrix();
+			SE3 T_WB_J_PT(M_WC_J_PT*T_BC.inverse().matrix());
+			Mat33 R_WB_J_PT = T_WB_J_PT.rotationMatrix();
+			Vec3 t_WB_J_PT = T_WB_J_PT.translation();
 
-			Mat44 M_WBj2 = T_WD.matrix()*worldToCam_j2.inverse().matrix()*T_WD.inverse().matrix()*T_BC.inverse().matrix();
-			SE3 T_WBj2(M_WBj2);
-			Mat33 R_WBj2 = T_WBj2.rotationMatrix();
-			Vec3 t_WBj2 = T_WBj2.translation();
+			Mat44 M_WC_I = T_WD.matrix()*worldToCam_i.inverse().matrix()*T_WD.inverse().matrix();
+			SE3 T_WB_I(M_WC_I*T_BC.inverse().matrix());
+			Mat33 R_WB_I = T_WB_I.rotationMatrix();
+			Vec3 t_WB_I = T_WB_I.translation();
 
-			//calculate res
-			//Vec3 so3 = IMU_preintegrator.getJRBiasg()*Framei->delta_bias_g;
-			Mat33 R_temp = SO3::exp(IMU_preintegrator.getJRBiasg()*Framei->delta_bias_g).matrix();
-			// 	Mat33 res_R = (IMU_preintegrator.getDeltaR()*R_temp).transpose()*R_WB.transpose()*R_WBj;
-			// 	Vec3 res_phi = SO3(res_R).log();
-			// 	Vec3 res_v = R_WB.transpose()*(Framej->velocity-Framei->velocity-g_w*dt)-
-			// 		 (IMU_preintegrator.getDeltaV()+IMU_preintegrator.getJVBiasa()*Framei->delta_bias_a+IMU_preintegrator.getJVBiasg()*Framei->delta_bias_g);
-			// 	Vec3 res_p = R_WB.transpose()*(t_WBj-t_WB-Framei->velocity*dt-0.5*g_w*dt*dt)-
-			// 		 (IMU_preintegrator.getDeltaP()+IMU_preintegrator.getJPBiasa()*Framei->delta_bias_a+IMU_preintegrator.getJPBiasg()*Framei->delta_bias_g);
+			Mat44 M_WC_J = T_WD.matrix()*worldToCam_j.inverse().matrix()*T_WD.inverse().matrix();
+			SE3 T_WB_J(M_WC_J*T_BC.inverse().matrix());
+			Mat33 R_WB_J = T_WB_J.rotationMatrix();
+			Vec3 t_WB_J = T_WB_J.translation();
 
-			Mat33 res_R2 = (IMU_preintegrator.getDeltaR()*R_temp).transpose()*R_WB2.transpose()*R_WBj2;
-			Vec3 res_phi2 = SO3(res_R2).log();
-			Vec3 res_v2 = R_WB2.transpose()*(Framej->velocity - Framei->velocity - g_w * dt) -
-				(IMU_preintegrator.getDeltaV() + IMU_preintegrator.getJVBiasa()*Framei->delta_bias_a + IMU_preintegrator.getJVBiasg()*Framei->delta_bias_g);
-			Vec3 res_p2 = R_WB2.transpose()*(t_WBj2 - t_WB2 - Framei->velocity*dt - 0.5*g_w*dt*dt) -
-				(IMU_preintegrator.getDeltaP() + IMU_preintegrator.getJPBiasa()*Framei->delta_bias_a + IMU_preintegrator.getJPBiasg()*Framei->delta_bias_g);
-			// 	LOG(INFO)<<"R_WB2: \n"<<R_WB2;
-			// 	LOG(INFO)<<"(Framej->velocity-Framei->velocity-g_w*dt): "<<(Framej->velocity-Framei->velocity-g_w*dt).transpose();
-			// 	if(i==0){
-			// 	  LOG(INFO)<<"worldToCam_i: \n"<<worldToCam_i.matrix();
-			// 	  LOG(INFO)<<"res_phi: "<<res_phi2.transpose();
-			// 	  LOG(INFO)<<"res_v: "<<res_v2.transpose();
-			// 	  LOG(INFO)<<"res_p: "<<res_p2.transpose();
-			// 	}
-			// 	LOG(INFO)<<"i: "<<i<<" T_WD.scale(): "<<T_WD.scale()<<" Framei time: "<<std::fixed<<std::setprecision(14)<<pic_time_stamp[Framei->shell->incoming_id];
-			// 	LOG(INFO)<<" Framei->velocity: "<<Framei->velocity.transpose()<<" Framej->velocity: "<<Framej->velocity.transpose();
-			// 	LOG(INFO)<<"res_v2: "<<res_v2.transpose();
-			// 	LOG(INFO)<<"res_p2: "<<res_p2.transpose();
+			// 计算IMU预积分P,V,Q残差
+			Vec3 r_delta = IMU_preintegrator.getJRBiasg()*Framei->delta_bias_g;
+			Mat33 R_delta = SO3::exp(r_delta).matrix();
+			Vec3 pre_v = IMU_preintegrator.getDeltaV() + IMU_preintegrator.getJVBiasa()*Framei->delta_bias_a + IMU_preintegrator.getJVBiasg()*Framei->delta_bias_g;
+			Vec3 pre_p = IMU_preintegrator.getDeltaP() + IMU_preintegrator.getJPBiasa()*Framei->delta_bias_a + IMU_preintegrator.getJPBiasg()*Framei->delta_bias_g;
+			Vec3 res_q = SO3((IMU_preintegrator.getDeltaR()*R_delta).transpose()*R_WB_I.transpose()*R_WB_J).log();
+			Vec3 res_v = R_WB_I.transpose()*(Framej->velocity - Framei->velocity - g_w * dt) - pre_v;
+			Vec3 res_p = R_WB_I.transpose()*(t_WB_J - t_WB_I - Framei->velocity*dt - 0.5*g_w*dt*dt) - pre_p;
+			
 			Mat99 Cov = IMU_preintegrator.getCovPVPhi();
 
-			// 	Mat33 J_resPhi_phi_i = -IMU_preintegrator.JacobianRInv(res_phi2)*R_WBj.transpose()*R_WB;
-			// 	Mat33 J_resPhi_phi_j = IMU_preintegrator.JacobianRInv(res_phi2);
-			// 	Mat33 J_resPhi_bg = -IMU_preintegrator.JacobianRInv(res_phi2)*SO3::exp(-res_phi2).matrix()*
-			// 		 IMU_preintegrator.JacobianR(IMU_preintegrator.getJRBiasg()*Framei->delta_bias_g)*IMU_preintegrator.getJRBiasg();
-			// 
-			// 	Mat33 J_resV_phi_i = SO3::hat(R_WB.transpose()*(Framej->velocity - Framei->velocity - g_w*dt));
-			// 	Mat33 J_resV_v_i = -R_WB.transpose();
-			// 	Mat33 J_resV_v_j = R_WB.transpose();
-			// 	Mat33 J_resV_ba = -IMU_preintegrator.getJVBiasa();
-			// 	Mat33 J_resV_bg = -IMU_preintegrator.getJVBiasg();
-			// 
-			// 	Mat33 J_resP_p_i = -Mat33::Identity();	
-			// 	Mat33 J_resP_p_j = R_WB.transpose()*R_WBj;
-			// 	Mat33 J_resP_bg = -IMU_preintegrator.getJPBiasg();
-			// 	Mat33 J_resP_ba = -IMU_preintegrator.getJPBiasa();
-			// 	Mat33 J_resP_v_i = -R_WB.transpose()*dt;
-			// 	Mat33 J_resP_phi_i = SO3::hat(R_WB.transpose()*(t_WBj - t_WB - Framei->velocity*dt - 0.5*g_w*dt*dt));
+			Mat33 Right_JacobianInvResR = IMU_preintegrator.JacobianRInv(res_q);
+			Mat33 J_resPhi_phi_i = -Right_JacobianInvResR * R_WB_J.transpose()*R_WB_I;
+			Mat33 J_resPhi_phi_j = Right_JacobianInvResR;
+			Mat33 J_resPhi_bg = -Right_JacobianInvResR * SO3::exp(-res_q).matrix()*
+				IMU_preintegrator.JacobianR(r_delta)*IMU_preintegrator.getJRBiasg();
 
-			Mat33 J_resPhi_phi_i = -IMU_preintegrator.JacobianRInv(res_phi2)*R_WBj2.transpose()*R_WB2;
-			Mat33 J_resPhi_phi_j = IMU_preintegrator.JacobianRInv(res_phi2);
-			Mat33 J_resPhi_bg = -IMU_preintegrator.JacobianRInv(res_phi2)*SO3::exp(-res_phi2).matrix()*
-				IMU_preintegrator.JacobianR(IMU_preintegrator.getJRBiasg()*Framei->delta_bias_g)*IMU_preintegrator.getJRBiasg();
-			// 	LOG(INFO)<<"c";
-			Mat33 J_resV_phi_i = SO3::hat(R_WB2.transpose()*(Framej->velocity - Framei->velocity - g_w * dt));
-			Mat33 J_resV_v_i = -R_WB2.transpose();
-			Mat33 J_resV_v_j = R_WB2.transpose();
+			Mat33 J_resV_phi_i = SO3::hat(R_WB_I.transpose()*(Framej->velocity - Framei->velocity - g_w * dt));
+			Mat33 J_resV_v_i = -R_WB_I.transpose();
+			Mat33 J_resV_v_j = R_WB_I.transpose();
 			Mat33 J_resV_ba = -IMU_preintegrator.getJVBiasa();
 			Mat33 J_resV_bg = -IMU_preintegrator.getJVBiasg();
-			// 	LOG(INFO)<<"d";
+
 			Mat33 J_resP_p_i = -Mat33::Identity();
-			Mat33 J_resP_p_j = R_WB2.transpose()*R_WBj2;
+			Mat33 J_resP_p_j = R_WB_I.transpose()*R_WB_J;
 			Mat33 J_resP_bg = -IMU_preintegrator.getJPBiasg();
 			Mat33 J_resP_ba = -IMU_preintegrator.getJPBiasa();
-			Mat33 J_resP_v_i = -R_WB2.transpose()*dt;
-			Mat33 J_resP_phi_i = SO3::hat(R_WB2.transpose()*(t_WBj2 - t_WB2 - Framei->velocity*dt - 0.5*g_w*dt*dt));
-			// 	LOG(INFO)<<"1111111";
+			Mat33 J_resP_v_i = -R_WB_I.transpose()*dt;
+			Mat33 J_resP_phi_i = SO3::hat(R_WB_I.transpose()*(t_WB_J - t_WB_I - Framei->velocity*dt - 0.5*g_w*dt*dt));
 
-			// 	LOG(INFO)<<"222222";
-			Mat915 J_imui = Mat915::Zero();//rho,phi,v,bias_g,bias_a;
+			Mat915 J_imui = Mat915::Zero();//p,q,v,bg,ba;
 			J_imui.block(0, 0, 3, 3) = J_resP_p_i;
 			J_imui.block(0, 3, 3, 3) = J_resP_phi_i;
 			J_imui.block(0, 6, 3, 3) = J_resP_v_i;
@@ -238,57 +206,24 @@ namespace dso
 			J_imuj.block(0, 0, 3, 3) = J_resP_p_j;
 			J_imuj.block(3, 3, 3, 3) = J_resPhi_phi_j;
 			J_imuj.block(6, 6, 3, 3) = J_resV_v_j;
-			// 	LOG(INFO)<<"333333";
+
 			Mat99 Weight = Mat99::Zero();
 			Weight.block(0, 0, 3, 3) = Cov.block(0, 0, 3, 3);
 			Weight.block(3, 3, 3, 3) = Cov.block(6, 6, 3, 3);
 			Weight.block(6, 6, 3, 3) = Cov.block(3, 3, 3, 3);
+
+			// TODO：简化一下写法
 			Mat99 Weight2 = Mat99::Zero();
 			for (int i = 0; i < 9; ++i)
 				Weight2(i, i) = Weight(i, i);
 			Weight = Weight2;
-
-			// 	Mat99 Weight_sqrt = Mat99::Zero();
-			// 	for(int j=0;j<9;++j){
-			// 	    Weight_sqrt(j,j) = imu_weight*sqrt(1/Weight(j,j));
-			// 	}
-			// 	LOG(INFO)<<"Weight_sqrt: "<<Weight_sqrt.diagonal().transpose();
 			Weight = imu_weight * imu_weight*Weight.inverse();
 
 			Vec9 b_1 = Vec9::Zero();
-			b_1.block(0, 0, 3, 1) = res_p2;
-			b_1.block(3, 0, 3, 1) = res_phi2;
-			b_1.block(6, 0, 3, 1) = res_v2;
+			b_1.block(0, 0, 3, 1) = res_p;
+			b_1.block(3, 0, 3, 1) = res_q;
+			b_1.block(6, 0, 3, 1) = res_v;
 
-			// 	double resF2_All = 0;
-			// 	for(EFPoint* p : frames[i]->points){
-			// 	  for(EFResidual* r : p->residualsAll){
-			// 	    if(r->isLinearized || !r->isActive()) continue;
-			// 	    if(r->targetIDX == i+1){
-			// 	      for(int k=0;k<patternNum;++k){
-			// 		resF2_All += r->J->resF[k]*r->J->resF[k];
-			// 	      }
-			// 	    }
-			// 	  }
-			// 	}
-			// 	for(EFPoint* p : frames[i+1]->points){
-			// 	  for(EFResidual* r : p->residualsAll){
-			// 	    if(r->isLinearized || !r->isActive()) continue;
-			// 	    if(r->targetIDX == i){
-			// 	      for(int k=0;k<patternNum;++k){
-			// 		resF2_All += r->J->resF[k]*r->J->resF[k];
-			// 	      }
-			// 	    }
-			// 	  }
-			// 	}
-			// 	double E_imu = b_1.transpose()*Weight*b_1;
-			// 	double bei = sqrt(resF2_All/E_imu);
-			// 	bei = bei/imu_lambda;
-			// 	Weight *=(bei*bei);
-			// 	LOG(INFO)<<"bei"<<bei;
-			// 	Weight_sqrt = Weight_sqrt*bei/imu_lambda;
-			// 	LOG(INFO)<<"b_1: "<<b_1.transpose();
-			// 	LOG(INFO)<<"b_1: "<<b_1.transpose();
 			Mat44 T_tempj = T_BC.matrix()*T_WD_l.matrix()*worldToCam_j.matrix();
 			Mat1515 J_relj = Mat1515::Identity();
 			J_relj.block(0, 0, 6, 6) = (-1 * Sim3(T_tempj).Adj()).block(0, 0, 6, 6);
@@ -554,9 +489,10 @@ namespace dso
 	{
 		if (MT)
 		{
-			red->reduce(boost::bind(&AccumulatedTopHessianSSE::setZero, accSSE_top_A, nFrames, _1, _2, _3, _4), 0, 0, 0);
-			red->reduce(boost::bind(&AccumulatedTopHessianSSE::addPointsInternal<0>,
-				accSSE_top_A, &allPoints, this, _1, _2, _3, _4), 0, allPoints.size(), 50);
+			red->reduce(std::bind(&AccumulatedTopHessianSSE::setZero, accSSE_top_A, nFrames,
+				std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, 0, 0);
+			red->reduce(std::bind(&AccumulatedTopHessianSSE::addPointsInternal<0>, accSSE_top_A, &allPoints, this,
+				std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, allPoints.size(), 50);
 			accSSE_top_A->stitchDoubleMT(red, H, b, this, false, true);
 			resInA = accSSE_top_A->nres[0];
 		}
@@ -576,9 +512,10 @@ namespace dso
 	{
 		if (MT)
 		{
-			red->reduce(boost::bind(&AccumulatedTopHessianSSE::setZero, accSSE_top_L, nFrames, _1, _2, _3, _4), 0, 0, 0);
-			red->reduce(boost::bind(&AccumulatedTopHessianSSE::addPointsInternal<1>,
-				accSSE_top_L, &allPoints, this, _1, _2, _3, _4), 0, allPoints.size(), 50);
+			red->reduce(std::bind(&AccumulatedTopHessianSSE::setZero, accSSE_top_L, nFrames, 
+				std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, 0, 0);
+			red->reduce(std::bind(&AccumulatedTopHessianSSE::addPointsInternal<1>, accSSE_top_L, &allPoints, this,
+				std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, allPoints.size(), 50);
 			accSSE_top_L->stitchDoubleMT(red, H, b, this, true, true);
 			resInL = accSSE_top_L->nres[0];
 		}
@@ -597,9 +534,10 @@ namespace dso
 	{
 		if (MT)
 		{
-			red->reduce(boost::bind(&AccumulatedSCHessianSSE::setZero, accSSE_bot, nFrames, _1, _2, _3, _4), 0, 0, 0);
-			red->reduce(boost::bind(&AccumulatedSCHessianSSE::addPointsInternal,
-				accSSE_bot, &allPoints, true, _1, _2, _3, _4), 0, allPoints.size(), 50);
+			red->reduce(std::bind(&AccumulatedSCHessianSSE::setZero, accSSE_bot, nFrames, 
+				std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, 0, 0);
+			red->reduce(std::bind(&AccumulatedSCHessianSSE::addPointsInternal, accSSE_bot, &allPoints, true, 
+				std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, allPoints.size(), 50);
 			accSSE_bot->stitchDoubleMT(red, H, b, this, true);
 		}
 		else
@@ -638,12 +576,13 @@ namespace dso
 		}
 
 		if (MT)
-			red->reduce(boost::bind(&EnergyFunctional::resubstituteFPt,
-				this, cstep, xAd, _1, _2, _3, _4), 0, allPoints.size(), 50);
+			red->reduce(std::bind(&EnergyFunctional::resubstituteFPt, this, cstep, xAd, 
+				std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, allPoints.size(), 50);
 		else
 			resubstituteFPt(cstep, xAd, 0, allPoints.size(), 0, 0);
 
 		delete[] xAd;
+		xAd = nullptr;
 	}
 
 	// xc：相机内参负更新量
@@ -772,8 +711,8 @@ namespace dso
 
 		E += cDeltaF.cwiseProduct(cPriorF).dot(cDeltaF);
 
-		red->reduce(boost::bind(&EnergyFunctional::calcLEnergyPt,
-			this, _1, _2, _3, _4), 0, allPoints.size(), 50);
+		red->reduce(std::bind(&EnergyFunctional::calcLEnergyPt, this, 
+			std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, allPoints.size(), 50);
 
 		return E + red->stats[0];
 	}
@@ -785,7 +724,7 @@ namespace dso
 		r->point->efPoint->residualsAll.push_back(efr);
 		if (efr->data->stereoResidualFlag == false)
 			connectivityMap[(((uint64_t)efr->host->frameID) << 32) + ((uint64_t)efr->target->frameID)][0]++;
-		//     connectivityMap[(((uint64_t)efr->host->frameID) << 32) + ((uint64_t)efr->target->frameID)][0]++;
+
 		nResiduals++;
 		r->efResidual = efr;
 
@@ -887,28 +826,29 @@ namespace dso
 
 	void EnergyFunctional::marginalizeFrame_imu(EFFrame* fh)
 	{
-		int ndim = nFrames * 17 + CPARS + 7 - 17;// new dimension
-		int odim = nFrames * 17 + CPARS + 7;// old dimension
+		int ndim = nFrames * 17 + CPARS + 7 - 17;	// new dimension
+		int odim = nFrames * 17 + CPARS + 7;		// old dimension
 
 		if (nFrames >= setting_maxFrames) 
-		{
 			imu_track_ready = true;
-		}
 
 		MatXX HM_change = MatXX::Zero(CPARS + 7 + nFrames * 17, CPARS + 7 + nFrames * 17);
 		VecX bM_change = VecX::Zero(CPARS + 7 + nFrames * 17);
 
 		MatXX HM_change_half = MatXX::Zero(CPARS + 7 + nFrames * 17, CPARS + 7 + nFrames * 17);
 		VecX bM_change_half = VecX::Zero(CPARS + 7 + nFrames * 17);
-		// 	LOG(INFO)<<"fh->idx: "<<fh->idx;
+
 		double mar_weight = 0.5;
-		for (int i = fh->idx - 1; i < fh->idx + 1; i++) {
-			if (i < 0)continue;
+		for (int i = fh->idx - 1; i < fh->idx + 1; ++i) 
+		{
+			if (i < 0) continue;
+
 			MatXX J_all = MatXX::Zero(9, CPARS + 7 + nFrames * 17);
 			MatXX J_all_half = MatXX::Zero(9, CPARS + 7 + nFrames * 17);
 			VecX r_all = VecX::Zero(9);
 			IMUPreintegrator IMU_preintegrator;
 			IMU_preintegrator.reset();
+
 			double time_start = pic_time_stamp[frames[i]->data->shell->incoming_id];
 			double time_end = pic_time_stamp[frames[i + 1]->data->shell->incoming_id];
 			double dt = time_end - time_start;
@@ -947,20 +887,20 @@ namespace dso
 			Vec3 g_w;
 			g_w << 0, 0, -G_norm;
 
-			// 	    Mat44 M_WB = T_WD.matrix()*worldToCam_i.inverse().matrix()*T_WD.inverse().matrix()*T_BC.inverse().matrix();
-			// 	    SE3 T_WB(M_WB);
-			// 	    Mat33 R_WB = T_WB.rotationMatrix();
-			// 	    Vec3 t_WB = T_WB.translation();
+			//Mat44 M_WB = T_WD.matrix()*worldToCam_i.inverse().matrix()*T_WD.inverse().matrix()*T_BC.inverse().matrix();
+			//SE3 T_WB(M_WB);
+			//Mat33 R_WB = T_WB.rotationMatrix();
+			//Vec3 t_WB = T_WB.translation();
 
 			Mat44 M_WB2 = T_WD.matrix()*worldToCam_i2.inverse().matrix()*T_WD.inverse().matrix()*T_BC.inverse().matrix();
 			SE3 T_WB2(M_WB2);
 			Mat33 R_WB2 = T_WB2.rotationMatrix();
 			Vec3 t_WB2 = T_WB2.translation();
 
-			// 	    Mat44 M_WBj = T_WD.matrix()*worldToCam_j.inverse().matrix()*T_WD.inverse().matrix()*T_BC.inverse().matrix();
-			// 	    SE3 T_WBj(M_WBj);
-			// 	    Mat33 R_WBj = T_WBj.rotationMatrix();
-			// 	    Vec3 t_WBj = T_WBj.translation();
+			//Mat44 M_WBj = T_WD.matrix()*worldToCam_j.inverse().matrix()*T_WD.inverse().matrix()*T_BC.inverse().matrix();
+			//SE3 T_WBj(M_WBj);
+			//Mat33 R_WBj = T_WBj.rotationMatrix();
+			//Vec3 t_WBj = T_WBj.translation();
 
 			Mat44 M_WBj2 = T_WD.matrix()*worldToCam_j2.inverse().matrix()*T_WD.inverse().matrix()*T_BC.inverse().matrix();
 			SE3 T_WBj2(M_WBj2);

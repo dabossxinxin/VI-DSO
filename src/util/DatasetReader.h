@@ -25,7 +25,6 @@
 #include <sstream>
 #include <fstream>
 #include <algorithm>
-#include <boost/thread.hpp>
 
 #include "util/settings.h"
 #include "util/globalFuncs.h"
