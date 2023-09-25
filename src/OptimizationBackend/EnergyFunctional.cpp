@@ -40,7 +40,7 @@ namespace dso
 	bool EFIndicesValid = false;
 	bool EFDeltaValid = false;
 
-	void EnergyFunctional::calcIMUHessian(MatXX &H, VecX &b)
+	void EnergyFunctional::calcIMUHessian(MatXX& H, VecX& b)
 	{
 		b = VecX::Zero(7 + nFrames * 15);
 		H = MatXX::Zero(7 + nFrames * 15, 7 + nFrames * 15);
@@ -94,9 +94,9 @@ namespace dso
 			Mat66 covBias = Mat66::Zero();
 			covBias.block(0, 0, 3, 3) = GyrRandomWalkNoise * dt;
 			covBias.block(3, 3, 3, 3) = AccRandomWalkNoise * dt;
-			Mat66 weightBias = Mat66::Identity()*imu_weight*imu_weight*covBias.inverse();
-			H += J_bias.transpose()*weightBias*J_bias;
-			b += J_bias.transpose()*weightBias*r_bias;
+			Mat66 weightBias = Mat66::Identity() * imu_weight * imu_weight * covBias.inverse();
+			H += J_bias.transpose() * weightBias * J_bias;
+			b += J_bias.transpose() * weightBias * r_bias;
 
 			// 如果两帧之间的时间间隔大于0.5s了放弃此次预积分
 			// 原因是IMU测量在较短时间内可保证一定精度
@@ -137,55 +137,55 @@ namespace dso
 			SE3 worldToCam_j_evalPT = Framej->get_worldToCam_evalPT();
 
 			//利用伴随性质将坐标系转换到世界系中 
-			Mat44 M_WC_I_PT = T_WD.matrix()*worldToCam_i_evalPT.inverse().matrix()*T_WD.inverse().matrix();
+			Mat44 M_WC_I_PT = T_WD.matrix() * worldToCam_i_evalPT.inverse().matrix() * T_WD.inverse().matrix();
 			SE3 T_WB_I_PT(M_WC_I_PT * T_BC.inverse().matrix());
 			Mat33 R_WB_I_PT = T_WB_I_PT.rotationMatrix();
 			Vec3 t_WB_I_PT = T_WB_I_PT.translation();
 
-			Mat44 M_WC_J_PT = T_WD.matrix()*worldToCam_j_evalPT.inverse().matrix()*T_WD.inverse().matrix();
-			SE3 T_WB_J_PT(M_WC_J_PT*T_BC.inverse().matrix());
+			Mat44 M_WC_J_PT = T_WD.matrix() * worldToCam_j_evalPT.inverse().matrix() * T_WD.inverse().matrix();
+			SE3 T_WB_J_PT(M_WC_J_PT * T_BC.inverse().matrix());
 			Mat33 R_WB_J_PT = T_WB_J_PT.rotationMatrix();
 			Vec3 t_WB_J_PT = T_WB_J_PT.translation();
 
-			Mat44 M_WC_I = T_WD.matrix()*worldToCam_i.inverse().matrix()*T_WD.inverse().matrix();
-			SE3 T_WB_I(M_WC_I*T_BC.inverse().matrix());
+			Mat44 M_WC_I = T_WD.matrix() * worldToCam_i.inverse().matrix() * T_WD.inverse().matrix();
+			SE3 T_WB_I(M_WC_I * T_BC.inverse().matrix());
 			Mat33 R_WB_I = T_WB_I.rotationMatrix();
 			Vec3 t_WB_I = T_WB_I.translation();
 
-			Mat44 M_WC_J = T_WD.matrix()*worldToCam_j.inverse().matrix()*T_WD.inverse().matrix();
-			SE3 T_WB_J(M_WC_J*T_BC.inverse().matrix());
+			Mat44 M_WC_J = T_WD.matrix() * worldToCam_j.inverse().matrix() * T_WD.inverse().matrix();
+			SE3 T_WB_J(M_WC_J * T_BC.inverse().matrix());
 			Mat33 R_WB_J = T_WB_J.rotationMatrix();
 			Vec3 t_WB_J = T_WB_J.translation();
 
 			// 计算IMU预积分P,V,Q残差
-			Vec3 r_delta = IMU_preintegrator.getJRBiasg()*Framei->delta_bias_g;
+			Vec3 r_delta = IMU_preintegrator.getJRBiasg() * Framei->delta_bias_g;
 			Mat33 R_delta = SO3::exp(r_delta).matrix();
-			Vec3 pre_v = IMU_preintegrator.getDeltaV() + IMU_preintegrator.getJVBiasa()*Framei->delta_bias_a + IMU_preintegrator.getJVBiasg()*Framei->delta_bias_g;
-			Vec3 pre_p = IMU_preintegrator.getDeltaP() + IMU_preintegrator.getJPBiasa()*Framei->delta_bias_a + IMU_preintegrator.getJPBiasg()*Framei->delta_bias_g;
-			Vec3 res_q = SO3((IMU_preintegrator.getDeltaR()*R_delta).transpose()*R_WB_I.transpose()*R_WB_J).log();
-			Vec3 res_v = R_WB_I.transpose()*(Framej->velocity - Framei->velocity - g_w * dt) - pre_v;
-			Vec3 res_p = R_WB_I.transpose()*(t_WB_J - t_WB_I - Framei->velocity*dt - 0.5*g_w*dt*dt) - pre_p;
-			
+			Vec3 pre_v = IMU_preintegrator.getDeltaV() + IMU_preintegrator.getJVBiasa() * Framei->delta_bias_a + IMU_preintegrator.getJVBiasg() * Framei->delta_bias_g;
+			Vec3 pre_p = IMU_preintegrator.getDeltaP() + IMU_preintegrator.getJPBiasa() * Framei->delta_bias_a + IMU_preintegrator.getJPBiasg() * Framei->delta_bias_g;
+			Vec3 res_q = SO3((IMU_preintegrator.getDeltaR() * R_delta).transpose() * R_WB_I.transpose() * R_WB_J).log();
+			Vec3 res_v = R_WB_I.transpose() * (Framej->velocity - Framei->velocity - g_w * dt) - pre_v;
+			Vec3 res_p = R_WB_I.transpose() * (t_WB_J - t_WB_I - Framei->velocity * dt - 0.5 * g_w * dt * dt) - pre_p;
+
 			Mat99 Cov = IMU_preintegrator.getCovPVPhi();
 
-			Mat33 Right_JacobianInvResR = IMU_preintegrator.JacobianRInv(res_q);
-			Mat33 J_resPhi_phi_i = -Right_JacobianInvResR * R_WB_J.transpose()*R_WB_I;
-			Mat33 J_resPhi_phi_j = Right_JacobianInvResR;
-			Mat33 J_resPhi_bg = -Right_JacobianInvResR * SO3::exp(-res_q).matrix()*
-				IMU_preintegrator.JacobianR(r_delta)*IMU_preintegrator.getJRBiasg();
+			Mat33 RightJacobianInv_ResR = IMU_preintegrator.JacobianRInv(res_q);
+			Mat33 J_resPhi_phi_i = -RightJacobianInv_ResR * R_WB_J.transpose() * R_WB_I;
+			Mat33 J_resPhi_phi_j = RightJacobianInv_ResR;
+			Mat33 J_resPhi_bg = -RightJacobianInv_ResR * SO3::exp(-res_q).matrix() *
+				IMU_preintegrator.JacobianR(r_delta) * IMU_preintegrator.getJRBiasg();
 
-			Mat33 J_resV_phi_i = SO3::hat(R_WB_I.transpose()*(Framej->velocity - Framei->velocity - g_w * dt));
+			Mat33 J_resV_phi_i = SO3::hat(R_WB_I.transpose() * (Framej->velocity - Framei->velocity - g_w * dt));
 			Mat33 J_resV_v_i = -R_WB_I.transpose();
 			Mat33 J_resV_v_j = R_WB_I.transpose();
 			Mat33 J_resV_ba = -IMU_preintegrator.getJVBiasa();
 			Mat33 J_resV_bg = -IMU_preintegrator.getJVBiasg();
 
 			Mat33 J_resP_p_i = -Mat33::Identity();
-			Mat33 J_resP_p_j = R_WB_I.transpose()*R_WB_J;
+			Mat33 J_resP_p_j = R_WB_I.transpose() * R_WB_J;
 			Mat33 J_resP_bg = -IMU_preintegrator.getJPBiasg();
 			Mat33 J_resP_ba = -IMU_preintegrator.getJPBiasa();
-			Mat33 J_resP_v_i = -R_WB_I.transpose()*dt;
-			Mat33 J_resP_phi_i = SO3::hat(R_WB_I.transpose()*(t_WB_J - t_WB_I - Framei->velocity*dt - 0.5*g_w*dt*dt));
+			Mat33 J_resP_v_i = -R_WB_I.transpose() * dt;
+			Mat33 J_resP_phi_i = SO3::hat(R_WB_I.transpose() * (t_WB_J - t_WB_I - Framei->velocity * dt - 0.5 * g_w * dt * dt));
 
 			Mat915 J_imui = Mat915::Zero();//p,q,v,bg,ba;
 			J_imui.block(0, 0, 3, 3) = J_resP_p_i;
@@ -211,28 +211,18 @@ namespace dso
 			Weight.block(0, 0, 3, 3) = Cov.block(0, 0, 3, 3);
 			Weight.block(3, 3, 3, 3) = Cov.block(6, 6, 3, 3);
 			Weight.block(6, 6, 3, 3) = Cov.block(3, 3, 3, 3);
+			Weight = Weight.diagonal().asDiagonal();
 
-			// TODO：简化一下写法
-			Mat99 Weight2 = Mat99::Zero();
-			for (int i = 0; i < 9; ++i)
-				Weight2(i, i) = Weight(i, i);
-			Weight = Weight2;
-			Weight = imu_weight * imu_weight*Weight.inverse();
-
-			Vec9 b_1 = Vec9::Zero();
-			b_1.block(0, 0, 3, 1) = res_p;
-			b_1.block(3, 0, 3, 1) = res_q;
-			b_1.block(6, 0, 3, 1) = res_v;
-
-			Mat44 T_tempj = T_BC.matrix()*T_WD_l.matrix()*worldToCam_j.matrix();
-			Mat1515 J_relj = Mat1515::Identity();
-			J_relj.block(0, 0, 6, 6) = (-1 * Sim3(T_tempj).Adj()).block(0, 0, 6, 6);
-			Mat44 T_tempi = T_BC.matrix()*T_WD_l.matrix()*worldToCam_i.matrix();
 			Mat1515 J_reli = Mat1515::Identity();
-			J_reli.block(0, 0, 6, 6) = (-1 * Sim3(T_tempi).Adj()).block(0, 0, 6, 6);
+			Mat1515 J_relj = Mat1515::Identity();
 
-			Mat77 J_poseb_wd_i = Sim3(T_tempi).Adj() - Sim3(T_BC.matrix()*T_WD_l.matrix()).Adj();
-			Mat77 J_poseb_wd_j = Sim3(T_tempj).Adj() - Sim3(T_BC.matrix()*T_WD_l.matrix()).Adj();
+			Mat44 T_tmp_i = T_BC.matrix() * T_WD_l.matrix() * worldToCam_i.matrix();
+			J_reli.block(0, 0, 6, 6) = (-1 * Sim3(T_tmp_i).Adj()).block(0, 0, 6, 6);
+			Mat44 T_tmp_j = T_BC.matrix() * T_WD_l.matrix() * worldToCam_j.matrix();
+			J_relj.block(0, 0, 6, 6) = (-1 * Sim3(T_tmp_j).Adj()).block(0, 0, 6, 6);
+
+			Mat77 J_poseb_wd_i = Sim3(T_tmp_i).Adj() - Sim3(T_BC.matrix() * T_WD_l.matrix()).Adj();
+			Mat77 J_poseb_wd_j = Sim3(T_tmp_j).Adj() - Sim3(T_BC.matrix() * T_WD_l.matrix()).Adj();
 			J_poseb_wd_i.block(0, 0, 7, 3) = Mat73::Zero();
 			J_poseb_wd_j.block(0, 0, 7, 3) = Mat73::Zero();
 			// 	J_poseb_wd_i.block(0,3,7,3) = Mat73::Zero();
@@ -248,97 +238,57 @@ namespace dso
 				J_poseb_wd_i.block(0, 6, 7, 1) = Vec7::Zero();
 				J_poseb_wd_j.block(0, 6, 7, 1) = Vec7::Zero();
 			}
-			// 	if(Framei->velocity.norm()>0.1){
-			// 	    J_poseb_wd_i.block(0,6,7,1) = Vec7::Zero();
-			// 	    J_poseb_wd_j.block(0,6,7,1) = Vec7::Zero();
-			// 	}
 
-			// 	LOG(INFO)<<"J_poseb_wd_i: \n"<<J_poseb_wd_i;
-			// 	LOG(INFO)<<"J_poseb_wd_j: \n"<<J_poseb_wd_j;
 			Mat97 J_res_posebi = Mat97::Zero();
-			J_res_posebi.block(0, 0, 9, 6) = J_imui.block(0, 0, 9, 6);
 			Mat97 J_res_posebj = Mat97::Zero();
+			J_res_posebi.block(0, 0, 9, 6) = J_imui.block(0, 0, 9, 6);
 			J_res_posebj.block(0, 0, 9, 6) = J_imuj.block(0, 0, 9, 6);
-			// 	LOG(INFO)<<"5555555";
+
 			Mat66 J_xi_r_l_i = worldToCam_i.Adj().inverse();
 			Mat66 J_xi_r_l_j = worldToCam_j.Adj().inverse();
 			Mat1515 J_r_l_i = Mat1515::Identity();
 			Mat1515 J_r_l_j = Mat1515::Identity();
 			J_r_l_i.block(0, 0, 6, 6) = J_xi_r_l_i;
 			J_r_l_j.block(0, 0, 6, 6) = J_xi_r_l_j;
+
+			// 这里将位置部分置为零那么雅可比只对尺度部分有影响
 			J_pvq.block(0, 0, 9, 7) += J_res_posebi * J_poseb_wd_i;
 			J_pvq.block(0, 0, 9, 7) += J_res_posebj * J_poseb_wd_j;
 			J_pvq.block(0, 0, 9, 3) = Mat93::Zero();
 
-			J_pvq.block(0, 7 + fhIdx * 15, 9, 15) += J_imui * J_reli*J_r_l_i;
-			J_pvq.block(0, 7 + (fhIdx + 1) * 15, 9, 15) += J_imuj * J_relj*J_r_l_j;
+			J_pvq.block(0, 7 + fhIdxS * 15, 9, 15) += J_imui * J_reli * J_r_l_i;
+			J_pvq.block(0, 7 + fhIdxE * 15, 9, 15) += J_imuj * J_relj * J_r_l_j;
 
-			r_pvq.block(0, 0, 9, 1) += b_1;
+			r_pvq.block(0, 0, 3, 1) += res_p;
+			r_pvq.block(3, 0, 3, 1) += res_q;
+			r_pvq.block(6, 0, 3, 1) += res_v;
 
-			H += (J_pvq.transpose()*Weight*J_pvq);
-			b += (J_pvq.transpose()*Weight*r_pvq);
+			H += (J_pvq.transpose() * Weight * J_pvq);
+			b += (J_pvq.transpose() * Weight * r_pvq);
 
-			// 	//bias model
-			// 	MatXX J_all2 = MatXX::Zero(6, 7+nFrames*15);
-			// 	VecX r_all2 = VecX::Zero(6);
-			// 	
-			// 	r_all2.block(0,0,3,1) = Framej->bias_g+Framej->delta_bias_g - (Framei->bias_g+Framei->delta_bias_g);
-			// 	r_all2.block(3,0,3,1) = Framej->bias_a+Framej->delta_bias_a - (Framei->bias_a+Framei->delta_bias_a);
-			// 	
-			// 	J_all2.block(0,7+i*15+9,3,3) = -Mat33::Identity();
-			// 	J_all2.block(0,7+(i+1)*15+9,3,3) = Mat33::Identity();
-			// 	J_all2.block(3,7+i*15+12,3,3) = -Mat33::Identity();
-			// 	J_all2.block(3,7+(i+1)*15+12,3,3) = Mat33::Identity();
-			// 	Mat66 Cov_bias = Mat66::Zero();
-			// 	Cov_bias.block(0,0,3,3) = GyrRandomWalkNoise*dt;
-			// 	Cov_bias.block(3,3,3,3) = AccRandomWalkNoise*dt;
-			// 	Mat66 weight_bias = Mat66::Identity()*imu_weight*imu_weight*Cov_bias.inverse();
-			// // 	weight_bias *= (bei*bei);
-			// 	H += J_all2.transpose()*weight_bias*J_all2;
-			// 	b += J_all2.transpose()*weight_bias*r_all2;
-			// 	LOG(INFO)<<"r_all2: "<<r_all2.transpose();
-			// 	LOG(INFO)<<"J_all2.transpose()*weight_bias*J_all2: \n"<<J_all2.transpose()*weight_bias*J_all2;
-
-
-			Energy = Energy + (r_pvq.transpose()*Weight*r_pvq)[0] + (r_bias.transpose()*weightBias*r_bias)[0];
-			// 	LOG(INFO)<<"b_1: "<<b_1.transpose();
-
-			// 	LOG(INFO)<<"Weight_sqrt*b_1: "<<(Weight_sqrt*b_1).transpose();
+			Energy += (r_pvq.transpose() * Weight * r_pvq)[0] + (r_bias.transpose() * weightBias * r_bias)[0];
 		}
-		//     LOG(INFO)<<"IMU Energy: "<<Energy;
-		//     LOG(INFO)<<"r_all: "<<r_all.transpose();
-		//     LOG(INFO)<<"666666666";
 
-		//     LOG(INFO)<<"H: \n"<<H;
-		//     LOG(INFO)<<"b: \n"<<b.transpose();
-		//     exit(1);
-
-		for (int i = 0; i < nFrames; i++)
+		// 与视觉部分对应视觉部分的Jacobian同样加上了平移和旋转的尺度参数
+		for (int it = 0; it < nFrames; ++it)
 		{
-			H.block(0, 7 + i * 15, 7 + nFrames * 15, 3) *= SCALE_XI_TRANS;
-			H.block(7 + i * 15, 0, 3, 7 + nFrames * 15) *= SCALE_XI_TRANS;
-			b.block(7 + i * 15, 0, 3, 1) *= SCALE_XI_TRANS;
+			H.block(0, 7 + it * 15, 7 + nFrames * 15, 3) *= SCALE_XI_TRANS;
+			H.block(7 + it * 15, 0, 3, 7 + nFrames * 15) *= SCALE_XI_TRANS;
 
-			H.block(0, 7 + i * 15 + 3, 7 + nFrames * 15, 3) *= SCALE_XI_ROT;
-			H.block(7 + i * 15 + 3, 0, 3, 7 + nFrames * 15) *= SCALE_XI_ROT;
-			b.block(7 + i * 15 + 3, 0, 3, 1) *= SCALE_XI_ROT;
+			H.block(0, 7 + it * 15 + 3, 7 + nFrames * 15, 3) *= SCALE_XI_ROT;
+			H.block(7 + it * 15 + 3, 0, 3, 7 + nFrames * 15) *= SCALE_XI_ROT;
+
+			b.block(7 + it * 15, 0, 3, 1) *= SCALE_XI_TRANS;
+			b.block(7 + it * 15 + 3, 0, 3, 1) *= SCALE_XI_ROT;
 		}
-		//     if(nFrames ==3)exit(1);
-		//     LOG(INFO)<<"H: \n"<<H;
-		//     LOG(INFO)<<"b: \n"<<b.transpose();
-		//     if(count_imu_res<3){
-		// 	H = MatXX::Zero(7+nFrames*15, 7+nFrames*15);
-		// 	b = VecX::Zero(7+nFrames*15);
-		//     }
-		//     LOG(INFO)<<"H_imu: "<<H.diagonal().transpose();
 	}
 
 	void EnergyFunctional::setAdjointsF(CalibHessian* Hcalib)
 	{
 		if (adHost != 0) delete[] adHost;
 		if (adTarget != 0) delete[] adTarget;
-		adHost = new Mat88[nFrames*nFrames];
-		adTarget = new Mat88[nFrames*nFrames];
+		adHost = new Mat88[nFrames * nFrames];
+		adTarget = new Mat88[nFrames * nFrames];
 
 		for (int h = 0; h < nFrames; h++)
 		{
@@ -375,12 +325,13 @@ namespace dso
 			}
 		}
 
+		// 对相机内参添加超强先验 TODO：为什么要加先验信息
 		cPrior = VecC::Constant(setting_initialCalibHessian);
 
 		if (adHostF != 0) delete[] adHostF;
 		if (adTargetF != 0) delete[] adTargetF;
-		adHostF = new Mat88f[nFrames*nFrames];
-		adTargetF = new Mat88f[nFrames*nFrames];
+		adHostF = new Mat88f[nFrames * nFrames];
+		adTargetF = new Mat88f[nFrames * nFrames];
 
 		for (int h = 0; h < nFrames; h++)
 		{
@@ -452,15 +403,15 @@ namespace dso
 		if (adTargetF != 0) delete[] adTargetF;
 		if (adHTdeltaF != 0) delete[] adHTdeltaF;
 
-		delete accSSE_top_L;
-		delete accSSE_top_A;
-		delete accSSE_bot;
+		delete accSSE_top_L; accSSE_top_L = NULL;
+		delete accSSE_top_A; accSSE_top_A = NULL;
+		delete accSSE_bot; accSSE_bot = NULL;
 	}
 
 	void EnergyFunctional::setDeltaF(CalibHessian* HCalib)
 	{
 		if (adHTdeltaF != 0) delete[] adHTdeltaF;
-		adHTdeltaF = new Mat18f[nFrames*nFrames];
+		adHTdeltaF = new Mat18f[nFrames * nFrames];
 		for (int h = 0; h < nFrames; h++)
 		{
 			for (int t = 0; t < nFrames; t++)
@@ -739,6 +690,7 @@ namespace dso
 
 		nFrames++;
 		fh->efFrame = eff;
+
 		//stereo
 		EFFrame* eff_right = new EFFrame(fh->frame_right);
 		eff_right->idx = frames.size() + 10000;
@@ -810,18 +762,17 @@ namespace dso
 		p->residualsAll[r->idxInAll]->idxInAll = r->idxInAll;
 		p->residualsAll.pop_back();
 
-
 		if (r->isActive())
 			r->host->data->shell->statistics_goodResOnThis++;
 		else
 			r->host->data->shell->statistics_outlierResOnThis++;
 
-		if (r->data->stereoResidualFlag == false)
+		if (!r->data->stereoResidualFlag)
 			connectivityMap[(((uint64_t)r->host->frameID) << 32) + ((uint64_t)r->target->frameID)][0]--;
-		//     connectivityMap[(((uint64_t)r->host->frameID) << 32) + ((uint64_t)r->target->frameID)][0]--;
+		
 		nResiduals--;
 		r->data->efResidual = 0;
-		delete r;
+		delete r; r = NULL;
 	}
 
 	void EnergyFunctional::marginalizeFrame_imu(EFFrame* fh)
@@ -829,7 +780,7 @@ namespace dso
 		int ndim = nFrames * 17 + CPARS + 7 - 17;	// new dimension
 		int odim = nFrames * 17 + CPARS + 7;		// old dimension
 
-		if (nFrames >= setting_maxFrames) 
+		if (nFrames >= setting_maxFrames)
 			imu_track_ready = true;
 
 		MatXX HM_change = MatXX::Zero(CPARS + 7 + nFrames * 17, CPARS + 7 + nFrames * 17);
@@ -839,6 +790,7 @@ namespace dso
 		VecX bM_change_half = VecX::Zero(CPARS + 7 + nFrames * 17);
 
 		double mar_weight = 0.5;
+
 		for (int i = fh->idx - 1; i < fh->idx + 1; ++i) 
 		{
 			if (i < 0) continue;
@@ -853,7 +805,7 @@ namespace dso
 			double time_end = pic_time_stamp[frames[i + 1]->data->shell->incoming_id];
 			double dt = time_end - time_start;
 
-			if (dt > 0.5)continue;
+			if (dt > 0.5) continue;
 			FrameHessian* Framei = frames[i]->data;
 			FrameHessian* Framej = frames[i + 1]->data;
 
@@ -1389,7 +1341,6 @@ namespace dso
 
 	void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 	{
-
 		assert(EFDeltaValid);
 		assert(EFAdjointsValid);
 		assert(EFIndicesValid);
@@ -1402,18 +1353,16 @@ namespace dso
 		int ndim = nFrames * 8 + CPARS - 8;// new dimension
 		int odim = nFrames * 8 + CPARS;// old dimension
 
-	//	VecX eigenvaluesPre = HM.eigenvalues().real();
-	//	std::sort(eigenvaluesPre.data(), eigenvaluesPre.data()+eigenvaluesPre.size());
-
+		// 若需要marg的帧不是关键帧中最后一帧则需要将这帧数据移到矩阵最后
 		if ((int)fh->idx != (int)frames.size() - 1)
 		{
-			int io = fh->idx * 8 + CPARS;	// index of frame to move to end
+			int io = fh->idx * 8 + CPARS;
 			int ntail = 8 * (nFrames - fh->idx - 1);
 			assert((io + 8 + ntail) == nFrames * 8 + CPARS);
 
 			Vec8 bTmp = bM.segment<8>(io);
-			VecX tailTMP = bM.tail(ntail);
-			bM.segment(io, ntail) = tailTMP;
+			VecX tailTmp = bM.tail(ntail);
+			bM.segment(io, ntail) = tailTmp;
 			bM.tail<8>() = bTmp;
 
 			MatXX HtmpCol = HM.block(0, io, odim, 8);
@@ -1427,88 +1376,56 @@ namespace dso
 			HM.bottomRows(8) = HtmpRow;
 		}
 
-		//	// marginalize. First add prior here, instead of to active.
+		// marginalize. First add prior here, instead of to active.
 		HM.bottomRightCorner<8, 8>().diagonal() += fh->prior;
 		bM.tail<8>() += fh->prior.cwiseProduct(fh->delta_prior);
-
-		//	std::cout << std::setprecision(16) << "HMPre:\n" << HM << "\n\n";
 
 		VecX SVec = (HM.diagonal().cwiseAbs() + VecX::Constant(HM.cols(), 10)).cwiseSqrt();
 		VecX SVecI = SVec.cwiseInverse();
 
-		//	std::cout << std::setprecision(16) << "SVec: " << SVec.transpose() << "\n\n";
-		//	std::cout << std::setprecision(16) << "SVecI: " << SVecI.transpose() << "\n\n";
-
-			// scale!
 		MatXX HMScaled = SVecI.asDiagonal() * HM * SVecI.asDiagonal();
 		VecX bMScaled = SVecI.asDiagonal() * bM;
 
-		// invert bottom part!
 		Mat88 hpi = HMScaled.bottomRightCorner<8, 8>();
-		// 	LOG(INFO)<<"hpi1: \n"<<hpi;
 		hpi = 0.5f*(hpi + hpi);
-		// 	LOG(INFO)<<"hpi2: \n"<<hpi;
 		hpi = hpi.inverse();
-		// 	LOG(INFO)<<"hpi3: \n"<<hpi;
 		hpi = 0.5f*(hpi + hpi);
-		if (std::isfinite(hpi(0, 0)) == false) {
-			hpi = Mat88::Zero();
-		}
+		if (!std::isfinite(hpi(0, 0))) hpi = Mat88::Zero();
 
-		// schur-complement!
+		// 舒尔补求解边缘化后的Hessian以及b
 		MatXX bli = HMScaled.bottomLeftCorner(8, ndim).transpose() * hpi;
 		HMScaled.topLeftCorner(ndim, ndim).noalias() -= bli * HMScaled.bottomLeftCorner(8, ndim);
 		bMScaled.head(ndim).noalias() -= bli * bMScaled.tail<8>();
 
-		//unscale!
 		HMScaled = SVec.asDiagonal() * HMScaled * SVec.asDiagonal();
 		bMScaled = SVec.asDiagonal() * bMScaled;
 
-		// set.
 		HM = 0.5*(HMScaled.topLeftCorner(ndim, ndim) + HMScaled.topLeftCorner(ndim, ndim).transpose());
 		bM = bMScaled.head(ndim);
-		// 	if(std::isfinite(HM(0,0))==false){
-		// 	    LOG(INFO)<<"ndim: "<<ndim;
-		// 	    LOG(INFO)<<"hpi: \n"<<hpi;
-		// 	    LOG(INFO)<<"bli: \n"<<bli;
-		// 	    LOG(INFO)<<"HMScaled: \n"<<HMScaled;
-		// 	    LOG(INFO)<<"SVecI: \n"<<SVecI.transpose();
-		// 	    LOG(INFO)<<"SVec: \n"<<SVec.transpose();
-		// 	    LOG(INFO)<<"fh->prior: \n"<<fh->prior.transpose();
-		// 	    LOG(INFO)<<"fh->delta_prior: \n"<<fh->delta_prior.transpose();
-		// 	    exit(1);
-		// 	}
-			// remove from vector, without changing the order!
+		
+		// Hessian矩阵以及b矩阵中的信息去除后，去掉对应的关键帧信息
 		for (unsigned int i = fh->idx; i + 1 < frames.size(); i++)
 		{
 			frames[i] = frames[i + 1];
 			frames[i]->idx = i;
 		}
-		frames.pop_back();
+
 		nFrames--;
+		frames.pop_back();
 		fh->data->efFrame = 0;
-
-		assert((int)frames.size() * 8 + CPARS == (int)HM.rows());
-		assert((int)frames.size() * 8 + CPARS == (int)HM.cols());
-		assert((int)frames.size() * 8 + CPARS == (int)bM.size());
-		assert((int)frames.size() == (int)nFrames);
-
-		//	VecX eigenvaluesPost = HM.eigenvalues().real();
-		//	std::sort(eigenvaluesPost.data(), eigenvaluesPost.data()+eigenvaluesPost.size());
-
-		//	std::cout << std::setprecision(16) << "HMPost:\n" << HM << "\n\n";
-
-		//	std::cout << "EigPre:: " << eigenvaluesPre.transpose() << "\n";
-		//	std::cout << "EigPost: " << eigenvaluesPost.transpose() << "\n";
 
 		EFIndicesValid = false;
 		EFAdjointsValid = false;
 		EFDeltaValid = false;
 
 		makeIDX();
-		delete fh;
+		delete fh; fh = NULL;
 	}
 
+	/// <summary>
+	/// 边缘化关键帧时，关键帧中包含很多路标点信息，若直接丢弃则优化问题中
+	/// 会损失很多信息，此时的做法是将有效的路标点收集起来进行边缘化求解Hessian
+	/// </summary>
 	void EnergyFunctional::marginalizePointsF()
 	{
 		assert(EFDeltaValid);
@@ -1516,9 +1433,11 @@ namespace dso
 		assert(EFIndicesValid);
 
 		allPointsToMarg.clear();
+
+		// 收集待边缘化帧中有效路标点
 		for (EFFrame* f : frames)
 		{
-			for (int i = 0; i < (int)f->points.size(); i++)
+			for (int i = 0; i < (int)f->points.size(); ++i)
 			{
 				EFPoint* p = f->points[i];
 				if (p->stateFlag == EFPointStatus::PS_MARGINALIZE)
@@ -1526,29 +1445,31 @@ namespace dso
 					p->priorF *= setting_idepthFixPriorMargFac;
 					for (EFResidual* r : p->residualsAll)
 						if (r->isActive())
-							if (r->data->stereoResidualFlag == false)
+							if (!r->data->stereoResidualFlag)
 								connectivityMap[(((uint64_t)r->host->frameID) << 32) + ((uint64_t)r->target->frameID)][1]++;
-					//                         connectivityMap[(((uint64_t)r->host->frameID) << 32) + ((uint64_t)r->target->frameID)][1]++;
+					
 					int ngoodres = 0;
-					for (EFResidual* r : p->residualsAll) if (r->isActive() && r->data->stereoResidualFlag == false) ngoodres++;
-					if (ngoodres > 0) {
-						allPointsToMarg.push_back(p);
-					}
-					else {
+					for (EFResidual* r : p->residualsAll)
+						if (r->isActive() && !r->data->stereoResidualFlag) ngoodres++;
+					if (ngoodres > 0)
+						allPointsToMarg.emplace_back(p);
+					else 
 						removePoint(p);
-					}
 				}
 			}
 		}
-		// 	LOG(INFO)<<"allPointsToMarg.size(): "<<allPointsToMarg.size();
+
+		// 使用有效路标点边缘化计算Heesian以及b
 		accSSE_bot->setZero(nFrames);
 		accSSE_top_A->setZero(nFrames);
+
 		for (EFPoint* p : allPointsToMarg)
 		{
 			accSSE_top_A->addPoint<2>(p, this);
 			accSSE_bot->addPoint(p, false);
 			removePoint(p);
 		}
+
 		MatXX M, Msc;
 		VecX Mb, Mbsc;
 		accSSE_top_A->stitchDouble(M, Mb, this, false, false);
@@ -1561,13 +1482,12 @@ namespace dso
 
 		if (setting_solverMode & SOLVER_ORTHOGONALIZE_POINTMARG)
 		{
-			// have a look if prior is there.
 			bool haveFirstFrame = false;
-			for (EFFrame* f : frames) if (f->frameID == 0) haveFirstFrame = true;
+			for (EFFrame* f : frames)
+				if (f->frameID == 0) haveFirstFrame = true;
 
 			if (!haveFirstFrame)
 				orthogonalize(&b, &H);
-
 		}
 
 		HM += setting_margWeightFac * H;
@@ -1601,9 +1521,11 @@ namespace dso
 
 	void EnergyFunctional::removePoint(EFPoint* p)
 	{
+		// 删除由该点构造的所有残差
 		for (EFResidual* r : p->residualsAll)
 			dropResidual(r);
 
+		// 在该点的host帧中删除该点
 		EFFrame* h = p->host;
 		h->points[p->idxInPoints] = h->points.back();
 		h->points[p->idxInPoints]->idxInPoints = p->idxInPoints;
@@ -1614,7 +1536,7 @@ namespace dso
 
 		EFIndicesValid = false;
 
-		delete p;
+		delete p; p = NULL;
 	}
 
 	void EnergyFunctional::orthogonalize(VecX* b, MatXX* H)
@@ -1888,7 +1810,7 @@ namespace dso
 
 	void EnergyFunctional::makeIDX()
 	{
-		for (unsigned int idx = 0; idx < frames.size(); idx++)
+		for (unsigned int idx = 0; idx < frames.size(); ++idx)
 			frames[idx]->idx = idx;
 
 		allPoints.clear();
@@ -1897,14 +1819,13 @@ namespace dso
 		{
 			for (EFPoint* p : f->points)
 			{
-				allPoints.push_back(p);
+				allPoints.emplace_back(p);
 				for (EFResidual* r : p->residualsAll)
 				{
 					r->hostIDX = r->host->idx;
 					r->targetIDX = r->target->idx;
-					if (r->data->stereoResidualFlag == true) {
+					if (r->data->stereoResidualFlag)
 						r->targetIDX = frames[frames.size() - 1]->idx;
-					}
 				}
 			}
 		}
