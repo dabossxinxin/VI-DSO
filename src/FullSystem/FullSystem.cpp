@@ -962,18 +962,23 @@ namespace dso
 		}
 	}
 
+	/// <summary>
+	/// 根据最新帧newFrame进行视觉初始化
+	/// </summary>
+	/// <param name="newFrame">DSO系统最新进入的帧</param>
 	void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 	{
 		std::unique_lock<std::mutex> lock(mapMutex);
 
-		//FrameHessian* firstFrame = coarseInitializer->firstFrame;
 		coarseInitializer->firstFrame->idx = frameHessians.size();
 		frameHessians.emplace_back(coarseInitializer->firstFrame);
 		coarseInitializer->firstFrame->frameID = allKeyFramesHistory.size();
 		coarseInitializer->firstFrame->frame_right->frameID = 10000 + allKeyFramesHistory.size();
 		allKeyFramesHistory.emplace_back(coarseInitializer->firstFrame->shell);
+
 		ef->insertFrame(coarseInitializer->firstFrame, &Hcalib);
 
+		// 这一步实际已经计算出来了初始化两帧之间的姿态
 		setPrecalcValues();
 
 		FrameHessian* firstFrameRight = coarseInitializer->firstFrame_right;
@@ -990,9 +995,9 @@ namespace dso
 		float numIDepth = 1e-5;
 
 		// 计算初始化得到的特征点深度平均值
-		for (int i = 0; i < coarseInitializer->numPoints[0]; i++)
+		for (int it = 0; it < coarseInitializer->numPoints[0]; ++it)
 		{
-			sumIDepth += coarseInitializer->points[0][i].iR;
+			sumIDepth += coarseInitializer->points[0][it].iR;
 			numIDepth++;
 		}
 		float rescaleFactor = 1 / (sumIDepth / numIDepth);
@@ -1060,7 +1065,8 @@ namespace dso
 				if (rand() / (float)RAND_MAX > keepPercentage) continue;
 
 				Pnt* point = coarseInitializer->points[0] + idx;
-				ImmaturePoint* pt = new ImmaturePoint(point->u + 0.5f, point->v + 0.5f, coarseInitializer->firstFrame, point->my_type, &Hcalib);
+				ImmaturePoint* pt = new ImmaturePoint(point->u + 0.5f, point->v + 0.5f,
+					coarseInitializer->firstFrame, point->my_type, &Hcalib);
 
 				if (!std::isfinite(pt->energyTH)) { delete pt; continue; }
 
@@ -1069,7 +1075,7 @@ namespace dso
 				if (pt != NULL) { delete pt; pt = NULL; }
 				if (!std::isfinite(ph->energyTH)) { delete ph; continue; }
 
-				ph->setIdepthScaled(point->iR*rescaleFactor);
+				ph->setIdepthScaled(point->iR * rescaleFactor);
 				ph->setIdepthZero(ph->idepth);
 				ph->hasDepthPrior = true;
 				ph->setPointStatus(PointHessian::ACTIVE);
@@ -1079,25 +1085,21 @@ namespace dso
 			}
 		}
 
+		// 根据得到的深度尺度归一化初始化两帧之间的平移参数
 		SE3 firstToNew = coarseInitializer->thisToNext;
 		firstToNew.translation() /= rescaleFactor;
 
 		// really no lock required, as we are initializing.
 		{
 			std::unique_lock<std::mutex> crlock(shellPoseMutex);
-			//firstFrame->shell->camToWorld = SE3();
-			//firstFrame->shell->aff_g2l = AffLight(0,0);
-			//firstFrame->setEvalPT_scaled(firstFrame->shell->camToWorld.inverse(),firstFrame->shell->aff_g2l);
 			coarseInitializer->firstFrame->shell->trackingRef = 0;
 			coarseInitializer->firstFrame->shell->camToTrackingRef = SE3();
-			//LOG(INFO)<<"firstFrame pose: \n"<<firstFrame->shell->camToWorld.matrix();
 
-			newFrame->shell->camToWorld = coarseInitializer->firstFrame->shell->camToWorld*firstToNew.inverse();
+			newFrame->shell->camToWorld = coarseInitializer->firstFrame->shell->camToWorld * firstToNew.inverse();
 			newFrame->shell->aff_g2l = AffLight(0, 0);
 			newFrame->setEvalPT_scaled(newFrame->shell->camToWorld.inverse(), newFrame->shell->aff_g2l);
 			newFrame->shell->trackingRef = coarseInitializer->firstFrame->shell;
 			newFrame->shell->camToTrackingRef = firstToNew.inverse();
-			//LOG(INFO)<<"newFrame pose: \n"<<newFrame->shell->camToWorld.matrix();
 		}
 
 		initialized = true;
@@ -1106,31 +1108,31 @@ namespace dso
 
 	void FullSystem::addActiveFrame(ImageAndExposure* image, ImageAndExposure* image_right, int id)
 	{
-		LOG(INFO) << "id: " << id << " M_num: " << M_num << " M_num2: " << M_num2;
-		LOG(INFO) << std::fixed << std::setprecision(12) << "timestamp: " << pic_time_stamp[id];
+		printf("image id-stamp: %d-%.12f, marginalization total-half: %d-%d\n",
+			id, pic_time_stamp[id], marg_num, marg_num_half);
 
 		if (isLost) return;
 		std::unique_lock<std::mutex> lock(trackMutex);
 
-		if (use_stereo && (T_WD.scale() > 2 || T_WD.scale() < 0.6)) 
+		if (use_stereo && (T_WD.scale() > 2 || T_WD.scale() < 0.6))
 		{
 			initFailed = true;
 			first_track_flag = false;
-			LOG(INFO) << "tracking error scale.";
+			printf("tracking error scale\n");
 		}
 
 		if (!use_stereo && (T_WD.scale() < 0.1 || T_WD.scale() > 10))
 		{
 			initFailed = true;
 			first_track_flag = false;
-			LOG(INFO) << "tracking error scale.";
+			printf("tracking error scale\n");
 		}
 
 		// =========================== add into allFrameHistory =========================
 		FrameHessian* fh = new FrameHessian();
 		FrameHessian* fh_right = new FrameHessian();
 		FrameShell* shell = new FrameShell();
-		shell->camToWorld = SE3(); 		// no lock required, as fh is not used anywhere yet.
+		shell->camToWorld = SE3(); 					// no lock required, as fh is not used anywhere yet.
 		shell->aff_g2l = AffLight(0, 0);
 		shell->marginalizedAt = shell->id = allFrameHistory.size();
 		shell->timestamp = image->timestamp;
@@ -1145,7 +1147,7 @@ namespace dso
 		fh_right->makeImages(image_right->image, &Hcalib);
 		fh->frame_right = fh_right;
 
-		if (allFrameHistory.size() > 0) 
+		if (allFrameHistory.size() > 0)
 		{
 			fh->velocity = fh->shell->velocity = allFrameHistory.back()->velocity;
 			fh->bias_g = fh->shell->bias_g = allFrameHistory.back()->bias_g + allFrameHistory.back()->delta_bias_g;
@@ -1158,16 +1160,18 @@ namespace dso
 		// 2、单目初始化并且加上惯导的信息
 		if (!initialized)
 		{
+			// 双目情况下设置初始化的第一帧图像
 			if (coarseInitializer->frameID < 0 && use_stereo)
 			{
 				coarseInitializer->setFirstStereo(&Hcalib, fh, fh_right);
 				initFirstFrame_imu(fh);
 				initializeFromInitializer(fh);
 				//initialized = true;		// 使用一帧双目的数据就可以成功进行初始化
-				M_num = 0;
-				M_num2 = 0;
+				marg_num = 0;
+				marg_num_half = 0;
 			}
-			else if (coarseInitializer->frameID < 0) 
+			// 单目情况下设置初始化的第一帧图像
+			else if (coarseInitializer->frameID < 0)
 			{
 				coarseInitializer->setFirst(&Hcalib, fh);
 				initFirstFrame_imu(fh);
@@ -1208,7 +1212,7 @@ namespace dso
 
 			Vec4 tres = trackNewCoarse(fh);
 
-			if (!std::isfinite((double)tres[0]) || !std::isfinite((double)tres[1]) || 
+			if (!std::isfinite((double)tres[0]) || !std::isfinite((double)tres[1]) ||
 				!std::isfinite((double)tres[2]) || !std::isfinite((double)tres[3]))
 			{
 				printf("Initial Tracking failed: LOST!\n");
@@ -1229,13 +1233,13 @@ namespace dso
 
 				// 位置变化 & 亮度变化 & 时间间隔
 				needToMakeKF = allFrameHistory.size() == 1 ||
-					setting_kfGlobalWeight * setting_maxShiftWeightT *  sqrtf((double)tres[1]) / (wG[0] + hG[0]) +
-					setting_kfGlobalWeight * setting_maxShiftWeightR *  sqrtf((double)tres[2]) / (wG[0] + hG[0]) +
+					setting_kfGlobalWeight * setting_maxShiftWeightT * sqrtf((double)tres[1]) / (wG[0] + hG[0]) +
+					setting_kfGlobalWeight * setting_maxShiftWeightR * sqrtf((double)tres[2]) / (wG[0] + hG[0]) +
 					setting_kfGlobalWeight * setting_maxShiftWeightRT * sqrtf((double)tres[3]) / (wG[0] + hG[0]) +
 					setting_kfGlobalWeight * setting_maxAffineWeight * fabs(logf((float)refToFh[0])) > 1 ||
 					2 * coarseTracker->firstCoarseRMSE < tres[0];
-				double delta = setting_kfGlobalWeight * setting_maxShiftWeightT *  sqrtf((double)tres[1]) / (wG[0] + hG[0]) +
-					setting_kfGlobalWeight * setting_maxShiftWeightR *  sqrtf((double)tres[2]) / (wG[0] + hG[0]) +
+				double delta = setting_kfGlobalWeight * setting_maxShiftWeightT * sqrtf((double)tres[1]) / (wG[0] + hG[0]) +
+					setting_kfGlobalWeight * setting_maxShiftWeightR * sqrtf((double)tres[2]) / (wG[0] + hG[0]) +
 					setting_kfGlobalWeight * setting_maxShiftWeightRT * sqrtf((double)tres[3]) / (wG[0] + hG[0]) +
 					setting_kfGlobalWeight * setting_maxAffineWeight * fabs(logf((float)refToFh[0]));
 				double interval = pic_time_stamp[fh->shell->incoming_id] - pic_time_stamp[coarseTracker->lastRef->shell->incoming_id];
@@ -1249,7 +1253,7 @@ namespace dso
 			lock.unlock();
 			deliverTrackedFrame(fh, fh_right, needToMakeKF);
 
-			Sophus::Matrix4d T = T_WD.matrix()*shell->camToWorld.matrix()*T_WD.inverse().matrix();
+			Sophus::Matrix4d T = T_WD.matrix() * shell->camToWorld.matrix() * T_WD.inverse().matrix();
 			savetrajectory_tum(SE3(T), run_time);
 			return;
 		}
@@ -1296,10 +1300,10 @@ namespace dso
 			g_b = g_b + m_acc[imuStartIdx - j];
 
 		g_b = -g_b / g_b.norm();
-		Vec3 g_c = T_BC.inverse().rotationMatrix()*g_b;
+		Vec3 g_c = T_BC.inverse().rotationMatrix() * g_b;
 
 		g_c = g_c / g_c.norm();
-		Vec3 rAxis_wc = Sophus::SO3::hat(g_c)*g_w;
+		Vec3 rAxis_wc = Sophus::SO3::hat(g_c) * g_w;
 
 		// 罗德里格斯公式计算相机系到世界系的旋转
 		double nNorm = rAxis_wc.norm();
@@ -1307,11 +1311,11 @@ namespace dso
 		double sin_theta = nNorm;
 		double cos_theta = g_c.dot(g_w);
 
-		Mat33 R_wc = cos_theta * Mat33::Identity() + (1 - cos_theta)*rAxis_wc*rAxis_wc.transpose() + sin_theta * Sophus::SO3::hat(rAxis_wc);
+		Mat33 R_wc = cos_theta * Mat33::Identity() + (1 - cos_theta) * rAxis_wc * rAxis_wc.transpose() + sin_theta * Sophus::SO3::hat(rAxis_wc);
 
 		SE3 T_wc(R_wc, Vec3::Zero());
 		if (gt_path.empty()) T_WR_align = SE3();
-		else T_WR_align = T_wc * T_BC.inverse()*gt_pose[imuStartIdxGT].inverse();
+		else T_WR_align = T_wc * T_BC.inverse() * gt_pose[imuStartIdxGT].inverse();
 
 		fh->shell->camToWorld = T_wc;
 		fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(), fh->shell->aff_g2l);
@@ -1675,13 +1679,16 @@ namespace dso
 		//printf("MADE %d IMMATURE POINTS!\n", (int)newFrame->immaturePoints.size());
 	}
 
+	/// <summary>
+	/// 计算滑窗关键帧之间的相对关系
+	/// </summary>
 	void FullSystem::setPrecalcValues()
 	{
 		for (FrameHessian* fh : frameHessians)
 		{
 			fh->targetPrecalc.resize(frameHessians.size());
-			for (unsigned int i = 0; i < frameHessians.size(); i++)
-				fh->targetPrecalc[i].set(fh, frameHessians[i], &Hcalib);
+			for (unsigned int it = 0; it < frameHessians.size(); ++it)
+				fh->targetPrecalc[it].set(fh, frameHessians[it], &Hcalib);
 		}
 
 		ef->setDeltaF(&Hcalib);

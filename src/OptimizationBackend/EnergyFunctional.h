@@ -88,9 +88,9 @@ namespace dso
 		std::vector<EFFrame*> frames;		// 滑窗中所有的关键帧
 		int nPoints, nFrames, nResiduals;	// 滑窗中参加优化的特征点、关键帧以及残差数量
 
-		MatXX HM;
-		VecX bM;
-
+		MatXX HM;				// 视觉部分边缘化的H
+		VecX bM;				// 视觉部分边缘化的b
+		    
 		MatXX HM_imu;
 		VecX bM_imu;
 
@@ -104,7 +104,7 @@ namespace dso
 		double s_last = 1;
 		double d_now = sqrt(1.1);
 		double d_half = sqrt(1.1);
-		bool side_last = true;//for d margin: true: upper s_middle false: below s_middle
+		bool side_last = true;		//for dynamic margin: true: upper s_middle false: below s_middle
 
 		int resInA, resInL, resInM;
 		MatXX lastHS;

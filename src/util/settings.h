@@ -235,8 +235,8 @@ namespace dso
 	extern double imu_lambda;
 	extern bool imu_track_ready;
 	extern double stereo_weight;
-	extern int M_num;
-	extern int M_num2;
+	extern int marg_num;
+	extern int marg_num_half;
 	extern double setting_margWeightFac_imu;
 	extern bool first_track_flag;
 	extern bool use_stereo;

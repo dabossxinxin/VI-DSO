@@ -112,27 +112,32 @@ namespace dso
 		immaturePoints.clear();
 	}
 
+	/// <summary>
+	/// 设置当前帧的灰度图像数据以及梯度数据
+	/// </summary>
+	/// <param name="color">输入灰度通道图像数据</param>
+	/// <param name="HCalib">输入相机的标定参数</param>
 	void FrameHessian::makeImages(float* color, CalibHessian* HCalib)
 	{
-
-		for (int i = 0; i < pyrLevelsUsed; i++)
+		// 为当前帧分配金字塔图像内存以及梯度内存
+		for (int it = 0; it < pyrLevelsUsed; ++it)
 		{
-			dIp[i] = new Eigen::Vector3f[wG[i] * hG[i]];
-			absSquaredGrad[i] = new float[wG[i] * hG[i]];
+			dIp[it] = new Eigen::Vector3f[wG[it] * hG[it]];
+			absSquaredGrad[it] = new float[wG[it] * hG[it]];
 		}
 		dI = dIp[0];
 
-		// make d0
-		int w = wG[0];
-		int h = hG[0];
-		for (int i = 0; i < w*h; i++)
-			dI[i][0] = color[i];
+		// 设置第零层金字塔的图像数据
+		int pixelNum = wG[0] * hG[0];
+		for (int it = 0; it < pixelNum; ++it)
+			dI[it][0] = color[it];
 
-		for (int lvl = 0; lvl < pyrLevelsUsed; lvl++)
+		for (int lvl = 0; lvl < pyrLevelsUsed; ++lvl)
 		{
 			int wl = wG[lvl], hl = hG[lvl];
 			Eigen::Vector3f* dI_l = dIp[lvl];
 
+			// 设置第lvl层金字塔的图像数据
 			float* dabs_l = absSquaredGrad[lvl];
 			if (lvl > 0)
 			{
@@ -140,17 +145,21 @@ namespace dso
 				int wlm1 = wG[lvlm1];
 				Eigen::Vector3f* dI_lm = dIp[lvlm1];
 
-				for (int y = 0; y < hl; y++)
-					for (int x = 0; x < wl; x++)
+				// 使用像素均值作为采样图像对应像素的像素值
+				for (int y = 0; y < hl; ++y)
+				{
+					for (int x = 0; x < wl; ++x)
 					{
-						dI_l[x + y * wl][0] = 0.25f * (dI_lm[2 * x + 2 * y*wlm1][0] +
-							dI_lm[2 * x + 1 + 2 * y*wlm1][0] +
-							dI_lm[2 * x + 2 * y*wlm1 + wlm1][0] +
-							dI_lm[2 * x + 1 + 2 * y*wlm1 + wlm1][0]);
+						dI_l[x + y * wl][0] = 0.25f * (dI_lm[2 * x + 2 * y * wlm1][0] +
+							dI_lm[2 * x + 1 + 2 * y * wlm1][0] +
+							dI_lm[2 * x + 2 * y * wlm1 + wlm1][0] +
+							dI_lm[2 * x + 1 + 2 * y * wlm1 + wlm1][0]);
 					}
+				}
 			}
 
-			for (int idx = wl; idx < wl*(hl - 1); idx++)
+			// 计算第lvl层金字塔图像的梯度
+			for (int idx = wl; idx < wl*(hl - 1); ++idx)
 			{
 				float dx = 0.5f*(dI_l[idx + 1][0] - dI_l[idx - 1][0]);
 				float dy = 0.5f*(dI_l[idx + wl][0] - dI_l[idx - wl][0]);
@@ -160,7 +169,6 @@ namespace dso
 
 				dI_l[idx][1] = dx;
 				dI_l[idx][2] = dy;
-
 
 				dabs_l[idx] = dx * dx + dy * dy;
 
@@ -178,10 +186,12 @@ namespace dso
 		this->host = host;
 		this->target = target;
 
+		// 线性化点处host->target的位姿变换
 		SE3 leftToLeft_0 = target->get_worldToCam_evalPT() * host->get_worldToCam_evalPT().inverse();
 		PRE_RTll_0 = (leftToLeft_0.rotationMatrix()).cast<float>();
 		PRE_tTll_0 = (leftToLeft_0.translation()).cast<float>();
 
+		// 
 		SE3 leftToLeft = target->PRE_worldToCam * host->PRE_camToWorld;
 		PRE_RTll = (leftToLeft.rotationMatrix()).cast<float>();
 		PRE_tTll = (leftToLeft.translation()).cast<float>();

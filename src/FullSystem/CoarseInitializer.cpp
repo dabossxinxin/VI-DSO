@@ -76,10 +76,10 @@ namespace dso
 
 		int maxIterations[] = { 5,5,10,30,50 };
 
-		alphaK = 2.5*2.5;//*freeDebugParam1*freeDebugParam1;
-		alphaW = 150 * 150;//*freeDebugParam2*freeDebugParam2;
-		regWeight = 0.8;//*freeDebugParam4;
-		couplingWeight = 1;//*freeDebugParam5;
+		alphaK = 2.5*2.5;	//*freeDebugParam1*freeDebugParam1;
+		alphaW = 150 * 150;	//*freeDebugParam2*freeDebugParam2;
+		regWeight = 0.8;	//*freeDebugParam4;
+		couplingWeight = 1;	//*freeDebugParam5;
 
 		if (!snapped)
 		{
@@ -143,7 +143,6 @@ namespace dso
 
 				Hl = wM * Hl * wM * (0.01f / (w[lvl] * h[lvl]));
 				bl = wM * bl * (0.01f / (w[lvl] * h[lvl]));
-
 
 				Vec8f inc;
 				if (fixAffine)
@@ -550,14 +549,14 @@ namespace dso
 			if (!point->isGood_new) continue;
 			float rOld = (point->idepth - point->iR);
 			float rNew = (point->idepth_new - point->iR);
-			E.updateNoWeight(Vec2f(rOld*rOld, rNew*rNew));
+			E.updateNoWeight(Vec2f(rOld * rOld, rNew * rNew));
 
 			//printf("%f %f %f!\n", point->idepth, point->idepth_new, point->iR);
 		}
 		E.finish();
 
 		//printf("ER: %f %f %f!\n", couplingWeight*E.A1m[0], couplingWeight*E.A1m[1], (float)E.num.numIn1m);
-		return Vec3f(couplingWeight*E.A1m[0], couplingWeight*E.A1m[1], E.num);
+		return Vec3f(couplingWeight * E.A1m[0], couplingWeight * E.A1m[1], E.num);
 	}
 
 	void CoarseInitializer::optReg(int lvl)
@@ -666,9 +665,13 @@ namespace dso
 		optReg(srcLvl - 1);
 	}
 
+	/// <summary>
+	/// 计算传入图像数据的梯度值，但是DSO中并没有使用这个函数
+	/// </summary>
+	/// <param name="data">输入不同金字塔层图像数据</param>
 	void CoarseInitializer::makeGradients(Eigen::Vector3f** data)
 	{
-		for (int lvl = 1; lvl < pyrLevelsUsed; lvl++)
+		for (int lvl = 1; lvl < pyrLevelsUsed; ++lvl)
 		{
 			int lvlm1 = lvl - 1;
 			int wl = w[lvl], hl = h[lvl], wlm1 = w[lvlm1];
@@ -676,41 +679,46 @@ namespace dso
 			Eigen::Vector3f* dINew_l = data[lvl];
 			Eigen::Vector3f* dINew_lm = data[lvlm1];
 
-			for (int y = 0; y < hl; y++)
-				for (int x = 0; x < wl; x++)
+			for (int y = 0; y < hl; ++y)
+				for (int x = 0; x < wl; ++x)
 					dINew_l[x + y * wl][0] = 0.25f * (dINew_lm[2 * x + 2 * y*wlm1][0] +
 						dINew_lm[2 * x + 1 + 2 * y*wlm1][0] +
 						dINew_lm[2 * x + 2 * y*wlm1 + wlm1][0] +
 						dINew_lm[2 * x + 1 + 2 * y*wlm1 + wlm1][0]);
 
-			for (int idx = wl; idx < wl*(hl - 1); idx++)
+			for (int idx = wl; idx < wl*(hl - 1); ++idx)
 			{
-				dINew_l[idx][1] = 0.5f*(dINew_l[idx + 1][0] - dINew_l[idx - 1][0]);
-				dINew_l[idx][2] = 0.5f*(dINew_l[idx + wl][0] - dINew_l[idx - wl][0]);
+				dINew_l[idx][1] = 0.5f * (dINew_l[idx + 1][0] - dINew_l[idx - 1][0]);
+				dINew_l[idx][2] = 0.5f * (dINew_l[idx + wl][0] - dINew_l[idx - wl][0]);
 			}
 		}
 	}
 
-	void CoarseInitializer::setFirst(CalibHessian* HCalib, FrameHessian* newFrameHessian)
+	/// <summary>
+	/// DSO初始化中设置第一帧图像并在图像不同金字塔层中选择特征点
+	/// </summary>
+	/// <param name="HCalib">相机内参信息</param>
+	/// <param name="newFrameHessian">进入DSO初始化器中的视觉帧</param>
+	void CoarseInitializer::setFirst(CalibHessian* HCalib, FrameHessian* newFrame)
 	{
 		makeK(HCalib);
-		firstFrame = newFrameHessian;
+		firstFrame = newFrame;
 
 		PixelSelector sel(w[0], h[0]);
 
 		float* statusMap = new float[w[0] * h[0]];
 		bool* statusMapB = new bool[w[0] * h[0]];
+		float densities[] = { 0.03,0.05,0.15,0.5,1 };
 
 		// 在各层金字塔中选点并初始化各个点的深度值
-		float densities[] = { 0.03,0.05,0.15,0.5,1 };
-		for (int lvl = 0; lvl < pyrLevelsUsed; lvl++)
+		for (int lvl = 0; lvl < pyrLevelsUsed; ++lvl)
 		{
-			sel.currentPotential = 3;
 			int npts = 0;
-			if (lvl == 0)
-				npts = sel.makeMaps(firstFrame, statusMap, densities[lvl] * w[0] * h[0], 1, false, 2);
-			else
-				npts = makePixelStatus(firstFrame->dIp[lvl], statusMapB, w[lvl], h[lvl], densities[lvl] * w[0] * h[0]);
+			sel.currentPotential = 3;
+			
+			// PixelSelector选点
+			if (lvl == 0) npts = sel.makeMaps(firstFrame, statusMap, densities[lvl] * w[0] * h[0], 1, false, 2);
+			else npts = makePixelStatus(firstFrame->dIp[lvl], statusMapB, w[lvl], h[lvl], densities[lvl] * w[0] * h[0]);
 
 			if (points[lvl] != 0) delete[] points[lvl];
 			points[lvl] = new Pnt[npts];
@@ -719,9 +727,9 @@ namespace dso
 			Pnt* pl = points[lvl];
 			int wl = w[lvl], hl = h[lvl], nl = 0;
 		
-			for (int y = patternPadding + 1; y < hl - patternPadding - 2; y++)
+			for (int y = patternPadding + 1; y < hl - patternPadding - 2; ++y)
 			{
-				for (int x = patternPadding + 1; x < wl - patternPadding - 2; x++)
+				for (int x = patternPadding + 1; x < wl - patternPadding - 2; ++x)
 				{
 					if ((lvl != 0 && statusMapB[x + y * wl]) || (lvl == 0 && statusMap[x + y * wl] != 0))
 					{
@@ -734,12 +742,12 @@ namespace dso
 						pl[nl].lastHessian = 0;
 						pl[nl].lastHessian_new = 0;
 						pl[nl].my_type = (lvl != 0) ? 1 : statusMap[x + y * wl];
-
-						// 计算所选特征点与周围点的梯度值和
+						
 						int dx = 0, dy = 0;
 						float sumGrad2 = 0, absgrad = 0;
 						Eigen::Vector3f* cpt = firstFrame->dIp[lvl] + x + y * w[lvl];
 						
+						// 计算所选特征点与周围点的梯度值和
 						for (int idx = 0; idx < patternNum; idx++)
 						{
 							dx = patternP[idx][0];
@@ -760,15 +768,15 @@ namespace dso
 		delete[] statusMap; statusMap = NULL;
 		delete[] statusMapB; statusMapB = NULL;
 
-		//构造金字塔中所提取特征的空间拓扑结构
+		// 构造金字塔中所提取特征的空间拓扑结构
 		makeNN();
 
 		thisToNext = SE3();
 		snapped = false;
 		frameID = snappedAt = 0;
 
-		for (int i = 0; i < pyrLevelsUsed; i++)
-			dGrads[i].setZero();
+		for (int it = 0; it < pyrLevelsUsed; ++it)
+			dGrads[it].setZero();
 	}
 
 	void CoarseInitializer::setFirstStereo(CalibHessian* HCalib, FrameHessian* newFrameHessian, FrameHessian* newFrameHessian_right)
@@ -975,71 +983,84 @@ namespace dso
 	{
 		Pnt* pts = points[lvl];
 		int npts = numPoints[lvl];
-		for (int i = 0; i < npts; i++)
+		for (int it = 0; it < npts; ++it)
 		{
-			pts[i].energy.setZero();
-			pts[i].idepth_new = pts[i].idepth;
+			pts[it].energy.setZero();
+			pts[it].idepth_new = pts[it].idepth;
 
-			if (lvl == pyrLevelsUsed - 1 && !pts[i].isGood)
+			// 使用邻近点的逆深度均值作为所遍历点的逆深度
+			if (lvl == pyrLevelsUsed - 1 && !pts[it].isGood)
 			{
 				float snd = 0, sn = 0;
 				for (int n = 0; n < 10; n++)
 				{
-					if (pts[i].neighbours[n] == -1 || !pts[pts[i].neighbours[n]].isGood) continue;
-					snd += pts[pts[i].neighbours[n]].iR;
+					if (pts[it].neighbours[n] == -1 || !pts[pts[it].neighbours[n]].isGood) continue;
+					snd += pts[pts[it].neighbours[n]].iR;
 					sn += 1;
 				}
 
 				if (sn > 0)
 				{
-					pts[i].isGood = true;
-					pts[i].iR = pts[i].idepth = pts[i].idepth_new = snd / sn;
+					pts[it].isGood = true;
+					pts[it].iR = pts[it].idepth = pts[it].idepth_new = snd / sn;
 				}
 			}
 		}
 	}
 
+	/// <summary>
+	/// 对每层金字塔中选中的特征计算其逆深度更新值
+	/// </summary>
+	/// <param name="lvl">金字塔层级</param>
+	/// <param name="lambda">优化收敛控制因子</param>
+	/// <param name="inc">关键帧位姿和光度参数增益</param>
 	void CoarseInitializer::doStep(int lvl, float lambda, Vec8f inc)
 	{
 		const float maxPixelStep = 0.25;
 		const float idMaxStep = 1e10;
 		Pnt* pts = points[lvl];
 		int npts = numPoints[lvl];
-		for (int i = 0; i < npts; i++)
+
+		for (int it = 0; it < npts; ++it)
 		{
-			if (!pts[i].isGood) continue;
+			if (!pts[it].isGood) continue;
 
-			float b = JbBuffer[i][8] + JbBuffer[i].head<8>().dot(inc);
-			float step = -b * JbBuffer[i][9] / (1 + lambda);
+			float b = JbBuffer[it][8] + JbBuffer[it].head<8>().dot(inc);
+			float step = -b * JbBuffer[it][9] / (1 + lambda);
 
-			float maxstep = maxPixelStep * pts[i].maxstep;
+			float maxstep = maxPixelStep * pts[it].maxstep;
 			if (maxstep > idMaxStep) maxstep = idMaxStep;
 
 			if (step > maxstep) step = maxstep;
 			if (step < -maxstep) step = -maxstep;
 
-			float newIdepth = pts[i].idepth + step;
+			float newIdepth = pts[it].idepth + step;
 			if (newIdepth < 1e-3) newIdepth = 1e-3;
 			if (newIdepth > 50) newIdepth = 50;
-			pts[i].idepth_new = newIdepth;
+			pts[it].idepth_new = newIdepth;
 		}
 	}
 
+	/// <summary>
+	/// 接受当前优化迭代步骤并调整相关成员变量
+	/// </summary>
+	/// <param name="lvl">金字塔层级</param>
 	void CoarseInitializer::applyStep(int lvl)
 	{
 		Pnt* pts = points[lvl];
 		int npts = numPoints[lvl];
-		for (int i = 0; i < npts; i++)
+
+		for (int it = 0; it < npts; ++it)
 		{
-			if (!pts[i].isGood)
+			if (!pts[it].isGood)
 			{
-				pts[i].idepth = pts[i].idepth_new = pts[i].iR;
+				pts[it].idepth = pts[it].idepth_new = pts[it].iR;
 				continue;
 			}
-			pts[i].energy = pts[i].energy_new;
-			pts[i].isGood = pts[i].isGood_new;
-			pts[i].idepth = pts[i].idepth_new;
-			pts[i].lastHessian = pts[i].lastHessian_new;
+			pts[it].energy = pts[it].energy_new;
+			pts[it].isGood = pts[it].isGood_new;
+			pts[it].idepth = pts[it].idepth_new;
+			pts[it].lastHessian = pts[it].lastHessian_new;
 		}
 		//std::swap<Vec10f*>(JbBuffer, JbBuffer_new);
 		Vec10f* JbTmp = JbBuffer;
@@ -1047,6 +1068,10 @@ namespace dso
 		JbBuffer_new = JbTmp;
 	}
 
+	/// <summary>
+	/// 设置初始化中不同金字塔层相机内参相关信息
+	/// </summary>
+	/// <param name="HCalib">相机内参信息</param>
 	void CoarseInitializer::makeK(CalibHessian* HCalib)
 	{
 		w[0] = wG[0];
@@ -1078,6 +1103,10 @@ namespace dso
 		}
 	}
 
+	/// <summary>
+	/// 构造不同金字塔选取的特征点之间的空间拓扑结构  
+	/// 所谓拓扑结构指同层金字塔中搜索邻近点并在上层金字塔中搜索最邻近点作为父点
+	/// </summary>
 	void CoarseInitializer::makeNN()
 	{
 		const int nn = 10;
@@ -1090,15 +1119,15 @@ namespace dso
 		// 使用金字塔中得到的特征数据构造八叉树
 		FLANNPointcloud pcs[PYR_LEVELS];
 		KDTree* indexes[PYR_LEVELS];
-		for (int i = 0; i < pyrLevelsUsed; i++)
+		for (int it = 0; it < pyrLevelsUsed; ++it)
 		{
-			pcs[i] = FLANNPointcloud(numPoints[i], points[i]);
-			indexes[i] = new KDTree(2, pcs[i], nanoflann::KDTreeSingleIndexAdaptorParams(5));
-			indexes[i]->buildIndex();
+			pcs[it] = FLANNPointcloud(numPoints[it], points[it]);
+			indexes[it] = new KDTree(2, pcs[it], nanoflann::KDTreeSingleIndexAdaptorParams(5));
+			indexes[it]->buildIndex();
 		}
 
 		// 使用八叉树搜索最邻近点
-		for (int lvl = 0; lvl < pyrLevelsUsed; lvl++)
+		for (int lvl = 0; lvl < pyrLevelsUsed; ++lvl)
 		{
 			Pnt* pts = points[lvl];
 			int npts = numPoints[lvl];
@@ -1108,51 +1137,52 @@ namespace dso
 			nanoflann::KNNResultSet<float, int, int> resultSet(nn);
 			nanoflann::KNNResultSet<float, int, int> resultSet1(1);
 
-			for (int i = 0; i < npts; i++)
+			for (int it = 0; it < npts; ++it)
 			{
 				resultSet.init(ret_index, ret_dist);
-				Vec2f pt = Vec2f(pts[i].u, pts[i].v);
+				Vec2f pt = Vec2f(pts[it].u, pts[it].v);
 				indexes[lvl]->findNeighbors(resultSet, (float*)&pt, nanoflann::SearchParams());
 				
+				// 同层金字塔中搜索10个最邻近点并计算反距离权重值
 				int idx = 0;
 				float sumDF = 0, df = 0;
-				for (int k = 0; k < nn; k++)
+				for (int k = 0; k < nn; ++k)
 				{
-					pts[i].neighbours[idx] = ret_index[k];
+					pts[it].neighbours[idx] = ret_index[k];
 					df = expf(-ret_dist[k] * NNDistFactor);
-					pts[i].neighboursDist[idx] = df;
+					pts[it].neighboursDist[idx] = df;
 					assert(ret_index[k] >= 0 && ret_index[k] < npts);
 					sumDF += df; idx++;
 				}
 
-				// neighboursDist中存储的实际上是按照反距离加权的权重值
 				float sumDFFactor = 10.0 / sumDF;
 				for (int k = 0; k < nn; k++)
-					pts[i].neighboursDist[k] *= sumDFFactor;
+					pts[it].neighboursDist[k] *= sumDFFactor;
 
+				// 在上一层金字塔中搜索最邻近点作为当前遍历特征的父特征
 				if (lvl < pyrLevelsUsed - 1)
 				{
 					resultSet1.init(ret_index, ret_dist);
 					pt = pt * 0.5f - Vec2f(0.25f, 0.25f); // TODO：0.25精度问题
 					indexes[lvl + 1]->findNeighbors(resultSet1, (float*)&pt, nanoflann::SearchParams());
 
-					pts[i].parent = ret_index[0];
-					pts[i].parentDist = expf(-ret_dist[0] * NNDistFactor);
+					pts[it].parent = ret_index[0];
+					pts[it].parentDist = expf(-ret_dist[0] * NNDistFactor);
 
 					assert(ret_index[0] >= 0 && ret_index[0] < numPoints[lvl + 1]);
 				}
 				else
 				{
-					pts[i].parent = -1;
-					pts[i].parentDist = -1;
+					pts[it].parent = -1;
+					pts[it].parentDist = -1;
 				}
 			}
 		}
 
-		for (int i = 0; i < pyrLevelsUsed; i++)
+		for (int it = 0; it < pyrLevelsUsed; ++it)
 		{
-			delete indexes[i];
-			indexes[i] = NULL;
+			delete indexes[it];
+			indexes[it] = NULL;
 		}
 	}
 }

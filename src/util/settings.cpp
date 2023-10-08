@@ -90,8 +90,9 @@ namespace dso
 	// 2 = apply inv. response & remove V.
 	int setting_photometricCalibration = 2;
 	bool setting_useExposure = true;
-	float setting_affineOptModeA = 1e12; //-1: fix. >=0: optimize (with prior, if > 0).
-	float setting_affineOptModeB = 1e8; //-1: fix. >=0: optimize (with prior, if > 0).
+
+	float setting_affineOptModeA = 1e12;	// 若小于0则设置超强先验固定该参数，若大于0则按照当前值设置先验
+	float setting_affineOptModeB = 1e8;		// 若小于0则设置超强先验固定该参数，若大于0则按照当前值设置先验		
 
 	int setting_gammaWeightsPixelSelect = 1; // 1 = use original intensity for pixel selection; 0 = use gamma-corrected intensity.
 
@@ -182,9 +183,9 @@ namespace dso
 	Mat33 AccCov;
 	Mat33 GyrRandomWalkNoise;
 	Mat33 AccRandomWalkNoise;
-	Sim3 T_WD;
-	Sim3 T_WD_l;
-	Sim3 T_WD_l_half;
+	Sim3 T_WD;				// 视觉估计坐标基准与IMU基准之间的变换-最新估计值
+	Sim3 T_WD_l;			// 视觉估计坐标基准与IMU基准之间的变换-上一估计值
+	Sim3 T_WD_l_half;		// 视觉估计坐标基准与IMU基准之间的变换-上一估计值并采用部分IMU信息
 	Sim3 T_WD_change;
 	double G_norm;
 	int index_align;
@@ -202,8 +203,8 @@ namespace dso
 	double imu_lambda = 2;
 	bool imu_track_ready = false;
 	double stereo_weight = 3;
-	int M_num = 0;
-	int M_num2 = 0;
+	int marg_num = 0;					// 边缘化IMU数据的次数
+	int marg_num_half = 0;				// 边缘化IMU数据的次数
 	double setting_margWeightFac_imu = 1;
 	bool first_track_flag = false;
 	bool use_stereo = true;

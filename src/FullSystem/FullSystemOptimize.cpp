@@ -257,7 +257,8 @@ namespace dso
 				// 		  T_WD = Sim3(RxSO3(s_new*s_wd,T_WD_temp.rotationMatrix()),Vec3::Zero());+
 				T_WD = T_WD_l * T_WD_change;
 
-				if (M_num2 == 0) {
+				if (marg_num_half == 0) 
+				{
 					T_WD_l = T_WD;
 					state_twd.setZero();
 				}

@@ -40,8 +40,8 @@ namespace dso
 	{
 	public:
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
-		// index in jacobian. never changes (actually, there is no reason why).
-		float u, v;
+
+		float u, v;			// 特征点的像素坐标值
 
 		// idepth / isgood / energy during optimization.
 		float idepth;
@@ -72,14 +72,15 @@ namespace dso
 		float outlierTH;
 	};
 
-	class CoarseInitializer {
+	class CoarseInitializer 
+	{
 	public:
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 		CoarseInitializer(int w, int h);
 		~CoarseInitializer();
 
 		// 将进入系统的第一帧图像设置为初始化器的第一帧
-		void setFirst(CalibHessian* HCalib, FrameHessian* newFrameHessian);
+		void setFirst(CalibHessian* HCalib, FrameHessian* newFrame);
 		void setFirstStereo(CalibHessian* HCalib, FrameHessian* newFrameHessian, FrameHessian* newFrameHessian_right);
 
 		// 跟踪系统最新送进来的图像帧并返回跟踪状态
@@ -92,8 +93,8 @@ namespace dso
 
 		Pnt* points[PYR_LEVELS];			// 金字塔中选取的所有特征点的坐标
 		int numPoints[PYR_LEVELS];			// 每一层金字塔中选取的特征点的数量
-		AffLight thisToNext_aff;
-		SE3 thisToNext;
+		AffLight thisToNext_aff;			// 初始化得到的参考帧到最新帧的光度变换
+		SE3 thisToNext;						// 初始化得到的参考帧到最新帧的姿态
 
 		FrameHessian* firstFrame;			// 初始化器中维护的最初进入系统的一帧
 		FrameHessian* firstFrame_right;		// 最初进入系统的帧对应的双目右相机图像帧

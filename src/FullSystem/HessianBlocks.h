@@ -77,7 +77,7 @@ namespace dso
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 		// static values
 		static int instanceCounter;
-		FrameHessian* host;	// defines row
+		FrameHessian* host;		// defines row
 		FrameHessian* target;	// defines column
 
 		// precalc values
@@ -109,15 +109,15 @@ namespace dso
 		//DepthImageWrap* frame;
 		FrameShell* shell;
 
-		FrameHessian* frame_right;			 // 双目情况时当前帧对应的双目图像帧
+		FrameHessian* frame_right;			// 双目情况时当前帧对应的双目图像帧
 
-		Eigen::Vector3f* dI;				 // trace, fine tracking. Used for direction select (not for gradient histograms etc.)
-		Eigen::Vector3f* dIp[PYR_LEVELS];	 // coarse tracking / coarse initializer. NAN in [0] only.
-		float* absSquaredGrad[PYR_LEVELS];	 // only used for pixel select (histograms etc.). no NAN.
+		Eigen::Vector3f* dI;				// 当前帧的灰度通道图像数据:[0]为图像灰度值、[1]为x方向梯度、[2]为y方向梯度
+		Eigen::Vector3f* dIp[PYR_LEVELS];	// 当前帧不同金字塔层的图像数据:[0]为图像灰度值、[1]为x方向梯度、[2]为y方向梯度
+		float* absSquaredGrad[PYR_LEVELS];	// 当前帧图像的梯度数据：x方向与y方向梯度的平方和
 
-		int frameID;						 // incremental ID for keyframes only!
+		int frameID;						// 关键帧在全局关键帧序列中的ID
+		int idx;							// 关键帧在滑窗关键帧序列中的ID
 		static int instanceCounter;
-		int idx;
 
 		// Photometric Calibration Stuff
 		float frameEnergyTH;	// set dynamically depending on tracking residual
@@ -130,9 +130,9 @@ namespace dso
 		std::vector<PointHessian*> pointHessiansOut;			// contains all OUTLIER points (= discarded.).
 		std::vector<ImmaturePoint*> immaturePoints;				// contains all OUTLIER points (= discarded.).
 
-		Mat66 nullspaces_pose;
-		Mat42 nullspaces_affine;
-		Vec6 nullspaces_scale;
+		Mat66 nullspaces_pose;		// 位姿零空间
+		Mat42 nullspaces_affine;	// 光度参数零空间
+		Vec6 nullspaces_scale;		// 尺度零空间
 
 		// variable info.
 		SE3 worldToCam_evalPT;
@@ -151,10 +151,10 @@ namespace dso
 		Vec3 bias_g = Vec3::Zero();
 		Vec3 bias_a = Vec3::Zero();
 
-		EIGEN_STRONG_INLINE const SE3 &get_worldToCam_evalPT() const { return worldToCam_evalPT; }
-		EIGEN_STRONG_INLINE const Vec10 &get_state_zero() const { return state_zero; }
-		EIGEN_STRONG_INLINE const Vec10 &get_state() const { return state; }
-		EIGEN_STRONG_INLINE const Vec10 &get_state_scaled() const { return state_scaled; }
+		EIGEN_STRONG_INLINE const SE3& get_worldToCam_evalPT() const { return worldToCam_evalPT; }
+		EIGEN_STRONG_INLINE const Vec10& get_state_zero() const { return state_zero; }
+		EIGEN_STRONG_INLINE const Vec10& get_state() const { return state; }
+		EIGEN_STRONG_INLINE const Vec10& get_state_scaled() const { return state_scaled; }
 		EIGEN_STRONG_INLINE const Vec10 get_state_minus_stateZero() const { return get_state() - get_state_zero(); }
 
 		// precalc values
@@ -167,6 +167,7 @@ namespace dso
 		inline AffLight aff_g2l() const { return AffLight(get_state_scaled()[6], get_state_scaled()[7]); }
 		inline AffLight aff_g2l_0() const { return AffLight(get_state_zero()[6] * SCALE_A, get_state_zero()[7] * SCALE_B); }
 		void setStateZero(const Vec10 &state_zero);
+
 		inline void setState(const Vec10 &state)
 		{
 			this->state = state;
@@ -242,9 +243,15 @@ namespace dso
 
 		void makeImages(float* color, CalibHessian* HCalib);
 
+		/// <summary>
+		/// 获取视觉优化中的先验信息
+		/// </summary>
+		/// <returns></returns>
 		inline Vec10 getPrior()
 		{
 			Vec10 p = Vec10::Zero();
+
+			// 第零帧关键帧位姿设置超强先验不进行优化
 			if (frameID == 0)
 			{
 				p.head<3>() = Vec3::Constant(setting_initialTransPrior);
