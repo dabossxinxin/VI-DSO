@@ -945,14 +945,6 @@ namespace dso
 		}
 	};
 
-
-
-
-
-
-
-
-
 	class Accumulator9
 	{
 	public:
@@ -980,13 +972,17 @@ namespace dso
 			assert(numIn1k == 0);
 
 			int idx = 0;
-			for (int r = 0; r < 9; r++)
-				for (int c = r; c < 9; c++)
+			float d = 0;
+
+			for (int r = 0; r < 9; ++r)
+			{
+				for (int c = r; c < 9; ++c)
 				{
-					float d = SSEData1m[idx + 0] + SSEData1m[idx + 1] + SSEData1m[idx + 2] + SSEData1m[idx + 3];
+					d = SSEData1m[idx + 0] + SSEData1m[idx + 1] + SSEData1m[idx + 2] + SSEData1m[idx + 3];
 					H(r, c) = H(c, r) = d;
 					idx += 4;
 				}
+			}
 			assert(idx == 4 * 45);
 		}
 
@@ -1057,10 +1053,6 @@ namespace dso
 			numIn1++;
 			shiftUp(false);
 		}
-
-
-
-
 
 		inline void updateSSE_eighted(
 			const __m128 J0, const __m128 J1,
@@ -1233,7 +1225,6 @@ namespace dso
 			*pt += J7 * J0; pt += 4;
 			*pt += J8 * J0; pt += 4;
 
-
 			*pt += J1 * J1*w; pt += 4; J1 *= w;
 			*pt += J2 * J1; pt += 4;
 			*pt += J3 * J1; pt += 4;
@@ -1243,7 +1234,6 @@ namespace dso
 			*pt += J7 * J1; pt += 4;
 			*pt += J8 * J1; pt += 4;
 
-
 			*pt += J2 * J2*w; pt += 4; J2 *= w;
 			*pt += J3 * J2; pt += 4;
 			*pt += J4 * J2; pt += 4;
@@ -1252,14 +1242,12 @@ namespace dso
 			*pt += J7 * J2; pt += 4;
 			*pt += J8 * J2; pt += 4;
 
-
 			*pt += J3 * J3*w; pt += 4; J3 *= w;
 			*pt += J4 * J3; pt += 4;
 			*pt += J5 * J3; pt += 4;
 			*pt += J6 * J3; pt += 4;
 			*pt += J7 * J3; pt += 4;
 			*pt += J8 * J3; pt += 4;
-
 
 			*pt += J4 * J4*w; pt += 4; J4 *= w;
 			*pt += J5 * J4; pt += 4;
@@ -1272,11 +1260,9 @@ namespace dso
 			*pt += J7 * J5; pt += 4;
 			*pt += J8 * J5; pt += 4;
 
-
 			*pt += J6 * J6*w; pt += 4; J6 *= w;
 			*pt += J7 * J6; pt += 4;
 			*pt += J8 * J6; pt += 4;
-
 
 			*pt += J7 * J7*w; pt += 4; J7 *= w;
 			*pt += J8 * J7; pt += 4;
@@ -1290,11 +1276,13 @@ namespace dso
 
 
 	private:
+
+		// 对于9x9的对称矩阵需要计算的矩阵元素为45项，采用SSE计算时可同时计算4个float
+		// 因此对同一项矩阵元素分配4个连续float地址进行存储，便于SSE加速浮点运算
 		EIGEN_ALIGN16 float SSEData[4 * 45];
 		EIGEN_ALIGN16 float SSEData1k[4 * 45];
 		EIGEN_ALIGN16 float SSEData1m[4 * 45];
 		float numIn1, numIn1k, numIn1m;
-
 
 		void shiftUp(bool force)
 		{

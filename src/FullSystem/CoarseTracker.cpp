@@ -196,42 +196,50 @@ namespace dso
 		return res;
 	}
 
+	/// <summary>
+	/// CoarseTracker构造函数，作用为分配成员变量的内存空间
+	/// </summary>
+	/// <param name="ww">跟踪图像的宽度</param>
+	/// <param name="hh">跟踪图像的高度</param>
 	CoarseTracker::CoarseTracker(int ww, int hh) : lastRef_aff_g2l(0, 0)
 	{
 		// make coarse tracking templates.
-		for (int lvl = 0; lvl < pyrLevelsUsed; lvl++)
+		for (int lvl = 0; lvl < pyrLevelsUsed; ++lvl)
 		{
 			int wl = ww >> lvl;
 			int hl = hh >> lvl;
 
-			idepth[lvl] = allocAligned<4, float>(wl*hl, ptrToDelete);
-			weightSums[lvl] = allocAligned<4, float>(wl*hl, ptrToDelete);
-			weightSums_bak[lvl] = allocAligned<4, float>(wl*hl, ptrToDelete);
+			idepth[lvl] = allocAligned<4, float>(wl * hl, ptrToDelete);
+			weightSums[lvl] = allocAligned<4, float>(wl * hl, ptrToDelete);
+			weightSums_bak[lvl] = allocAligned<4, float>(wl * hl, ptrToDelete);
 
-			pc_u[lvl] = allocAligned<4, float>(wl*hl, ptrToDelete);
-			pc_v[lvl] = allocAligned<4, float>(wl*hl, ptrToDelete);
-			pc_idepth[lvl] = allocAligned<4, float>(wl*hl, ptrToDelete);
-			pc_color[lvl] = allocAligned<4, float>(wl*hl, ptrToDelete);
-
+			pc_u[lvl] = allocAligned<4, float>(wl * hl, ptrToDelete);
+			pc_v[lvl] = allocAligned<4, float>(wl * hl, ptrToDelete);
+			pc_idepth[lvl] = allocAligned<4, float>(wl * hl, ptrToDelete);
+			pc_color[lvl] = allocAligned<4, float>(wl * hl, ptrToDelete);
 		}
 
 		// warped buffers
-		buf_warped_idepth = allocAligned<4, float>(ww*hh, ptrToDelete);
-		buf_warped_u = allocAligned<4, float>(ww*hh, ptrToDelete);
-		buf_warped_v = allocAligned<4, float>(ww*hh, ptrToDelete);
-		buf_warped_dx = allocAligned<4, float>(ww*hh, ptrToDelete);
-		buf_warped_dy = allocAligned<4, float>(ww*hh, ptrToDelete);
-		buf_warped_residual = allocAligned<4, float>(ww*hh, ptrToDelete);
-		buf_warped_weight = allocAligned<4, float>(ww*hh, ptrToDelete);
-		buf_warped_refColor = allocAligned<4, float>(ww*hh, ptrToDelete);
+		buf_warped_idepth = allocAligned<4, float>(ww * hh, ptrToDelete);
+		buf_warped_u = allocAligned<4, float>(ww * hh, ptrToDelete);
+		buf_warped_v = allocAligned<4, float>(ww * hh, ptrToDelete);
+		buf_warped_dx = allocAligned<4, float>(ww * hh, ptrToDelete);
+		buf_warped_dy = allocAligned<4, float>(ww * hh, ptrToDelete);
+		buf_warped_residual = allocAligned<4, float>(ww * hh, ptrToDelete);
+		buf_warped_weight = allocAligned<4, float>(ww * hh, ptrToDelete);
+		buf_warped_refColor = allocAligned<4, float>(ww * hh, ptrToDelete);
 
 		newFrame = 0;
 		lastRef = 0;
-		debugPlot = debugPrint = true;
+		debugPlot = true;
+		debugPrint = true;
 		w[0] = h[0] = 0;
 		refFrameID = -1;
 	}
 
+	/// <summary>
+	/// CoarseTracker析构函数，作用为清空内存空间
+	/// </summary>
 	CoarseTracker::~CoarseTracker()
 	{
 		for (float* ptr : ptrToDelete)
@@ -239,6 +247,10 @@ namespace dso
 		ptrToDelete.clear();
 	}
 
+	/// <summary>
+	/// 设置CoarseTracker的相机内参信息
+	/// </summary>
+	/// <param name="HCalib">相机内参信息</param>
 	void CoarseTracker::makeK(CalibHessian* HCalib)
 	{
 		w[0] = wG[0];
@@ -270,11 +282,15 @@ namespace dso
 		}
 	}
 
+	/// <summary>
+	/// 构造基于输入变量fh的深度图
+	/// </summary>
+	/// <param name="fh"></param>
 	void CoarseTracker::makeCoarseDepthForFirstFrame(FrameHessian* fh)
 	{
 		// make coarse tracking templates for latstRef.
-		memset(idepth[0], 0, sizeof(float)*w[0] * h[0]);
-		memset(weightSums[0], 0, sizeof(float)*w[0] * h[0]);
+		memset(idepth[0], 0, sizeof(float) * w[0] * h[0]);
+		memset(weightSums[0], 0, sizeof(float) * w[0] * h[0]);
 
 		for (PointHessian* ph : fh->pointHessians)
 		{
@@ -285,10 +301,9 @@ namespace dso
 
 			idepth[0][u + w[0] * v] += new_idepth * weight;
 			weightSums[0][u + w[0] * v] += weight;
-
 		}
 
-		for (int lvl = 1; lvl < pyrLevelsUsed; lvl++)
+		for (int lvl = 1; lvl < pyrLevelsUsed; ++lvl)
 		{
 			int lvlm1 = lvl - 1;
 			int wl = w[lvl], hl = h[lvl], wlm1 = w[lvlm1];
@@ -299,9 +314,9 @@ namespace dso
 			float* idepth_lm = idepth[lvlm1];
 			float* weightSums_lm = weightSums[lvlm1];
 
-			for (int y = 0; y < hl; y++)
+			for (int y = 0; y < hl; ++y)
 			{
-				for (int x = 0; x < wl; x++)
+				for (int x = 0; x < wl; ++x)
 				{
 					int bidx = 2 * x + 2 * y*wlm1;
 					idepth_l[x + y * wl] = idepth_lm[bidx] +
@@ -318,11 +333,11 @@ namespace dso
 		}
 
 		// dilate idepth by 1.
-		for (int lvl = 0; lvl < 2; lvl++)
+		for (int lvl = 0; lvl < 2; ++lvl)
 		{
 			int numIts = 1;
 
-			for (int it = 0; it < numIts; it++)
+			for (int it = 0; it < numIts; ++it)
 			{
 				int wh = w[lvl] * h[lvl] - w[lvl];
 				int wl = w[lvl];
@@ -330,24 +345,49 @@ namespace dso
 				float* weightSumsl_bak = weightSums_bak[lvl];
 				memcpy(weightSumsl_bak, weightSumsl, w[lvl] * h[lvl] * sizeof(float));
 				float* idepthl = idepth[lvl];	// dont need to make a temp copy of depth, since I only
-				// read values with weightSumsl>0, and write ones with weightSumsl<=0.
-				for (int i = w[lvl]; i < wh; i++)
+												// read values with weightSumsl>0, and write ones with weightSumsl<=0.
+				
+				for (int i = w[lvl]; i < wh; ++i)
 				{
 					if (weightSumsl_bak[i] <= 0)
 					{
 						float sum = 0, num = 0, numn = 0;
-						if (weightSumsl_bak[i + 1 + wl] > 0) { sum += idepthl[i + 1 + wl]; num += weightSumsl_bak[i + 1 + wl]; numn++; }
-						if (weightSumsl_bak[i - 1 - wl] > 0) { sum += idepthl[i - 1 - wl]; num += weightSumsl_bak[i - 1 - wl]; numn++; }
-						if (weightSumsl_bak[i + wl - 1] > 0) { sum += idepthl[i + wl - 1]; num += weightSumsl_bak[i + wl - 1]; numn++; }
-						if (weightSumsl_bak[i - wl + 1] > 0) { sum += idepthl[i - wl + 1]; num += weightSumsl_bak[i - wl + 1]; numn++; }
-						if (numn > 0) { idepthl[i] = sum / numn; weightSumsl[i] = num / numn; }
+						if (weightSumsl_bak[i + 1 + wl] > 0) 
+						{ 
+							sum += idepthl[i + 1 + wl]; 
+							num += weightSumsl_bak[i + 1 + wl]; 
+							numn++; 
+						}
+						if (weightSumsl_bak[i - 1 - wl] > 0) 
+						{ 
+							sum += idepthl[i - 1 - wl]; 
+							num += weightSumsl_bak[i - 1 - wl]; 
+							numn++; 
+						}
+						if (weightSumsl_bak[i + wl - 1] > 0) 
+						{ 
+							sum += idepthl[i + wl - 1]; 
+							num += weightSumsl_bak[i + wl - 1]; 
+							numn++; 
+						}
+						if (weightSumsl_bak[i - wl + 1] > 0) 
+						{ 
+							sum += idepthl[i - wl + 1]; 
+							num += weightSumsl_bak[i - wl + 1]; 
+							numn++; 
+						}
+						if (numn > 0) 
+						{ 
+							idepthl[i] = sum / numn; 
+							weightSumsl[i] = num / numn;
+						}
 					}
 				}
 			}
 		}
 
 		// dilate idepth by 1 (2 on lower levels).
-		for (int lvl = 2; lvl < pyrLevelsUsed; lvl++)
+		for (int lvl = 2; lvl < pyrLevelsUsed; ++lvl)
 		{
 			int wh = w[lvl] * h[lvl] - w[lvl];
 			int wl = w[lvl];
@@ -355,24 +395,48 @@ namespace dso
 			float* weightSumsl_bak = weightSums_bak[lvl];
 			memcpy(weightSumsl_bak, weightSumsl, w[lvl] * h[lvl] * sizeof(float));
 			float* idepthl = idepth[lvl];	// dotnt need to make a temp copy of depth, since I only
-			// read values with weightSumsl>0, and write ones with weightSumsl<=0.
-			for (int i = w[lvl]; i < wh; i++)
+											// read values with weightSumsl>0, and write ones with weightSumsl<=0.
+
+			for (int i = w[lvl]; i < wh; ++i)
 			{
 				if (weightSumsl_bak[i] <= 0)
 				{
 					float sum = 0, num = 0, numn = 0;
-					if (weightSumsl_bak[i + 1] > 0) { sum += idepthl[i + 1]; num += weightSumsl_bak[i + 1]; numn++; }
-					if (weightSumsl_bak[i - 1] > 0) { sum += idepthl[i - 1]; num += weightSumsl_bak[i - 1]; numn++; }
-					if (weightSumsl_bak[i + wl] > 0) { sum += idepthl[i + wl]; num += weightSumsl_bak[i + wl]; numn++; }
-					if (weightSumsl_bak[i - wl] > 0) { sum += idepthl[i - wl]; num += weightSumsl_bak[i - wl]; numn++; }
-					if (numn > 0) { idepthl[i] = sum / numn; weightSumsl[i] = num / numn; }
+					if (weightSumsl_bak[i + 1] > 0)
+					{
+						sum += idepthl[i + 1];
+						num += weightSumsl_bak[i + 1];
+						numn++;
+					}
+					if (weightSumsl_bak[i - 1] > 0)
+					{
+						sum += idepthl[i - 1];
+						num += weightSumsl_bak[i - 1];
+						numn++;
+					}
+					if (weightSumsl_bak[i + wl] > 0)
+					{
+						sum += idepthl[i + wl];
+						num += weightSumsl_bak[i + wl];
+						numn++;
+					}
+					if (weightSumsl_bak[i - wl] > 0)
+					{
+						sum += idepthl[i - wl];
+						num += weightSumsl_bak[i - wl];
+						numn++;
+					}
+					if (numn > 0)
+					{
+						idepthl[i] = sum / numn;
+						weightSumsl[i] = num / numn;
+					}
 				}
 			}
 		}
 
-
 		// normalize idepths and weights.
-		for (int lvl = 0; lvl < pyrLevelsUsed; lvl++)
+		for (int lvl = 0; lvl < pyrLevelsUsed; ++lvl)
 		{
 			float* weightSumsl = weightSums[lvl];
 			float* idepthl = idepth[lvl];
@@ -386,9 +450,9 @@ namespace dso
 			float* lpc_idepth = pc_idepth[lvl];
 			float* lpc_color = pc_color[lvl];
 
-
-			for (int y = 2; y < hl - 2; y++)
-				for (int x = 2; x < wl - 2; x++)
+			for (int y = 2; y < hl - 2; ++y)
+			{
+				for (int x = 2; x < wl - 2; ++x)
 				{
 					int i = x + y * wl;
 
@@ -399,8 +463,6 @@ namespace dso
 						lpc_v[lpc_n] = y;
 						lpc_idepth[lpc_n] = idepthl[i];
 						lpc_color[lpc_n] = dIRefl[i][0];
-
-
 
 						if (!std::isfinite(lpc_color[lpc_n]) || !(idepthl[i] > 0))
 						{
@@ -414,18 +476,25 @@ namespace dso
 
 					weightSumsl[i] = 1;
 				}
+			}	
 
 			pc_n[lvl] = lpc_n;
-			//		printf("pc_n[lvl] is %d \n", lpc_n);
 		}
 	}
 
+	/// <summary>
+	/// 使用滑窗中所有关键帧构造基于成员变量lastRef的深度图
+	/// </summary>
+	/// <param name="frameHessians">滑窗中所有关键帧</param>
+	/// <param name="fh_right"></param>
+	/// <param name="Hcalib">相机的内参</param>
 	void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians, FrameHessian* fh_right, CalibHessian Hcalib)
 	{
 		// make coarse tracking templates for latstRef.
-		memset(idepth[0], 0, sizeof(float)*w[0] * h[0]);
-		memset(weightSums[0], 0, sizeof(float)*w[0] * h[0]);
-		FrameHessian* fh_target = frameHessians.back();
+		memset(idepth[0], 0, sizeof(float) * w[0] * h[0]);
+		memset(weightSums[0], 0, sizeof(float) * w[0] * h[0]);
+		//FrameHessian* fh_target = frameHessians.back();
+
 		for (FrameHessian* fh : frameHessians)
 		{
 			for (PointHessian* ph : fh->pointHessians)
@@ -433,7 +502,10 @@ namespace dso
 				if (ph->lastResiduals[0].first != 0 && ph->lastResiduals[0].second == ResState::INNER)
 				{
 					PointFrameResidual* r = ph->lastResiduals[0].first;
+					// TODO:如何保证特征点最近计算的残差关键帧就是tracker中的参考帧
 					assert(r->efResidual->isActive() && r->target == lastRef);
+
+					// 特征在lastRef中的投影像素点
 					int u = r->centerProjectedTo[0] + 0.5f;
 					int v = r->centerProjectedTo[1] + 0.5f;
 					float new_idepth = r->centerProjectedTo[2];
@@ -444,6 +516,7 @@ namespace dso
 				}
 			}
 		}
+
 		// 	for(FrameHessian* fh : frameHessians)
 		// 	{
 		// 		for(PointHessian* ph : fh->pointHessians)
@@ -511,7 +584,8 @@ namespace dso
 		// 		}
 		// 	}
 
-		for (int lvl = 1; lvl < pyrLevelsUsed; lvl++)
+		// 将深度值从金字塔顶层传播
+		for (int lvl = 1; lvl < pyrLevelsUsed; ++lvl)
 		{
 			int lvlm1 = lvl - 1;
 			int wl = w[lvl], hl = h[lvl], wlm1 = w[lvlm1];
@@ -522,10 +596,11 @@ namespace dso
 			float* idepth_lm = idepth[lvlm1];
 			float* weightSums_lm = weightSums[lvlm1];
 
-			for (int y = 0; y < hl; y++)
-				for (int x = 0; x < wl; x++)
+			for (int y = 0; y < hl; ++y)
+			{
+				for (int x = 0; x < wl; ++x)
 				{
-					int bidx = 2 * x + 2 * y*wlm1;
+					int bidx = 2 * x + 2 * y * wlm1;
 					idepth_l[x + y * wl] = idepth_lm[bidx] +
 						idepth_lm[bidx + 1] +
 						idepth_lm[bidx + wlm1] +
@@ -536,16 +611,18 @@ namespace dso
 						weightSums_lm[bidx + wlm1] +
 						weightSums_lm[bidx + wlm1 + 1];
 				}
+			}
 		}
 
-
-		// dilate idepth by 1.
-		for (int lvl = 0; lvl < 2; lvl++)
+		// 将逆深度传播分为低层级和高层级两个循环进行传播，低层级图像逆深度像素点稀疏，可以多膨胀几个像素，
+		// 高层级的逆深度像素点则相对稠密，因此只用膨胀一个像素即可
+		// 低层级的金字塔逆深度向周围像素传播
+		// 通过判断特征与左上、右上、左下、右下特征的关系，判定该特征是否需要填充逆深度
+		for (int lvl = 0; lvl < 2; ++lvl)
 		{
 			int numIts = 1;
 
-
-			for (int it = 0; it < numIts; it++)
+			for (int it = 0; it < numIts; ++it)
 			{
 				int wh = w[lvl] * h[lvl] - w[lvl];
 				int wl = w[lvl];
@@ -554,23 +631,49 @@ namespace dso
 				memcpy(weightSumsl_bak, weightSumsl, w[lvl] * h[lvl] * sizeof(float));
 				float* idepthl = idepth[lvl];	// dotnt need to make a temp copy of depth, since I only
 												// read values with weightSumsl>0, and write ones with weightSumsl<=0.
-				for (int i = w[lvl]; i < wh; i++)
+
+				// 为了保证循环体内不越界，for循环去掉了第一行和最后一行
+				for (int i = w[lvl]; i < wh; ++i)
 				{
 					if (weightSumsl_bak[i] <= 0)
 					{
 						float sum = 0, num = 0, numn = 0;
-						if (weightSumsl_bak[i + 1 + wl] > 0) { sum += idepthl[i + 1 + wl]; num += weightSumsl_bak[i + 1 + wl]; numn++; }
-						if (weightSumsl_bak[i - 1 - wl] > 0) { sum += idepthl[i - 1 - wl]; num += weightSumsl_bak[i - 1 - wl]; numn++; }
-						if (weightSumsl_bak[i + wl - 1] > 0) { sum += idepthl[i + wl - 1]; num += weightSumsl_bak[i + wl - 1]; numn++; }
-						if (weightSumsl_bak[i - wl + 1] > 0) { sum += idepthl[i - wl + 1]; num += weightSumsl_bak[i - wl + 1]; numn++; }
-						if (numn > 0) { idepthl[i] = sum / numn; weightSumsl[i] = num / numn; }
+						if (weightSumsl_bak[i + 1 + wl] > 0)
+						{
+							sum += idepthl[i + 1 + wl];
+							num += weightSumsl_bak[i + 1 + wl];
+							numn++;
+						}
+						if (weightSumsl_bak[i - 1 - wl] > 0)
+						{
+							sum += idepthl[i - 1 - wl];
+							num += weightSumsl_bak[i - 1 - wl];
+							numn++;
+						}
+						if (weightSumsl_bak[i + wl - 1] > 0)
+						{
+							sum += idepthl[i + wl - 1];
+							num += weightSumsl_bak[i + wl - 1];
+							numn++;
+						}
+						if (weightSumsl_bak[i - wl + 1] > 0)
+						{
+							sum += idepthl[i - wl + 1];
+							num += weightSumsl_bak[i - wl + 1];
+							numn++;
+						}
+						if (numn > 0)
+						{
+							idepthl[i] = sum / numn;
+							weightSumsl[i] = num / numn;
+						}
 					}
 				}
 			}
 		}
 
-		// dilate idepth by 1 (2 on lower levels).
-		for (int lvl = 2; lvl < pyrLevelsUsed; lvl++)
+		// 高金字塔层级的逆深度向周围像素传播
+		for (int lvl = 2; lvl < pyrLevelsUsed; ++lvl)
 		{
 			int wh = w[lvl] * h[lvl] - w[lvl];
 			int wl = w[lvl];
@@ -579,22 +682,48 @@ namespace dso
 			memcpy(weightSumsl_bak, weightSumsl, w[lvl] * h[lvl] * sizeof(float));
 			float* idepthl = idepth[lvl];	// dotnt need to make a temp copy of depth, since I only
 											// read values with weightSumsl>0, and write ones with weightSumsl<=0.
-			for (int i = w[lvl]; i < wh; i++)
+
+			// 为了保证循环体内不越界，for循环去掉了图像第一行和最后一行
+			for (int i = w[lvl]; i < wh; ++i)
 			{
 				if (weightSumsl_bak[i] <= 0)
 				{
 					float sum = 0, num = 0, numn = 0;
-					if (weightSumsl_bak[i + 1] > 0) { sum += idepthl[i + 1]; num += weightSumsl_bak[i + 1]; numn++; }
-					if (weightSumsl_bak[i - 1] > 0) { sum += idepthl[i - 1]; num += weightSumsl_bak[i - 1]; numn++; }
-					if (weightSumsl_bak[i + wl] > 0) { sum += idepthl[i + wl]; num += weightSumsl_bak[i + wl]; numn++; }
-					if (weightSumsl_bak[i - wl] > 0) { sum += idepthl[i - wl]; num += weightSumsl_bak[i - wl]; numn++; }
-					if (numn > 0) { idepthl[i] = sum / numn; weightSumsl[i] = num / numn; }
+					if (weightSumsl_bak[i + 1] > 0)
+					{
+						sum += idepthl[i + 1];
+						num += weightSumsl_bak[i + 1];
+						numn++;
+					}
+					if (weightSumsl_bak[i - 1] > 0)
+					{
+						sum += idepthl[i - 1];
+						num += weightSumsl_bak[i - 1];
+						numn++;
+					}
+					if (weightSumsl_bak[i + wl] > 0)
+					{
+						sum += idepthl[i + wl];
+						num += weightSumsl_bak[i + wl];
+						numn++;
+					}
+					if (weightSumsl_bak[i - wl] > 0)
+					{
+						sum += idepthl[i - wl];
+						num += weightSumsl_bak[i - wl];
+						numn++;
+					}
+					if (numn > 0)
+					{
+						idepthl[i] = sum / numn;
+						weightSumsl[i] = num / numn;
+					}
 				}
 			}
 		}
 
-		// normalize idepths and weights.
-		for (int lvl = 0; lvl < pyrLevelsUsed; lvl++)
+		// 归一化逆深度
+		for (int lvl = 0; lvl < pyrLevelsUsed; ++lvl)
 		{
 			float* weightSumsl = weightSums[lvl];
 			float* idepthl = idepth[lvl];
@@ -608,8 +737,10 @@ namespace dso
 			float* lpc_idepth = pc_idepth[lvl];
 			float* lpc_color = pc_color[lvl];
 
-			for (int y = 2; y < hl - 2; y++)
-				for (int x = 2; x < wl - 2; x++)
+			// 边缘像素不可信，遍历的时候直接去掉
+			for (int y = 2; y < hl - 2; ++y)
+			{
+				for (int x = 2; x < wl - 2; ++x)
 				{
 					int i = x + y * wl;
 
@@ -633,6 +764,7 @@ namespace dso
 
 					weightSumsl[i] = 1;
 				}
+			}
 
 			pc_n[lvl] = lpc_n;
 		}
@@ -660,7 +792,6 @@ namespace dso
 			__m128 u = _mm_load_ps(buf_warped_u + i);
 			__m128 v = _mm_load_ps(buf_warped_v + i);
 			__m128 id = _mm_load_ps(buf_warped_idepth + i);
-
 
 			acc.updateSSE_eighted(
 				_mm_mul_ps(id, dx),
@@ -850,6 +981,10 @@ namespace dso
 		return rs;
 	}
 
+	/// <summary>
+	/// 设置跟踪的参考帧：将滑窗中的最后一帧关键帧设置为参考帧
+	/// </summary>
+	/// <param name="frameHessians">滑窗中所有关键帧</param>
 	void CoarseTracker::setCTRefForFirstFrame(std::vector<FrameHessian *> frameHessians)
 	{
 		assert(frameHessians.size() > 0);
@@ -863,6 +998,12 @@ namespace dso
 		firstCoarseRMSE = -1;
 	}
 
+	/// <summary>
+	/// 设置跟踪的参考帧：将滑窗中的最后一帧关键帧设置为参考帧
+	/// </summary>
+	/// <param name="frameHessians">滑窗中所有的关键帧</param>
+	/// <param name="fh_right"></param>
+	/// <param name="Hcalib">相机内参信息</param>
 	void CoarseTracker::setCoarseTrackingRef(std::vector<FrameHessian*> frameHessians, FrameHessian* fh_right, CalibHessian Hcalib)
 	{
 		assert(frameHessians.size() > 0);
@@ -898,16 +1039,14 @@ namespace dso
 		IMUPreintegrator IMU_preintegrator;
 		double time_start = pic_time_stamp[lastRef->shell->incoming_id];
 		double time_end = pic_time_stamp[newFrame->shell->incoming_id];
-		// 	LOG(INFO)<<"lastRef->shell->incoming_id: "<<lastRef->shell->incoming_id<<" newFrame->shell->incoming_id: "<<newFrame->shell->incoming_id;
-
+		
+		// 获取参考帧与最新帧之间的惯导数据并进行预积分
 		int index;
-		// 	LOG(INFO)<<"pic_time_stamp.size(): "<<pic_time_stamp.size();
-		// 	LOG(INFO)<<std::fixed<<std::setprecision(9)<<"time_start: "<<time_start<<" time_end: "<<time_start<<" dt: "<<time_end - time_start;
-		for (int i = 0; i < imu_time_stamp.size(); ++i)
+		for (int it = 0; it < imu_time_stamp.size(); ++it)
 		{
-			if (imu_time_stamp[i] > time_start || fabs(time_start - imu_time_stamp[i]) < 0.001)
+			if (imu_time_stamp[it] > time_start || std::fabs(time_start - imu_time_stamp[it]) < 0.001)
 			{
-				index = i;
+				index = it;
 				break;
 			}
 		}
@@ -920,21 +1059,23 @@ namespace dso
 			else
 			{
 				delta_t = time_end - imu_time_stamp[index];
-				if (delta_t < 0.000001)break;
+				if (delta_t < 0.000001) break;
 			}
+
 			IMU_preintegrator.update(m_gry[index] - lastRef->bias_g, m_acc[index] - lastRef->bias_a, delta_t);
-			if (imu_time_stamp[index + 1] >= time_end)
-				break;
+			if (imu_time_stamp[index + 1] >= time_end) break;
 			index++;
 		}
 
-		std::vector<double> imu_track_w(coarsestLvl + 1, 0);
-		imu_track_w[0] = imu_weight_tracker;
-		imu_track_w[1] = imu_track_w[0] / 1.2;
-		imu_track_w[2] = imu_track_w[1] / 1.5;
-		imu_track_w[3] = imu_track_w[2] / 2;
-		imu_track_w[4] = imu_track_w[3] / 3;
-
+		// TODO：为何随着金字塔层级增加，IMU数据的权重逐渐降低
+		std::vector<double> imuTrackWeight(coarsestLvl + 1, 0);
+		imuTrackWeight[0] = imu_weight_tracker;
+		imuTrackWeight[1] = imuTrackWeight[0] / 1.2;
+		imuTrackWeight[2] = imuTrackWeight[1] / 1.5;
+		imuTrackWeight[3] = imuTrackWeight[2] / 2;
+		imuTrackWeight[4] = imuTrackWeight[3] / 3;
+		
+		// 自顶层向金字塔底层的视觉跟踪
 		for (int lvl = coarsestLvl; lvl >= 0; lvl--)
 		{
 			Mat88 H; Vec8 b;
@@ -950,14 +1091,10 @@ namespace dso
 			}
 
 			calcGSSSE(lvl, H, b, refToNew_current, aff_g2l_current);
-			Mat66 H_imu;
-			Vec6 b_imu;
-			Vec9 res_PVPhi;
-			double res_imu_old = 0;
-			if (lvl <= 0) {
-				res_imu_old = calcIMUResAndGS(H_imu, b_imu, refToNew_current, IMU_preintegrator, res_PVPhi, resOld[0], imu_track_w[lvl]);
-				// 		    LOG(INFO)<<"res_imu_old: "<<res_imu_old<<" resOld[0]: "<<resOld[0]<<" resOld[1]: "<<resOld[0];
-			}
+
+			double resImuOld = 0;
+			Mat66 H_imu; Vec6 b_imu; Vec9 res_PVPhi;
+			if (lvl == 0) resImuOld = calcIMUResAndGS(H_imu, b_imu, refToNew_current, IMU_preintegrator, res_PVPhi, resOld[0], imuTrackWeight[lvl]);
 
 			float lambda = 0.01;
 
@@ -1031,23 +1168,19 @@ namespace dso
 				incScaled.segment<1>(7) *= SCALE_B;
 
 				if (!std::isfinite(incScaled.sum())) incScaled.setZero();
-				//LOG(INFO)<<"incScaled: "<<incScaled.transpose();s
 
 				SE3 refToNew_new = SE3::exp((Vec6)(incScaled.head<6>())) * refToNew_current;
 				AffLight aff_g2l_new = aff_g2l_current;
 				aff_g2l_new.a += incScaled[6];
 				aff_g2l_new.b += incScaled[7];
 
-				Vec6 resNew = calcRes(lvl, refToNew_new, aff_g2l_new, setting_coarseCutoffTH*levelCutoffRepeat);
-				double res_imu_new = 0;
-				if (lvl <= 0) {
-					res_imu_new = calcIMUResAndGS(H_imu, b_imu, refToNew_new, IMU_preintegrator, res_PVPhi, resNew[0], imu_track_w[lvl]);
-				}
+				Vec6 resNew = calcRes(lvl, refToNew_new, aff_g2l_new, setting_coarseCutoffTH * levelCutoffRepeat);
+				double resImuNew = 0;
+				if (lvl <= 0) resImuNew = calcIMUResAndGS(H_imu, b_imu, refToNew_new, IMU_preintegrator, res_PVPhi, resNew[0], imuTrackWeight[lvl]);
 
 				bool accept = (resNew[0] / resNew[1]) < (resOld[0] / resOld[1]);
-				if (imu_use_flag&&imu_track_flag&&imu_track_ready&&lvl <= 0) {
-					accept = (resNew[0] / resNew[1] * resOld[1] + res_imu_new) < (resOld[0] + res_imu_old);
-				}
+				if (imu_use_flag && imu_track_flag && imu_track_ready && lvl <= 0)
+					accept = (resNew[0] / resNew[1] * resOld[1] + resImuNew) < (resOld[0] + resImuOld);
 
 				if (debugPrint)
 				{
@@ -1066,7 +1199,7 @@ namespace dso
 				{
 					calcGSSSE(lvl, H, b, refToNew_new, aff_g2l_new);
 					resOld = resNew;
-					res_imu_old = res_imu_new;
+					resImuOld = resImuNew;
 					aff_g2l_current = aff_g2l_new;
 					refToNew_current = refToNew_new;
 					lambda *= 0.5;
@@ -1223,16 +1356,15 @@ namespace dso
 
 	CoarseDistanceMap::CoarseDistanceMap(int ww, int hh)
 	{
-		fwdWarpedIDDistFinal = new float[ww*hh / 4];
+		fwdWarpedIDDistFinal = new float[ww * hh / 4];
 
-		bfsList1 = new Eigen::Vector2i[ww*hh / 4];
-		bfsList2 = new Eigen::Vector2i[ww*hh / 4];
+		bfsList1 = new Eigen::Vector2i[ww * hh / 4];
+		bfsList2 = new Eigen::Vector2i[ww * hh / 4];
 
 		int fac = 1 << (pyrLevelsUsed - 1);
 
-
-		coarseProjectionGrid = new PointFrameResidual*[2048 * (ww*hh / (fac*fac))];
-		coarseProjectionGridNum = new int[ww*hh / (fac*fac)];
+		coarseProjectionGrid = new PointFrameResidual * [2048 * (ww * hh / (fac * fac))];
+		coarseProjectionGridNum = new int[ww * hh / (fac * fac)];
 
 		w[0] = h[0] = 0;
 	}
@@ -1251,8 +1383,9 @@ namespace dso
 		int w1 = w[1];
 		int h1 = h[1];
 		int wh1 = w1 * h1;
-		for (int i = 0; i < wh1; i++)
-			fwdWarpedIDDistFinal[i] = 1000;
+
+		for (int it = 0; it < wh1; ++it)
+			fwdWarpedIDDistFinal[it] = 1000;
 
 		// make coarse tracking templates for latstRef.
 		int numItems = 0;
@@ -1268,10 +1401,15 @@ namespace dso
 			for (PointHessian* ph : fh->pointHessians)
 			{
 				assert(ph->status == PointHessian::ACTIVE);
+
+				// 计算关键帧特征在最新帧上的投影像素坐标
 				Vec3f ptp = KRKi * Vec3f(ph->u, ph->v, 1) + Kt * ph->idepth_scaled;
 				int u = ptp[0] / ptp[2] + 0.5f;
 				int v = ptp[1] / ptp[2] + 0.5f;
+
+				//过滤掉边缘越界的像素坐标
 				if (!(u > 0 && v > 0 && u < w[1] && v < h[1])) continue;
+
 				fwdWarpedIDDistFinal[u + w1 * v] = 0;
 				bfsList1[numItems] = Eigen::Vector2i(u, v);
 				numItems++;
@@ -1289,12 +1427,13 @@ namespace dso
 	{
 		assert(w[0] != 0);
 		int w1 = w[1], h1 = h[1];
-		for (int k = 1; k < 40; k++)
+		Eigen::Vector2i* bfsListTmp;
+
+		for (int k = 1; k < 40; ++k)
 		{
 			int bfsNum2 = bfsNum;
 
-			//std::swap<Eigen::Vector2i*>(bfsList1,bfsList2);
-			Eigen::Vector2i* bfsListTmp = bfsList1;
+			bfsListTmp = bfsList1;
 			bfsList1 = bfsList2;
 			bfsList2 = bfsListTmp;
 
@@ -1394,6 +1533,10 @@ namespace dso
 		growDistBFS(1);
 	}
 
+	/// <summary>
+	/// 设置DistanceMap中各层金字塔相机内参信息
+	/// </summary>
+	/// <param name="HCalib">相机内参信息</param>
 	void CoarseDistanceMap::makeK(CalibHessian* HCalib)
 	{
 		w[0] = wG[0];

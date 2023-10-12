@@ -114,7 +114,7 @@ namespace dso
 		std::vector<EFResidual*> residualsAll;
 
 		float bdSumF;
-		float HdiF = 1e-3;
+		float HdiF = 1e-3;		// TODO
 		float Hdd_accLF;
 		VecCf Hcd_accLF;
 		float bd_accLF;

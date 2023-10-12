@@ -84,12 +84,12 @@ namespace dso
 		void setFirstStereo(CalibHessian* HCalib, FrameHessian* newFrameHessian, FrameHessian* newFrameHessian_right);
 
 		// 跟踪系统最新送进来的图像帧并返回跟踪状态
-		bool trackFrame(FrameHessian* newFrameHessian, std::vector<IOWrap::Output3DWrapper*> &wraps);
+		bool trackFrame(FrameHessian* newFrameHessian, std::vector<IOWrap::Output3DWrapper*>& wraps);
 		void calcTGrads(FrameHessian* newFrameHessian);
 
-		int frameID;
-		bool fixAffine;
-		bool printDebug;
+		int frameID;						// 初始化过程中进入系统的图像帧数量	
+		bool fixAffine;						// 优化中是否固定光度残差的标志位
+		bool printDebug;					// DSO初始化中是否打印调试信息
 
 		Pnt* points[PYR_LEVELS];			// 金字塔中选取的所有特征点的坐标
 		int numPoints[PYR_LEVELS];			// 每一层金字塔中选取的特征点的数量
@@ -120,10 +120,10 @@ namespace dso
 
 		float* idepth[PYR_LEVELS];
 
-		bool snapped;
-		int snappedAt;
+		bool snapped;				// 初始化中是否找到了位移较大的两帧
+		int snappedAt;				// 初始化中在进入系统的第几帧图像中找到的位移较大的帧
 
-		// pyramid images & levels on all levels
+		// 参与DSO初始化的两帧图像数据
 		Eigen::Vector3f* dINew[PYR_LEVELS];
 		Eigen::Vector3f* dIFist[PYR_LEVELS];
 
@@ -133,11 +133,12 @@ namespace dso
 		Vec10f* JbBuffer;			// 0-7: sum(dd * dp). 8: sum(res*dd). 9: 1/(1+sum(dd*dd))=inverse hessian entry.
 		Vec10f* JbBuffer_new;
 
-		Accumulator9 acc9;
-		Accumulator9 acc9SC;
+		Accumulator9 acc9;			// 计算光度残差对于相机位姿以及光度参数的H和b
+		Accumulator9 acc9SC;		// 计算acc9中H和b的舒尔补项
 
 		Vec3f dGrads[PYR_LEVELS];
 
+		// 正则化相关参数
 		float alphaK;
 		float alphaW;
 		float regWeight;
@@ -149,7 +150,8 @@ namespace dso
 			Mat88f &H_out_sc, Vec8f &b_out_sc,
 			const SE3 &refToNew, AffLight refToNew_aff,
 			bool plot);
-		Vec3f calcEC(int lvl); // returns OLD NERGY, NEW ENERGY, NUM TERMS.
+
+		Vec3f calcEC(int lvl); // returns OLD ENERGY, NEW ENERGY, NUM TERMS.
 		void optReg(int lvl);
 
 		void propagateUp(int srcLvl);
@@ -160,7 +162,7 @@ namespace dso
 		void doStep(int lvl, float lambda, Vec8f inc);
 		void applyStep(int lvl);
 
-		void makeGradients(Eigen::Vector3f** data);
+		void makeGradients(Eigen::Vector3f** data); 
 
 		// 在pangolin中显示初始化得到深度图结果以便于调试程序
 		void debugPlot(int lvl, std::vector<IOWrap::Output3DWrapper*> &wraps);

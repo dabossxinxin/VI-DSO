@@ -78,8 +78,8 @@ namespace dso
 
 		bool isNew;
 
-		Eigen::Vector2f projectedTo[MAX_RES_PER_POINT];
-		Vec3f centerProjectedTo;
+		Eigen::Vector2f projectedTo[MAX_RES_PER_POINT];		// 特征点及周围领域的七个点在关键帧上的投影像素坐标
+		Vec3f centerProjectedTo;							// 特征点在关键帧上的投影像素点坐标以及逆深度
 
 		~PointFrameResidual();
 		PointFrameResidual();

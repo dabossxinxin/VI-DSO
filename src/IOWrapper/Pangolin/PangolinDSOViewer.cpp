@@ -136,7 +136,7 @@ namespace dso
 
 			pangolin::Var<bool> settings_resetButton("ui.Reset", false, false);
 
-			pangolin::Var<int> settings_nPts("ui.activePoints", setting_desiredPointDensity, 50, 5000, false);
+			pangolin::Var<int> settings_nPts("ui.activePoints", setting_desiredPointDensity, 200, 5000, false);
 			pangolin::Var<int> settings_nCandidates("ui.pointCandidates", setting_desiredImmatureDensity, 50, 5000, false);
 			pangolin::Var<int> settings_nMaxFrames("ui.maxFrames", setting_maxFrames, 4, 10, false);
 			pangolin::Var<double> settings_kfFrequency("ui.kfFrequency", setting_kfGlobalWeight, 0.1, 3, false);

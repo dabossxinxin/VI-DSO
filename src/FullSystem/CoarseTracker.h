@@ -48,7 +48,7 @@ namespace dso
 		CoarseTracker(int w, int h);
 		~CoarseTracker();
 
-		bool trackNewestCoarse(FrameHessian* newFrameHessian, SE3 &lastToNew_out, AffLight &aff_g2l_out,
+		bool trackNewestCoarse(FrameHessian* newFrameHessian, SE3& lastToNew_out, AffLight& aff_g2l_out,
 			int coarsestLvl, Vec5 minResForAbort, IOWrap::Output3DWrapper* wrap = 0);
 
 		void setCTRefForFirstFrame(std::vector<FrameHessian*> frameHessians);
@@ -57,8 +57,10 @@ namespace dso
 		void makeCoarseDepthForFirstFrame(FrameHessian* fh);
 		void makeK(CalibHessian* HCalib);
 
-		bool debugPrint, debugPlot;
+		bool debugPrint;		// 控制调试信息输出的标志位
+		bool debugPlot;			// 控制调试信息绘制的标志位
 
+		// 各金字塔层级内参信息
 		Mat33f K[PYR_LEVELS];
 		Mat33f Ki[PYR_LEVELS];
 		float fx[PYR_LEVELS];
@@ -69,18 +71,19 @@ namespace dso
 		float cy[PYR_LEVELS];
 		float cxi[PYR_LEVELS];
 		float cyi[PYR_LEVELS];
+
+		// 各金字塔图像宽高
 		int w[PYR_LEVELS];
 		int h[PYR_LEVELS];
 
 		void debugPlotIDepthMap(float* minID, float* maxID, std::vector<IOWrap::Output3DWrapper*> &wraps);
 		void debugPlotIDepthMapFloat(std::vector<IOWrap::Output3DWrapper*> &wraps);
 
-		FrameHessian* lastRef;
-		AffLight lastRef_aff_g2l;
-		FrameHessian* newFrame;
-		int refFrameID;
+		FrameHessian* lastRef;			// 跟踪时的参考帧
+		AffLight lastRef_aff_g2l;		// 跟踪时参考帧的光度变换参数
+		FrameHessian* newFrame;			// 待跟踪的最新帧
+		int refFrameID;					// 跟踪时参考帧的ID
 
-		// act as pure ouptut
 		Vec5 lastResiduals;
 		Vec3 lastFlowIndicators;
 		double firstCoarseRMSE;
@@ -136,6 +139,7 @@ namespace dso
 
 		float* fwdWarpedIDDistFinal;
 
+		// 各层金字塔相机内参信息
 		Mat33f K[PYR_LEVELS];
 		Mat33f Ki[PYR_LEVELS];
 		float fx[PYR_LEVELS];
@@ -146,6 +150,8 @@ namespace dso
 		float cy[PYR_LEVELS];
 		float cxi[PYR_LEVELS];
 		float cyi[PYR_LEVELS];
+
+		// 各层金字塔图像宽高信息
 		int w[PYR_LEVELS];
 		int h[PYR_LEVELS];
 

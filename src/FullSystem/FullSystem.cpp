@@ -878,8 +878,6 @@ namespace dso
 				if (frameHessians[i]->flaggedForMarginalization) fhsToMargPoints.push_back(frameHessians[i]);
 		}
 
-
-
 		//ef->setAdjointsF();
 		//ef->setDeltaF(&Hcalib);
 		int flag_oob = 0, flag_in = 0, flag_inin = 0, flag_nores = 0;
@@ -1176,7 +1174,8 @@ namespace dso
 				coarseInitializer->setFirst(&Hcalib, fh);
 				initFirstFrame_imu(fh);
 			}
-			else if (coarseInitializer->trackFrame(fh, outputWrapper))	// if SNAPPED
+			// 初始化中找到位移较大的两帧并且连续5帧都可以跟踪成功
+			else if (coarseInitializer->trackFrame(fh, outputWrapper))	
 			{
 				initializeFromInitializer(fh);
 				lock.unlock();

@@ -145,6 +145,9 @@ namespace dso
 
 		Vec9 step_imu = Vec9::Zero();
 
+		std::vector<Vec3> gyr_data;
+		std::vector<Vec3> acc_data;
+
 		Vec3 velocity = Vec3::Zero();
 		Vec3 delta_bias_g = Vec3::Zero();
 		Vec3 delta_bias_a = Vec3::Zero();

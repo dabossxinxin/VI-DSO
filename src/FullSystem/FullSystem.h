@@ -149,8 +149,8 @@ namespace dso
 
 		std::vector<IOWrap::Output3DWrapper*> outputWrapper;
 
-		bool isLost;
-		bool initFailed;
+		bool isLost;				// 系统跟踪丢失的标志位
+		bool initFailed;			// 系统初始化失败的标志位
 		bool initialized;			// 系统是否成功初始化的标志位
 		bool linearizeOperation;
 
