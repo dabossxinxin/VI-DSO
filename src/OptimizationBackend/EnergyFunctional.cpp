@@ -1051,9 +1051,10 @@ namespace dso
 		LOG(INFO) << "s_now: " << s_now << " s_middle: " << s_middle << " d_now: " << d_now << " scale_l: " << T_WD_l.scale();
 		
 		if (di > d_half) d_half = di;
+
 		if (d_half > d_min) d_half = d_min;
 		bool side = s_now > s_middle;
-		
+
 		// 对应论文中if upper != lastUpper
 		if (side != side_last || marg_num_half == 0) 
 		{
@@ -1174,37 +1175,6 @@ namespace dso
 		// TODO：是否意味着尺度信息已经收敛了
 		if (marg_num > 25) use_Dmargin = false;
 
-		// 	if(s_now>s_middle*d_now){
-		// 	    HM_imu = HM_imu_half;
-		// 	    bM_imu = bM_imu_half;
-		// // 	    s_middle = s_middle*d_now;
-		// 	    s_middle = s_now;
-		// // 	    d_now = d_half;
-		// 	    M_num2 = M_num;
-		// 	    HM_imu_half.setZero();
-		// 	    bM_imu_half.setZero();
-		// 	    HM_imu_half.block(CPARS+6,0,1,HM_imu_half.cols()) = MatXX::Zero(1,HM_imu_half.cols());
-		// // 	    HM_imu_half.block(0,CPARS+6,HM_imu_half.rows(),1) = MatXX::Zero(HM_imu_half.rows(),1);
-		// // 	    bM_imu_half[CPARS+6] = 0;
-		// 	    d_half = di;
-		// 	    if(d_half>d_min)d_half = d_min;
-		// 	    M_num = 0;
-		// 	}else if(s_now<s_middle/d_now){
-		// 	    HM_imu = HM_imu_half;
-		// 	    bM_imu = bM_imu_half;
-		// // 	    s_middle = s_middle/d_now;
-		// 	    s_middle = s_now;
-		// // 	    d_now = d_half;
-		// 	    M_num2 = M_num;
-		// 	    HM_imu_half.setZero();
-		// 	    bM_imu_half.setZero();
-		// // 	    HM_imu_half.block(CPARS+6,0,1,HM_imu_half.cols()) = MatXX::Zero(1,HM_imu_half.cols());
-		// // 	    HM_imu_half.block(0,CPARS+6,HM_imu_half.rows(),1) = MatXX::Zero(HM_imu_half.rows(),1);
-		// // 	    bM_imu_half[CPARS+6] = 0;
-		// 	    d_half = di;
-		// 	    if(d_half>d_min)d_half = d_min;
-		// 	    M_num = 0;
-		// 	}else
 		if ((s_now > s_middle*d_now || s_now < s_middle / d_now) && use_Dmargin) 
 		{
 			HM_imu = HM_imu_half;
@@ -1226,7 +1196,7 @@ namespace dso
 			T_WD_l = T_WD_l_half;
 			state_twd = Sim3(T_WD_l.inverse()*T_WD).log();
 		}
-		else 
+		else
 		{
 			HM_imu += HM_change;
 			bM_imu += bM_change;
