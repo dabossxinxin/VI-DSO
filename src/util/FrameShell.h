@@ -32,7 +32,8 @@ namespace dso
 	public:
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 		int id; 			// INTERNAL ID, starting at zero.
-		int incoming_id;	// 将图像输入算法时设置的图像ID
+		int incomingId;		// 将图像输入算法时设置的图像ID
+		int imuStampId;		// 图像帧时间戳在IMU数据中的索引
 		double timestamp;	// 将图像输入算法时设置的图像时间戳
 
 		// set once after tracking
@@ -59,6 +60,8 @@ namespace dso
 		inline FrameShell()
 		{
 			id = 0;
+			imuStampId = -1;
+			incomingId = -1;
 			poseValid = true;
 			camToWorld = SE3();
 			timestamp = 0;

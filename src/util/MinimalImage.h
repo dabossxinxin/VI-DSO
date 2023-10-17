@@ -108,7 +108,7 @@ namespace dso
 
 		inline void setPixelCirc(const int &u, const int &v, T val)
 		{
-			for (int i = -3; i <= 3; i++)
+			for (int i = -3; i <= 3; ++i)
 			{
 				at(u + 3, v + i) = val;
 				at(u - 3, v + i) = val;

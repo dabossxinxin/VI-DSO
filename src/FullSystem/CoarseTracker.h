@@ -84,9 +84,9 @@ namespace dso
 		FrameHessian* newFrame;			// 待跟踪的最新帧
 		int refFrameID;					// 跟踪时参考帧的ID
 
-		Vec5 lastResiduals;
-		Vec3 lastFlowIndicators;
-		double firstCoarseRMSE;
+		Vec5 lastResiduals;				// 各层金字塔残差信息
+		Vec3 lastFlowIndicators;		// 第零层金字塔光流信息
+		double firstCoarseRMSE;			// 首次跟踪第零层金字塔光度残差
 		int pc_n[PYR_LEVELS];
 	private:
 
@@ -102,13 +102,13 @@ namespace dso
 		float* weightSums[PYR_LEVELS];
 		float* weightSums_bak[PYR_LEVELS];
 
-		// pc buffers
+		// 跟踪时特征在参考帧上的信息
 		float* pc_u[PYR_LEVELS];
 		float* pc_v[PYR_LEVELS];
 		float* pc_idepth[PYR_LEVELS];
 		float* pc_color[PYR_LEVELS];
 
-		// warped buffers
+		// 跟踪时特征在关键帧上的信息
 		float* buf_warped_idepth;
 		float* buf_warped_u;
 		float* buf_warped_v;
@@ -137,7 +137,7 @@ namespace dso
 
 		void makeK(CalibHessian* HCalib);
 
-		float* fwdWarpedIDDistFinal;
+		int* fwdWarpedIDDistFinal;
 
 		// 各层金字塔相机内参信息
 		Mat33f K[PYR_LEVELS];

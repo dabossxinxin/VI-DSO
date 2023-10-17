@@ -43,156 +43,106 @@ namespace dso
 		return alignedPtr;
 	}
 
-	double CoarseTracker::calcIMUResAndGS(Mat66 &H_out, Vec6 &b_out, SE3 &refToNew, const IMUPreintegrator &IMU_preintegrator, Vec9 &res_PVPhi, double PointEnergy, double imu_track_weight)
+	/// <summary>
+	/// 计算惯导预积分数据的Hessian和b
+	/// </summary>
+	/// <param name="H_out">输出惯导数据H</param>
+	/// <param name="b_out">输出惯导数据b</param>
+	/// <param name="refToNew">输入位姿变换参数</param>
+	/// <param name="IMU_preintegrator">IMU预积分handle</param>
+	/// <param name="res_PVPhi">IMU预积分数据位姿及速度残差</param>
+	/// <param name="PointEnergy">这个函数中好像并没有用到</param>
+	/// <param name="imu_track_weight">IMU信息的权重</param>
+	/// <returns>IMU信息残差：包含位置残差和姿态残差</returns>
+	double CoarseTracker::calcIMUResAndGS(Mat66& H_out, Vec6& b_out, SE3& refToNew, const IMUPreintegrator& IMU_preintegrator, Vec9& res_PVPhi, double PointEnergy, double imu_track_weight)
 	{
-		Mat44 M_DCi = lastRef->shell->camToWorld.matrix();
 		Mat44 M_WD = T_WD.matrix();
-		Mat44 M_WB = M_WD * M_DCi*M_WD.inverse()*T_BC.inverse().matrix();
-		SE3 T_WB(M_WB);
-		Mat33 R_WB = T_WB.rotationMatrix();
-		Vec3 t_WB = T_WB.translation();
-
 		SE3 newToRef = refToNew.inverse();
-		Mat44 M_DCj = (lastRef->shell->camToWorld * newToRef).matrix();
-		Mat44 M_WBj = M_WD * M_DCj*M_WD.inverse()*T_BC.inverse().matrix();
-		SE3 T_WBj(M_WBj);
-		Mat33 R_WBj = T_WBj.rotationMatrix();
-		Vec3 t_WBj = T_WBj.translation();
+
+		Mat44 M_DC_i = lastRef->shell->camToWorld.matrix();
+		SE3 T_WB_i(M_WD * M_DC_i * M_WD.inverse() * T_BC.inverse().matrix());
+		Mat33 R_WB_i = T_WB_i.rotationMatrix();
+		Vec3 t_WB_i = T_WB_i.translation();
+
+		Mat44 M_DC_j = (lastRef->shell->camToWorld * newToRef).matrix();
+		SE3 T_WB_j(M_WD * M_DC_j * M_WD.inverse() * T_BC.inverse().matrix());
+		Mat33 R_WB_j = T_WB_j.rotationMatrix();
+		Vec3 t_WB_j = T_WB_j.translation();
 
 		double dt = IMU_preintegrator.getDeltaTime();
-		//     LOG(INFO)<<"dt: "<<dt;
+
 		H_out = Mat66::Zero();
 		b_out = Vec6::Zero();
-		if (dt > 0.5) {
-			return 0;
-		}
-		Vec3 g_w;
-		g_w << 0, 0, -1;
-		g_w = g_w * G_norm;
+		if (dt > 0.5) return 0;
 
-		Vec3 so3 = IMU_preintegrator.getJRBiasg()*lastRef->delta_bias_g;
-		double theta = so3.norm();
-		Mat33 R_temp = Mat33::Identity();
-		R_temp = SO3::exp(IMU_preintegrator.getJRBiasg()*lastRef->delta_bias_g).matrix();
+		Vec3 g_w(0, 0, -G_norm);
 
-		Mat33 res_R = (IMU_preintegrator.getDeltaR()*R_temp).transpose()*R_WB.transpose()*R_WBj;
-		//     LOG(INFO)<<"res_R: \n"<<res_R;
+		// 计算p、v、q残差
+		Mat33 R_temp = SO3::exp(IMU_preintegrator.getJRBiasg() * lastRef->delta_bias_g).matrix();
+		Vec3 res_phi = SO3((IMU_preintegrator.getDeltaR() * R_temp).transpose() * R_WB_i.transpose() * R_WB_j).log();
 
-		Vec3 res_phi = SO3(res_R).log();
-
-		//     LOG(INFO)<<"res_phi: "<<res_phi.transpose();
-		//     
-		//     LOG(INFO)<<"IMU_preintegrator.getDeltaV(): "<<IMU_preintegrator.getDeltaV().transpose();
-		newFrame->velocity = R_WB * (R_WB.transpose()*(lastRef->velocity + g_w * dt) +
-			(IMU_preintegrator.getDeltaV() + IMU_preintegrator.getJVBiasa()*lastRef->delta_bias_a + IMU_preintegrator.getJVBiasg()*lastRef->delta_bias_g));
-		// 	Vec3 res_v = R_WB.transpose()*(newFrame->velocity-lastRef->velocity-g_w*dt)-
-		// 		 (IMU_preintegrator.getDeltaV()+IMU_preintegrator.getJVBiasa()*lastRef->delta_bias_a+IMU_preintegrator.getJVBiasg()*lastRef->delta_bias_g);
-		// 	LOG(INFO)<<"res_v: "<<res_v.transpose();
-		// 	LOG(INFO)<<std::fixed<<std::setprecision(14)<<"newFrame time: "<<pic_time_stamp[newFrame->shell->incoming_id];
-		// 	int index2;
-		// 	if(gt_time_stamp.size()>0){
-		// 	    for(int i=0;i<gt_time_stamp.size();++i){
-		// 		if(gt_time_stamp[i]>=pic_time_stamp[newFrame->shell->incoming_id]||fabs(gt_time_stamp[i]-pic_time_stamp[newFrame->shell->incoming_id])<0.001){
-		// 		      index2 = i;
-		// 		      break;					  				
-		// 		}
-		// 	    }
-		// 	}
-		// 	newFrame->velocity = gt_velocity[index2];
-		// 	LOG(INFO)<<"newFrame->velocity: "<<newFrame->velocity.transpose();
+		Vec3 delta_v = IMU_preintegrator.getDeltaV() + IMU_preintegrator.getJVBiasa() * lastRef->delta_bias_a +
+			IMU_preintegrator.getJVBiasg() * lastRef->delta_bias_g;
+		newFrame->velocity = R_WB_i * (R_WB_i.transpose() * (lastRef->velocity + g_w * dt) + delta_v);
+		Vec3 res_v = R_WB_i.transpose() * (newFrame->velocity - lastRef->velocity - g_w * dt) - delta_v;
 		newFrame->shell->velocity = newFrame->velocity;
-		//     LOG(INFO)<<"lastRef->velocity: "<<lastRef->velocity.transpose();
-		//     LOG(INFO)<<"newFrame->velocity: "<<newFrame->velocity.transpose();
-		//     LOG(INFO)<<"(R_WB.transpose()*g_w).transpose()"<<(R_WB.transpose()*g_w).transpose();
 
-		Vec3 res_p = R_WB.transpose()*(t_WBj - t_WB - lastRef->velocity*dt - 0.5*g_w*dt*dt) -
-			(IMU_preintegrator.getDeltaP() + IMU_preintegrator.getJPBiasa()*lastRef->delta_bias_a + IMU_preintegrator.getJPBiasg()*lastRef->delta_bias_g);
+		Vec3 delta_p = IMU_preintegrator.getDeltaP() + IMU_preintegrator.getJPBiasa() * lastRef->delta_bias_a +
+			IMU_preintegrator.getJPBiasg() * lastRef->delta_bias_g;
+		Vec3 res_p = R_WB_i.transpose() * (t_WB_j - t_WB_i - lastRef->velocity * dt - 0.5 * g_w * dt * dt) - delta_p;
 
-
-		//     LOG(INFO)<<"res_p: "<<res_p.transpose();
-		//     exit(1);
-		// 
-		//     LOG(INFO)<<"newFrame->velocity: "<<newFrame->velocity.transpose();
 		Mat99 Cov = IMU_preintegrator.getCovPVPhi();
-		//     LOG(INFO)<<"Cov: \n"<<Cov;
 
-		//     Vec9 res_PVPhi;
 		res_PVPhi.block(0, 0, 3, 1) = res_p;
-		//     res_PVPhi.block(0,0,3,1) = Vec3::Zero();
 		res_PVPhi.block(3, 0, 3, 1) = Vec3::Zero();
 		res_PVPhi.block(6, 0, 3, 1) = res_phi;
 
-		//     double lambda = 0.03;
-		double res = imu_track_weight * imu_track_weight*res_PVPhi.transpose() * Cov.inverse() * res_PVPhi;
-		//     LOG(INFO)<<"res: "<<res<<" PointEnergy: "<<PointEnergy;
-		//     LOG(INFO)<<"Cov.inverse(): \n"<<Cov.inverse();
-		//     double bei = sqrt(PointEnergy/res);
-		//     bei /= imu_lambda;
+		double res = imu_track_weight * imu_track_weight * res_PVPhi.transpose() * Cov.inverse() * res_PVPhi;
 
 		Mat33 J_resPhi_phi_j = IMU_preintegrator.JacobianRInv(res_phi);
-		Mat33 J_resV_v_j = R_WB.transpose();
-		Mat33 J_resP_p_j = R_WB.transpose()*R_WBj;
+		Mat33 J_resV_v_j = R_WB_i.transpose();
+		Mat33 J_resP_p_j = R_WB_i.transpose() * R_WB_j;
 
+		Mat66 J_imu_tmp = Mat66::Zero();
+		J_imu_tmp.block(0, 0, 3, 3) = J_resP_p_j;
+		J_imu_tmp.block(3, 3, 3, 3) = J_resPhi_phi_j;
+		//J_imu_tmp.block(6,6,3,3) = J_resV_v_j;
 
-		Mat66 J_imu1 = Mat66::Zero();
-		J_imu1.block(0, 0, 3, 3) = J_resP_p_j;
-		J_imu1.block(3, 3, 3, 3) = J_resPhi_phi_j;
-		//     J_imu1.block(6,6,3,3) = J_resV_v_j;
 		Mat66 Weight = Mat66::Zero();
 		Weight.block(0, 0, 3, 3) = Cov.block(0, 0, 3, 3);
 		Weight.block(3, 3, 3, 3) = Cov.block(6, 6, 3, 3);
-		//     Weight.block(6,6,3,3) = Cov.block(3,3,3,3);
-		Mat66 Weight2 = Mat66::Zero();
-		for (int i = 0; i < 6; ++i) {
-			Weight2(i, i) = Weight(i, i);
-		}
-		Weight = Weight2.inverse();
-		Weight *= (imu_track_weight*imu_track_weight);
-		//     for(int i=0;i<3;++i){
-		//        Weight(i,i) *= 0.2;
-		//     }
-		//     Weight *=(bei*bei);
+		//Weight.block(6,6,3,3) = Cov.block(3,3,3,3);
+		Mat66 WeightTmp = Weight.diagonal().asDiagonal();
+		Weight = WeightTmp.inverse();
+		Weight *= (imu_track_weight * imu_track_weight);
 
-		Vec6 b_1 = Vec6::Zero();
-		b_1.block(0, 0, 3, 1) = res_p;
-		b_1.block(3, 0, 3, 1) = res_phi;
-		//     b_1.block(6,0,3,1) = res_v;
+		Vec6 r_imu = Vec6::Zero();
+		r_imu.block(0, 0, 3, 1) = res_p;
+		r_imu.block(3, 0, 3, 1) = res_phi;
+		//r_imu.block(6,0,3,1) = res_v;
 
-		Mat44 T_temp = T_BC.matrix()*T_WD.matrix()*M_DCj.inverse();
-		Mat66 J_rel = (-1 * Sim3(T_temp).Adj()).block(0, 0, 6, 6);
-		//     Mat44 T_temp = T_BC.matrix()*M_DCj.inverse();
-		//     Mat66 J_rel = (-1*SE3(T_temp).Adj());
-		Mat66 J_xi_tw_th = SE3(M_DCi).Adj();
-		//     LOG(INFO)<<"-1*Sim3(T_temp).Adj: "<<-1*Sim3(T_temp).Adj().matrix();
+		Mat44 T_tmp = T_BC.matrix() * T_WD.matrix() * M_DC_j.inverse();
+		Mat66 J_rel = (-1 * Sim3(T_tmp).Adj()).block(0, 0, 6, 6);
+		Mat66 J_xi_2_th = SE3(M_DC_i).Adj();				// 绝对位姿对相对位姿的雅可比
 
-		//     LOG(INFO)<<"J_imu1: \n"<<J_imu1;
+		Mat66 J_xi_r_l = refToNew.Adj().inverse();			// 将右扰动转化为左扰动
+		Mat66 J_imu = Mat66::Zero();
+		J_imu = J_imu_tmp * J_rel * J_xi_2_th * J_xi_r_l;
 
-
-		//     Mat99 J_rel = Mat99::Identity();
-		//     J_rel.block(0,0,6,6) = M_rel;
-		Mat66 J_xi_r_l = refToNew.Adj().inverse();
-		Mat66 J_2 = Mat66::Zero();
-		J_2 = J_imu1 * J_rel*J_xi_tw_th*J_xi_r_l;
-
-		H_out = J_2.transpose()*Weight*J_2;
-		b_out = J_2.transpose()*Weight*b_1;
+		H_out = J_imu.transpose() * Weight * J_imu;
+		b_out = J_imu.transpose() * Weight * r_imu;
 
 		H_out.block<6, 3>(0, 0) *= SCALE_XI_TRANS;
 		H_out.block<6, 3>(0, 3) *= SCALE_XI_ROT;
 		H_out.block<3, 6>(0, 0) *= SCALE_XI_TRANS;
 		H_out.block<3, 6>(3, 0) *= SCALE_XI_ROT;
-		//     H_out.block<9,3>(0,6) *= SCALE_V;
-		//     H_out.block<3,9>(6,0) *= SCALE_V;
+		//H_out.block<9,3>(0,6) *= SCALE_V;
+		//H_out.block<3,9>(6,0) *= SCALE_V;
 
 		b_out.segment<3>(0) *= SCALE_XI_TRANS;
 		b_out.segment<3>(3) *= SCALE_XI_ROT;
-		//     b_out.segment<3>(6) *= SCALE_V;
-		//     LOG(INFO)<<"J_2: \n"<<J_2;
-		//     LOG(INFO)<<"weight: \n"<<Weight;
-		//     LOG(INFO)<<"b_1: "<<b_1.transpose();
-		//     LOG(INFO)<<"H_out: \n"<<H_out;
-		//     LOG(INFO)<<"b_out: \n"<<b_out.transpose();
-		//     exit(1);
+		//b_out.segment<3>(6) *= SCALE_V;
+
 		return res;
 	}
 
@@ -235,6 +185,18 @@ namespace dso
 		debugPrint = true;
 		w[0] = h[0] = 0;
 		refFrameID = -1;
+	}
+
+	/// <summary>
+	/// CoarseTracker析构函数，释放成员内存空间
+	/// </summary>
+	CoarseDistanceMap::~CoarseDistanceMap()
+	{
+		delete[] fwdWarpedIDDistFinal;
+		delete[] bfsList1;
+		delete[] bfsList2;
+		delete[] coarseProjectionGrid;
+		delete[] coarseProjectionGridNum;
 	}
 
 	/// <summary>
@@ -770,7 +732,15 @@ namespace dso
 		}
 	}
 
-	void CoarseTracker::calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l)
+	/// <summary>
+	/// 计算视觉部分Heesian和b
+	/// </summary>
+	/// <param name="lvl">输入金字塔层级</param>
+	/// <param name="H_out">输出当前层金字塔计算的H</param>
+	/// <param name="b_out">输出当前层金字塔计算的b</param>
+	/// <param name="refToNew">输入位姿变换参数</param>
+	/// <param name="aff_g2l">输入光度变换参数</param>
+	void CoarseTracker::calcGSSSE(int lvl, Mat88& H_out, Vec8& b_out, const SE3& refToNew, AffLight aff_g2l)
 	{
 		acc.initialize();
 
@@ -783,37 +753,38 @@ namespace dso
 		__m128 minusOne = _mm_set1_ps(-1);
 		__m128 zero = _mm_set1_ps(0);
 
-		int n = buf_warped_n;
-		assert(n % 4 == 0);
-		for (int i = 0; i < n; i += 4)
+		assert(buf_warped_n % 4 == 0);
+		for (int it = 0; it < buf_warped_n; it += 4)
 		{
-			__m128 dx = _mm_mul_ps(_mm_load_ps(buf_warped_dx + i), fxl);
-			__m128 dy = _mm_mul_ps(_mm_load_ps(buf_warped_dy + i), fyl);
-			__m128 u = _mm_load_ps(buf_warped_u + i);
-			__m128 v = _mm_load_ps(buf_warped_v + i);
-			__m128 id = _mm_load_ps(buf_warped_idepth + i);
+			__m128 dx = _mm_mul_ps(_mm_load_ps(buf_warped_dx + it), fxl);
+			__m128 dy = _mm_mul_ps(_mm_load_ps(buf_warped_dy + it), fyl);
+			__m128 u = _mm_load_ps(buf_warped_u + it);
+			__m128 v = _mm_load_ps(buf_warped_v + it);
+			__m128 id = _mm_load_ps(buf_warped_idepth + it);
 
-			acc.updateSSE_eighted(
-				_mm_mul_ps(id, dx),
-				_mm_mul_ps(id, dy),
-				_mm_sub_ps(zero, _mm_mul_ps(id, _mm_add_ps(_mm_mul_ps(u, dx), _mm_mul_ps(v, dy)))),
+			acc.updateSSE_weighted(
+				_mm_mul_ps(id, dx),																		// dres/dtran0
+				_mm_mul_ps(id, dy),																		// dres/dtran1
+				_mm_sub_ps(zero, _mm_mul_ps(id, _mm_add_ps(_mm_mul_ps(u, dx), _mm_mul_ps(v, dy)))),		// dres/dtran2
 				_mm_sub_ps(zero, _mm_add_ps(
 					_mm_mul_ps(_mm_mul_ps(u, v), dx),
-					_mm_mul_ps(dy, _mm_add_ps(one, _mm_mul_ps(v, v))))),
+					_mm_mul_ps(dy, _mm_add_ps(one, _mm_mul_ps(v, v))))),								// dres/drot0
 				_mm_add_ps(
 					_mm_mul_ps(_mm_mul_ps(u, v), dy),
-					_mm_mul_ps(dx, _mm_add_ps(one, _mm_mul_ps(u, u)))),
-				_mm_sub_ps(_mm_mul_ps(u, dy), _mm_mul_ps(v, dx)),
-				_mm_mul_ps(a, _mm_sub_ps(b0, _mm_load_ps(buf_warped_refColor + i))),
-				minusOne,
-				_mm_load_ps(buf_warped_residual + i),
-				_mm_load_ps(buf_warped_weight + i));
+					_mm_mul_ps(dx, _mm_add_ps(one, _mm_mul_ps(u, u)))),									// dres/drot1
+				_mm_sub_ps(_mm_mul_ps(u, dy), _mm_mul_ps(v, dx)),										// dres/drot2
+				_mm_mul_ps(a, _mm_sub_ps(b0, _mm_load_ps(buf_warped_refColor + it))),					// dres/da
+				minusOne,																				// dres/db
+				_mm_load_ps(buf_warped_residual + it),													// dres
+				_mm_load_ps(buf_warped_weight + it));													// huber weight
 		}
 
 		acc.finish();
-		H_out = acc.H.topLeftCorner<8, 8>().cast<double>() * (1.0f / n);
-		b_out = acc.H.topRightCorner<8, 1>().cast<double>() * (1.0f / n);
+		double buf_warped_n_fac = 1.0 / buf_warped_n;
+		H_out = acc.H.topLeftCorner<8, 8>().cast<double>() * buf_warped_n_fac;
+		b_out = acc.H.topRightCorner<8, 1>().cast<double>() * buf_warped_n_fac;
 
+		// 为了平衡H矩阵各部分的值，这里给每个部分乘上不同的尺度因子
 		H_out.block<8, 3>(0, 0) *= SCALE_XI_TRANS;
 		H_out.block<8, 3>(0, 3) *= SCALE_XI_ROT;
 		H_out.block<8, 1>(0, 6) *= SCALE_A;
@@ -828,12 +799,27 @@ namespace dso
 		b_out.segment<1>(7) *= SCALE_B;
 	}
 
+	/// <summary>
+	/// 计算当前输入状态下的视觉残差以及特征在最新帧上的信息
+	/// </summary>
+	/// <param name="lvl">计算视觉残差的金字塔层级</param>
+	/// <param name="refToNew">输入参考帧到最新帧的位姿变换</param>
+	/// <param name="aff_g2l">输入光度变换参数</param>
+	/// <param name="cutoffTH">输入单个特征光度误差阈值</param>
+	/// <returns>
+	/// [0]：总的光度残差能量；
+	/// [1]：统计能量的特征数量；
+	/// [2]：仅考虑平移时特征在像素坐标下的移动距离；
+	/// [3]：固定为0；
+	/// [4]：考虑平移和旋转时特征在像素坐标下的移动距离；
+	/// [5]：计算总的光度残差时大于设定阈值的特征比例；
+	/// </returns>
 	Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, AffLight aff_g2l, float cutoffTH)
 	{
 		float E = 0;
-		int numTermsInE = 0;
-		int numTermsInWarped = 0;
-		int numSaturated = 0;
+		int numTermsInE = 0;		// 参与统计光度残差的点的个数
+		int numTermsInWarped = 0;	// 参与统计光度残差点中残差满足阈值的点个数
+		int numSaturated = 0;		// 参与统计光度残差点中残差大于阈值的点个数
 
 		int wl = w[lvl];
 		int hl = h[lvl];
@@ -879,6 +865,7 @@ namespace dso
 			float Kv = fyl * v + cyl;
 			float new_idepth = id / pt[2];
 
+			// 在第0层金字塔中计算光流信息
 			if (lvl == 0 && i % 32 == 0)
 			{
 				// translation only (positive)
@@ -904,11 +891,10 @@ namespace dso
 
 				//translation and rotation (positive)
 				//already have it.
-
-				sumSquaredShiftT += (KuT - x)*(KuT - x) + (KvT - y)*(KvT - y);
-				sumSquaredShiftT += (KuT2 - x)*(KuT2 - x) + (KvT2 - y)*(KvT2 - y);
-				sumSquaredShiftRT += (Ku - x)*(Ku - x) + (Kv - y)*(Kv - y);
-				sumSquaredShiftRT += (Ku3 - x)*(Ku3 - x) + (Kv3 - y)*(Kv3 - y);
+				sumSquaredShiftT += (KuT - x) * (KuT - x) + (KvT - y) * (KvT - y);
+				sumSquaredShiftT += (KuT2 - x) * (KuT2 - x) + (KvT2 - y) * (KvT2 - y);
+				sumSquaredShiftRT += (Ku - x) * (Ku - x) + (Kv - y) * (Kv - y);
+				sumSquaredShiftRT += (Ku3 - x) * (Ku3 - x) + (Kv3 - y) * (Kv3 - y);
 				sumSquaredShiftNum += 2;
 			}
 
@@ -946,6 +932,7 @@ namespace dso
 			}
 		}
 
+		// 为保证使用SSE计算时的性能将多余的数据去除
 		while (numTermsInWarped % 4 != 0)
 		{
 			buf_warped_idepth[numTermsInWarped] = 0;
@@ -974,10 +961,6 @@ namespace dso
 		rs[3] = 0;
 		rs[4] = sumSquaredShiftRT / (sumSquaredShiftNum + 0.1);
 		rs[5] = numSaturated / (float)numTermsInE;
-
-		// 	LOG(INFO)<<"E: "<<E;
-		// 	LOG(INFO)<<"numTermsInE: "<<numTermsInE;
-		// 	exit(1);
 		return rs;
 	}
 
@@ -1002,7 +985,7 @@ namespace dso
 	/// 设置跟踪的参考帧：将滑窗中的最后一帧关键帧设置为参考帧
 	/// </summary>
 	/// <param name="frameHessians">滑窗中所有的关键帧</param>
-	/// <param name="fh_right"></param>
+	/// <param name="fh_right">在函数中好像并没有用到</param>
 	/// <param name="Hcalib">相机内参信息</param>
 	void CoarseTracker::setCoarseTrackingRef(std::vector<FrameHessian*> frameHessians, FrameHessian* fh_right, CalibHessian Hcalib)
 	{
@@ -1016,6 +999,16 @@ namespace dso
 		firstCoarseRMSE = -1;
 	}
 
+	/// <summary>
+	/// 跟踪最新帧的位姿和光度参数
+	/// </summary>
+	/// <param name="newFrameHessian">输入最新帧</param>
+	/// <param name="lastToNew_out">输入上一关键帧到最新帧的位姿变换</param>
+	/// <param name="aff_g2l_out">输入光度参数变化</param>
+	/// <param name="coarsestLvl">总金字塔层数</param>
+	/// <param name="minResForAbort">每层金字塔设置的光度残差阈值</param>
+	/// <param name="wrap">pangolin显示窗口</param>
+	/// <returns>是否成功跟踪最新帧的标值</returns>
 	bool CoarseTracker::trackNewestCoarse(FrameHessian* newFrameHessian, SE3 &lastToNew_out, AffLight &aff_g2l_out,
 		int coarsestLvl, Vec5 minResForAbort, IOWrap::Output3DWrapper* wrap)
 	{
@@ -1037,8 +1030,8 @@ namespace dso
 		bool haveRepeated = false;
 
 		IMUPreintegrator IMU_preintegrator;
-		double time_start = pic_time_stamp[lastRef->shell->incoming_id];
-		double time_end = pic_time_stamp[newFrame->shell->incoming_id];
+		double time_start = pic_time_stamp[lastRef->shell->incomingId];
+		double time_end = pic_time_stamp[newFrame->shell->incomingId];
 		
 		// 获取参考帧与最新帧之间的惯导数据并进行预积分
 		int index;
@@ -1059,7 +1052,7 @@ namespace dso
 			else
 			{
 				delta_t = time_end - imu_time_stamp[index];
-				if (delta_t < 0.000001) break;
+				if (delta_t < 1e-6) break;
 			}
 
 			IMU_preintegrator.update(m_gry[index] - lastRef->bias_g, m_acc[index] - lastRef->bias_a, delta_t);
@@ -1078,20 +1071,21 @@ namespace dso
 		// 自顶层向金字塔底层的视觉跟踪
 		for (int lvl = coarsestLvl; lvl >= 0; lvl--)
 		{
+			// 1、计算视觉部分的Hessian
 			Mat88 H; Vec8 b;
 			float levelCutoffRepeat = 1;
-			Vec6 resOld = calcRes(lvl, refToNew_current, aff_g2l_current, setting_coarseCutoffTH*levelCutoffRepeat);
+			Vec6 resOld = calcRes(lvl, refToNew_current, aff_g2l_current, setting_coarseCutoffTH * levelCutoffRepeat);
 			while (resOld[5] > 0.6 && levelCutoffRepeat < 50)
 			{
 				levelCutoffRepeat *= 2;
-				resOld = calcRes(lvl, refToNew_current, aff_g2l_current, setting_coarseCutoffTH*levelCutoffRepeat);
+				resOld = calcRes(lvl, refToNew_current, aff_g2l_current, setting_coarseCutoffTH * levelCutoffRepeat);
 
 				if (!setting_debugout_runquiet)
 					printf("INCREASING cutoff to %f (ratio is %f)!\n", setting_coarseCutoffTH*levelCutoffRepeat, resOld[5]);
 			}
-
 			calcGSSSE(lvl, H, b, refToNew_current, aff_g2l_current);
 
+			// 2、计算惯导部分的Hessian
 			double resImuOld = 0;
 			Mat66 H_imu; Vec6 b_imu; Vec9 res_PVPhi;
 			if (lvl == 0) resImuOld = calcIMUResAndGS(H_imu, b_imu, refToNew_current, IMU_preintegrator, res_PVPhi, resOld[0], imuTrackWeight[lvl]);
@@ -1111,34 +1105,33 @@ namespace dso
 				std::cout << refToNew_current.log().transpose() << " AFF " << aff_g2l_current.vec().transpose() << " (rel " << relAff.transpose() << ")\n";
 			}
 
+			// 3、迭代优化计算跟踪结果
 			for (int iteration = 0; iteration < maxIterations[lvl]; iteration++)
 			{
 				Mat88 Hl = H;
-				// 			Hl = Mat88::Zero();
-				// 			b = Vec8::Zero();
-				// 			if(lvl==0){
-				// 			    LOG(INFO)<<"H_image: \n"<<H;
-				// 			    LOG(INFO)<<"b_image: "<<b.transpose();
-				// 			}
-				if (imu_use_flag&&imu_track_flag&&imu_track_ready&&lvl <= 0) {
+				if (imu_use_flag && imu_track_flag && imu_track_ready && lvl == 0)
+				{
 					Hl.block(0, 0, 6, 6) = Hl.block(0, 0, 6, 6) + H_imu;
 					b.block(0, 0, 6, 1) = b.block(0, 0, 6, 1) + b_imu.block(0, 0, 6, 1);
 				}
 
-				for (int i = 0; i < 8; i++) Hl(i, i) *= (1 + lambda);
+				for (int it = 0; it < 8; ++it) Hl(it, it) *= (1 + lambda);
 
 				Vec8 inc = Hl.ldlt().solve(-b);
 
-				if (setting_affineOptModeA < 0 && setting_affineOptModeB < 0)	// fix a, b
+				// 固定光度参数a21以及b21不进行优化
+				if (setting_affineOptModeA < 0 && setting_affineOptModeB < 0) 
 				{
 					inc.head<6>() = Hl.topLeftCorner<6, 6>().ldlt().solve(-b.head<6>());
 					inc.tail<2>().setZero();
 				}
+				// 固定光度参数b21但是参数a21不固定
 				if (!(setting_affineOptModeA < 0) && setting_affineOptModeB < 0)	// fix b
 				{
 					inc.head<7>() = Hl.topLeftCorner<7, 7>().ldlt().solve(-b.head<7>());
-					inc.tail<1>().setZero();
+					inc.tail<1>().setZero(); 
 				}
+				// 固定光度参数a21但是参数b21不固定
 				if (setting_affineOptModeA < 0 && !(setting_affineOptModeB < 0))	// fix a
 				{
 					Mat88 HlStitch = Hl;
@@ -1157,11 +1150,8 @@ namespace dso
 				if (lambda < lambdaExtrapolationLimit) extrapFac = sqrt(sqrt(lambdaExtrapolationLimit / lambda));
 				inc *= extrapFac;
 
+				// 求解时为了平衡Hessian中各部分的数值对Hessian进行了尺度处理，得到结果后需要对结果也进行相同处理
 				Vec8 incScaled = inc;
-				//incScaled.segment<3>(0) *= SCALE_XI_ROT;
-				//incScaled.segment<3>(3) *= SCALE_XI_TRANS;
-				//incScaled.segment<1>(6) *= SCALE_A;
-				//incScaled.segment<1>(7) *= SCALE_B;
 				incScaled.segment<3>(0) *= SCALE_XI_TRANS;
 				incScaled.segment<3>(3) *= SCALE_XI_ROT;
 				incScaled.segment<1>(6) *= SCALE_A;
@@ -1169,6 +1159,7 @@ namespace dso
 
 				if (!std::isfinite(incScaled.sum())) incScaled.setZero();
 
+				// 求导的时候用的是左扰动，因此将增量赋给结果时应该左乘
 				SE3 refToNew_new = SE3::exp((Vec6)(incScaled.head<6>())) * refToNew_current;
 				AffLight aff_g2l_new = aff_g2l_current;
 				aff_g2l_new.a += incScaled[6];
@@ -1178,8 +1169,9 @@ namespace dso
 				double resImuNew = 0;
 				if (lvl <= 0) resImuNew = calcIMUResAndGS(H_imu, b_imu, refToNew_new, IMU_preintegrator, res_PVPhi, resNew[0], imuTrackWeight[lvl]);
 
+				// 计算能量值是否降低来判断此次迭代过程是否被接受
 				bool accept = (resNew[0] / resNew[1]) < (resOld[0] / resOld[1]);
-				if (imu_use_flag && imu_track_flag && imu_track_ready && lvl <= 0)
+				if (imu_use_flag && imu_track_flag && imu_track_ready && lvl == 0)
 					accept = (resNew[0] / resNew[1] * resOld[1] + resImuNew) < (resOld[0] + resImuOld);
 
 				if (debugPrint)
@@ -1195,6 +1187,7 @@ namespace dso
 						inc.norm());
 					std::cout << refToNew_new.log().transpose() << " AFF " << aff_g2l_new.vec().transpose() << " (rel " << relAff.transpose() << ")\n";
 				}
+
 				if (accept)
 				{
 					calcGSSSE(lvl, H, b, refToNew_new, aff_g2l_new);
@@ -1223,7 +1216,7 @@ namespace dso
 			lastFlowIndicators = resOld.segment<3>(2);
 			if (lastResiduals[lvl] > 1.5*minResForAbort[lvl]) return false;
 
-
+			// 单个特征光度误差阈值放大了，那么这一层金字塔需要再按照流程计算一遍
 			if (levelCutoffRepeat > 1 && !haveRepeated)
 			{
 				lvl++;
@@ -1232,19 +1225,27 @@ namespace dso
 			}
 		}
 
-		// set!
 		lastToNew_out = refToNew_current;
 		aff_g2l_out = aff_g2l_current;
 
-		if ((setting_affineOptModeA != 0 && (fabsf(aff_g2l_out.a) > 1.2))
-			|| (setting_affineOptModeB != 0 && (fabsf(aff_g2l_out.b) > 200)))
+		// 4、检查得到的参数是否异常，若存在异常直接返回跟踪失败
+		if ((setting_affineOptModeA != 0 && (std::fabsf(aff_g2l_out.a) > 1.2))
+			|| (setting_affineOptModeB != 0 && (std::fabsf(aff_g2l_out.b) > 200)))
+		{
+			printf("affine parameter error: %.3f, %.3f\n",
+				std::fabsf(aff_g2l_out.a), std::fabsf(aff_g2l_out.b));
 			return false;
+		}
 
 		Vec2f relAff = AffLight::fromToVecExposure(lastRef->ab_exposure, newFrame->ab_exposure, lastRef_aff_g2l, aff_g2l_out).cast<float>();
 
-		if ((setting_affineOptModeA == 0 && (fabsf(logf((float)relAff[0])) > 1.5))
-			|| (setting_affineOptModeB == 0 && (fabsf((float)relAff[1]) > 200)))
+		if ((setting_affineOptModeA == 0 && (std::fabsf(logf((float)relAff[0])) > 1.5))
+			|| (setting_affineOptModeB == 0 && (std::fabsf((float)relAff[1]) > 200)))
+		{
+			printf("relative affine parameter error: %.3f, %.3f\n",
+				std::fabsf(logf((float)relAff[0])), std::fabsf((float)relAff[1]));
 			return false;
+		}
 
 		if (setting_affineOptModeA < 0) aff_g2l_out.a = 0;
 		if (setting_affineOptModeB < 0) aff_g2l_out.b = 0;
@@ -1252,6 +1253,12 @@ namespace dso
 		return true;
 	}
 
+	/// <summary>
+	/// 跟踪调试时输出参考帧逆深度的热力图
+	/// </summary>
+	/// <param name="minID_pt">最小逆深度</param>
+	/// <param name="maxID_pt">最大逆深度</param>
+	/// <param name="wraps">pangolin显示窗口</param>
 	void CoarseTracker::debugPlotIDepthMap(float* minID_pt, float* maxID_pt, std::vector<IOWrap::Output3DWrapper*> &wraps)
 	{
 		if (w[1] == 0) return;
@@ -1259,12 +1266,13 @@ namespace dso
 
 		{
 			std::vector<float> allID;
-			for (int i = 0; i < h[lvl] * w[lvl]; i++)
+			int wh = h[lvl] * w[lvl];
+			for (int it = 0; it < wh; ++it)
 			{
-				if (idepth[lvl][i] > 0)
-					allID.push_back(idepth[lvl][i]);
+				if (idepth[lvl][it] > 0)
+					allID.emplace_back(idepth[lvl][it]);
 			}
-			std::sort(allID.begin(), allID.end());
+			std::sort(allID.begin(), allID.end(), [&](float a, float b) {return a < b; });
 			int n = allID.size() - 1;
 
 			float minID_new = allID[(int)(n*0.05)];
@@ -1282,7 +1290,6 @@ namespace dso
 				}
 				else
 				{
-
 					// slowly adapt: change by maximum 10% of old span.
 					float maxChange = 0.3*(*maxID_pt - *minID_pt);
 
@@ -1290,7 +1297,6 @@ namespace dso
 						minID = *minID_pt - maxChange;
 					if (minID > *minID_pt + maxChange)
 						minID = *minID_pt + maxChange;
-
 
 					if (maxID < *maxID_pt - maxChange)
 						maxID = *maxID_pt - maxChange;
@@ -1304,15 +1310,17 @@ namespace dso
 
 			MinimalImageB3 mf(w[lvl], h[lvl]);
 			mf.setBlack();
-			for (int i = 0; i < h[lvl] * w[lvl]; i++)
+			for (int it = 0; it < wh; ++it)
 			{
-				int c = lastRef->dIp[lvl][i][0] * 0.9f;
+				int c = lastRef->dIp[lvl][it][0] * 0.9f;
 				if (c > 255) c = 255;
-				mf.at(i) = Vec3b(c, c, c);
+				mf.at(it) = Vec3b(c, c, c);
 			}
+			int hl = h[lvl];
 			int wl = w[lvl];
-			for (int y = 3; y < h[lvl] - 3; y++)
-				for (int x = 3; x < wl - 3; x++)
+			for (int y = 3; y < hl - 3; ++y)
+			{
+				for (int x = 3; x < wl - 3; ++x)
 				{
 					int idx = x + y * wl;
 					float sid = 0, nid = 0;
@@ -1331,6 +1339,7 @@ namespace dso
 						//mf.at(idx) = makeJet3B(id);
 					}
 				}
+			}
 			//IOWrap::displayImage("coarseDepth LVL0", &mf, false);
 
 			for (IOWrap::Output3DWrapper* ow : wraps)
@@ -1345,6 +1354,10 @@ namespace dso
 		}
 	}
 
+	/// <summary>
+	/// 跟踪调试时输出参考帧逆深度的热力图
+	/// </summary>
+	/// <param name="wraps">pangolin显示窗口</param>
 	void CoarseTracker::debugPlotIDepthMapFloat(std::vector<IOWrap::Output3DWrapper*> &wraps)
 	{
 		if (w[1] == 0) return;
@@ -1354,9 +1367,15 @@ namespace dso
 			ow->pushDepthImageFloat(&mim, lastRef);
 	}
 
+	/// <summary>
+	/// CoarseDistanceMap构造函数：分配必要内存空间；
+	/// 该类主要是在金字塔第一层构造距离地图，描述每个像素点到最近特征的距离
+	/// </summary>
+	/// <param name="ww"></param>
+	/// <param name="hh"></param>
 	CoarseDistanceMap::CoarseDistanceMap(int ww, int hh)
 	{
-		fwdWarpedIDDistFinal = new float[ww * hh / 4];
+		fwdWarpedIDDistFinal = new int[ww * hh / 4];
 
 		bfsList1 = new Eigen::Vector2i[ww * hh / 4];
 		bfsList2 = new Eigen::Vector2i[ww * hh / 4];
@@ -1369,26 +1388,19 @@ namespace dso
 		w[0] = h[0] = 0;
 	}
 
-	CoarseDistanceMap::~CoarseDistanceMap()
-	{
-		delete[] fwdWarpedIDDistFinal;
-		delete[] bfsList1;
-		delete[] bfsList2;
-		delete[] coarseProjectionGrid;
-		delete[] coarseProjectionGridNum;
-	}
-
+	/// <summary>
+	/// 构造距离地图，作用是均匀选取特征
+	/// </summary>
+	/// <param name="frameHessians">滑窗中所有关键帧</param>
+	/// <param name="frame">跟踪时设置的参考关键帧</param>
 	void CoarseDistanceMap::makeDistanceMap(std::vector<FrameHessian*> frameHessians, FrameHessian* frame)
 	{
 		int w1 = w[1];
 		int h1 = h[1];
 		int wh1 = w1 * h1;
-
-		for (int it = 0; it < wh1; ++it)
-			fwdWarpedIDDistFinal[it] = 1000;
-
-		// make coarse tracking templates for latstRef.
 		int numItems = 0;
+
+		memset(fwdWarpedIDDistFinal, 1000, sizeof(int) * wh1);
 
 		for (FrameHessian* fh : frameHessians)
 		{
@@ -1423,6 +1435,10 @@ namespace dso
 	{
 	}
 
+	/// <summary>
+	/// 广度优先遍历计算第一层金字塔中每个像素距离特征的像素距离
+	/// </summary>
+	/// <param name="bfsNum">输入特征数量</param>
 	void CoarseDistanceMap::growDistBFS(int bfsNum)
 	{
 		assert(w[0] != 0);
@@ -1441,7 +1457,7 @@ namespace dso
 
 			if (k % 2 == 0)
 			{
-				for (int i = 0; i < bfsNum2; i++)
+				for (int i = 0; i < bfsNum2; ++i)
 				{
 					int x = bfsList2[i][0];
 					int y = bfsList2[i][1];
@@ -1451,28 +1467,28 @@ namespace dso
 					if (fwdWarpedIDDistFinal[idx + 1] > k)
 					{
 						fwdWarpedIDDistFinal[idx + 1] = k;
-						bfsList1[bfsNum] = Eigen::Vector2i(x + 1, y); bfsNum++;
+						bfsList1[bfsNum++] = Eigen::Vector2i(x + 1, y);
 					}
 					if (fwdWarpedIDDistFinal[idx - 1] > k)
 					{
 						fwdWarpedIDDistFinal[idx - 1] = k;
-						bfsList1[bfsNum] = Eigen::Vector2i(x - 1, y); bfsNum++;
+						bfsList1[bfsNum++] = Eigen::Vector2i(x - 1, y);
 					}
 					if (fwdWarpedIDDistFinal[idx + w1] > k)
 					{
 						fwdWarpedIDDistFinal[idx + w1] = k;
-						bfsList1[bfsNum] = Eigen::Vector2i(x, y + 1); bfsNum++;
+						bfsList1[bfsNum++] = Eigen::Vector2i(x, y + 1);
 					}
 					if (fwdWarpedIDDistFinal[idx - w1] > k)
 					{
 						fwdWarpedIDDistFinal[idx - w1] = k;
-						bfsList1[bfsNum] = Eigen::Vector2i(x, y - 1); bfsNum++;
+						bfsList1[bfsNum++] = Eigen::Vector2i(x, y - 1);
 					}
 				}
 			}
 			else
 			{
-				for (int i = 0; i < bfsNum2; i++)
+				for (int i = 0; i < bfsNum2; ++i)
 				{
 					int x = bfsList2[i][0];
 					int y = bfsList2[i][1];
@@ -1482,49 +1498,54 @@ namespace dso
 					if (fwdWarpedIDDistFinal[idx + 1] > k)
 					{
 						fwdWarpedIDDistFinal[idx + 1] = k;
-						bfsList1[bfsNum] = Eigen::Vector2i(x + 1, y); bfsNum++;
+						bfsList1[bfsNum++] = Eigen::Vector2i(x + 1, y);
 					}
 					if (fwdWarpedIDDistFinal[idx - 1] > k)
 					{
 						fwdWarpedIDDistFinal[idx - 1] = k;
-						bfsList1[bfsNum] = Eigen::Vector2i(x - 1, y); bfsNum++;
+						bfsList1[bfsNum++] = Eigen::Vector2i(x - 1, y);
 					}
 					if (fwdWarpedIDDistFinal[idx + w1] > k)
 					{
 						fwdWarpedIDDistFinal[idx + w1] = k;
-						bfsList1[bfsNum] = Eigen::Vector2i(x, y + 1); bfsNum++;
+						bfsList1[bfsNum++] = Eigen::Vector2i(x, y + 1);
 					}
 					if (fwdWarpedIDDistFinal[idx - w1] > k)
 					{
 						fwdWarpedIDDistFinal[idx - w1] = k;
-						bfsList1[bfsNum] = Eigen::Vector2i(x, y - 1); bfsNum++;
+						bfsList1[bfsNum++] = Eigen::Vector2i(x, y - 1);
 					}
 
 					if (fwdWarpedIDDistFinal[idx + 1 + w1] > k)
 					{
 						fwdWarpedIDDistFinal[idx + 1 + w1] = k;
-						bfsList1[bfsNum] = Eigen::Vector2i(x + 1, y + 1); bfsNum++;
+						bfsList1[bfsNum++] = Eigen::Vector2i(x + 1, y + 1);
 					}
 					if (fwdWarpedIDDistFinal[idx - 1 + w1] > k)
 					{
 						fwdWarpedIDDistFinal[idx - 1 + w1] = k;
-						bfsList1[bfsNum] = Eigen::Vector2i(x - 1, y + 1); bfsNum++;
+						bfsList1[bfsNum++] = Eigen::Vector2i(x - 1, y + 1);
 					}
 					if (fwdWarpedIDDistFinal[idx - 1 - w1] > k)
 					{
 						fwdWarpedIDDistFinal[idx - 1 - w1] = k;
-						bfsList1[bfsNum] = Eigen::Vector2i(x - 1, y - 1); bfsNum++;
+						bfsList1[bfsNum++] = Eigen::Vector2i(x - 1, y - 1);
 					}
 					if (fwdWarpedIDDistFinal[idx + 1 - w1] > k)
 					{
 						fwdWarpedIDDistFinal[idx + 1 - w1] = k;
-						bfsList1[bfsNum] = Eigen::Vector2i(x + 1, y - 1); bfsNum++;
+						bfsList1[bfsNum++] = Eigen::Vector2i(x + 1, y - 1);
 					}
 				}
 			}
 		}
 	}
 
+	/// <summary>
+	/// 向距离地图中添加特征并构造新的距离地图
+	/// </summary>
+	/// <param name="u">新特征像素坐标u</param>
+	/// <param name="v">新特征像素坐标v</param>
 	void CoarseDistanceMap::addIntoDistFinal(int u, int v)
 	{
 		if (w[0] == 0) return;

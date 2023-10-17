@@ -51,16 +51,16 @@
 
 namespace dso
 {
-	template<typename T> 
-	inline void deleteOut(std::vector<T*> &v, const int i)
+	template<typename T>
+	inline void deleteOut(std::vector<T*>& v, const int i)
 	{
 		delete v[i];
 		v[i] = v.back();
 		v.pop_back();
 	}
 
-	template<typename T> 
-	inline void deleteOutPt(std::vector<T*> &v, const T* i)
+	template<typename T>
+	inline void deleteOutPt(std::vector<T*>& v, const T* i)
 	{
 		delete i;
 
@@ -74,8 +74,8 @@ namespace dso
 		}
 	}
 
-	template<typename T> 
-	inline void deleteOutOrder(std::vector<T*> &v, const int i)
+	template<typename T>
+	inline void deleteOutOrder(std::vector<T*>& v, const int i)
 	{
 		delete v[i];
 		for (unsigned int k = i + 1; k < v.size(); k++)
@@ -83,8 +83,8 @@ namespace dso
 		v.pop_back();
 	}
 
-	template<typename T> 
-	inline void deleteOutOrder(std::vector<T*> &v, const T* element)
+	template<typename T>
+	inline void deleteOutOrder(std::vector<T*>& v, const T* element)
 	{
 		int i = -1;
 		for (unsigned int k = 0; k < v.size(); k++)
@@ -104,7 +104,7 @@ namespace dso
 		delete element;
 	}
 
-	inline bool eigenTestNan(const MatXX &m, std::string msg)
+	inline bool eigenTestNan(const MatXX& m, std::string msg)
 	{
 		bool foundNan = false;
 		for (int y = 0; y < m.rows(); y++)
@@ -124,7 +124,7 @@ namespace dso
 		return foundNan;
 	}
 
-	class FullSystem 
+	class FullSystem
 	{
 	public:
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -152,13 +152,13 @@ namespace dso
 		bool isLost;				// 系统跟踪丢失的标志位
 		bool initFailed;			// 系统初始化失败的标志位
 		bool initialized;			// 系统是否成功初始化的标志位
-		bool linearizeOperation;
+		bool linearizeOperation;	// 是否通过
 
 		void setGammaFunction(float* BInv);
-		void setOriginalCalib(const VecXf &originalCalib, int originalW, int originalH);
+		void setOriginalCalib(const VecXf& originalCalib, int originalW, int originalH);
 
-		void savetrajectory(const Sophus::Matrix4d &T);
-		void savetrajectory_tum(const SE3 &T, double time);
+		void savetrajectory(const Sophus::Matrix4d& T);
+		void savetrajectory_tum(const SE3& T, double time);
 
 		void initFirstFrame_imu(FrameHessian* fh);
 
@@ -175,8 +175,8 @@ namespace dso
 		// mainPipelineFunctions
 		Vec4 trackNewCoarse(FrameHessian* fh);
 		void traceNewCoarse(FrameHessian* fh);
-		void traceNewCoarseNonKey(FrameHessian* fh, FrameHessian* fh_right);
-		void traceNewCoarseKey(FrameHessian* fh, FrameHessian* fh_right);
+		void traceNewCoarseNonKey(FrameHessian* fh, FrameHessian* fhRight);
+		void traceNewCoarseKey(FrameHessian* fh, FrameHessian* fhRight);
 		void activatePoints();
 		void activatePointsMT();
 		void activatePointsOldFirst();
@@ -202,21 +202,23 @@ namespace dso
 		void activatePointsMT_Reductor(std::vector<PointHessian*>* optimized, std::vector<ImmaturePoint*>* toOptimize, int min, int max, Vec10* stats, int tid);
 		void applyRes_Reductor(bool copyJacobians, int min, int max, Vec10* stats, int tid);
 
-		void printOptRes(const Vec3 &res, double resL, double resM, double resPrior, double LExact, float a, float b);
+		void printOptRes(const Vec3& res, double resL, double resM, double resPrior, double LExact, float a, float b);
 
 		void debugPlotTracking();
 
 		std::vector<VecX> getNullspaces(
-			std::vector<VecX> &nullspaces_pose,
-			std::vector<VecX> &nullspaces_scale,
-			std::vector<VecX> &nullspaces_affA,
-			std::vector<VecX> &nullspaces_affB);
+			std::vector<VecX>& nullspaces_pose,
+			std::vector<VecX>& nullspaces_scale,
+			std::vector<VecX>& nullspaces_affA,
+			std::vector<VecX>& nullspaces_affB);
 
 		void setNewFrameEnergyTH();
 
 		void printLogLine();
 		void printEvalLine();
 		void printEigenValLine();
+
+		// 各个模块的log信息
 		std::ofstream* calibLog;
 		std::ofstream* numsLog;
 		std::ofstream* errorsLog;
@@ -226,10 +228,9 @@ namespace dso
 		std::ofstream* DiagonalLog;
 		std::ofstream* variancesLog;
 		std::ofstream* nullspacesLog;
-
 		std::ofstream* coarseTrackingLog;
 
-		// statistics
+		// 各个模块的统计信息
 		long int statistics_lastNumOptIts;
 		long int statistics_numDroppedPoints;
 		long int statistics_numActivatedPoints;
@@ -242,16 +243,16 @@ namespace dso
 
 		// =================== changed by tracker-thread. protected by trackMutex ============
 		std::mutex trackMutex;
-		std::vector<FrameShell*> allFrameHistory;
-		CoarseInitializer* coarseInitializer;
-		Vec5 lastCoarseRMSE;
+		std::vector<FrameShell*> allFrameHistory;		// 系统中所有帧的shell信息
+		CoarseInitializer* coarseInitializer;			// 系统初始化handle
+		Vec5 lastCoarseRMSE;							// 系统位姿跟踪中上一跟踪过程每层金字塔光度残差
 
 		// ================== changed by mapper-thread. protected by mapMutex ===============
 		std::mutex mapMutex;							// 针对全局地图设置的互斥锁
 		std::vector<FrameShell*> allKeyFramesHistory;	// 记录系统中筛选出的所有关键帧
 
-		EnergyFunctional* ef;
-		IndexThreadReduce<Vec10> treadReduce;
+		EnergyFunctional* ef;							// 滑窗优化handle
+		IndexThreadReduce<Vec10> treadReduce;			// 多线程handle
 
 		float* selectionMap;
 		PixelSelector* pixelSelector;
@@ -275,20 +276,20 @@ namespace dso
 		std::mutex shellPoseMutex;
 
 		// tracking always uses the newest KF as reference
-		void makeKeyFrame(FrameHessian* fh, FrameHessian* fh_right);
-		void makeNonKeyFrame(FrameHessian* fh, FrameHessian* fh_right);
-		void deliverTrackedFrame(FrameHessian* fh, FrameHessian* fh_right, bool needKF);
+		void makeKeyFrame(FrameHessian* fh, FrameHessian* fhRight);
+		void makeNonKeyFrame(FrameHessian* fh, FrameHessian* fhRight);
+		void deliverTrackedFrame(FrameHessian* fh, FrameHessian* fhRight, bool needKF);
 		void mappingLoop();
 
 		// tracking / mapping synchronization. All protected by [trackMapSyncMutex].
-		std::mutex trackMapSyncMutex;
-		std::condition_variable trackedFrameSignal;
-		std::condition_variable mappedFrameSignal;
-		std::deque<FrameHessian*> unmappedTrackedFrames;
-		std::deque<FrameHessian*> unmappedTrackedFrames_right;
-		int needNewKFAfter;	// Otherwise, a new KF is *needed that has ID bigger than [needNewKFAfter]*.
-		std::thread mappingThread;
-		bool runMapping;
+		std::mutex trackMapSyncMutex;								// 跟踪线程和建图线程数据同步的互斥锁
+		std::condition_variable trackedFrameSignal;					// 跟踪线程告知建图线程开始建图操作的条件变量
+		std::condition_variable mappedFrameSignal;					// 建图线程告知跟踪线程建图已经完成的条件变量
+		std::deque<FrameHessian*> unmappedTrackedFrames;			// 跟踪线程传递，建图线程待完成建图操作的帧数据（左目）
+		std::deque<FrameHessian*> unmappedTrackedFramesRight;		// 跟踪线程传递，建图线程待完成建图操作的帧数据（右目）
+		int needNewKFAfter;						// 最新帧为关键帧的条件为最新帧的参考关键帧ID必须大于等于滑窗中最后一帧的ID
+		std::thread mappingThread;				// 建图线程handle
+		bool runMapping;						// 设置建图线程是否运行
 		bool needToKetchupMapping;
 
 		int lastRefStopID;

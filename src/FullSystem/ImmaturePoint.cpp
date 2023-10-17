@@ -90,13 +90,13 @@ namespace dso
 	 * * UPDATED -> point has been updated.
 	 * * SKIP -> point has not been updated.
 	 */
-	ImmaturePointStatus ImmaturePoint::traceOn(FrameHessian* frame, const Mat33f &hostToFrame_KRKi, const Vec3f &hostToFrame_Kt, const Vec2f& hostToFrame_affine, CalibHessian* HCalib, bool debugPrint)
+	ImmaturePointStatus ImmaturePoint::traceOn(FrameHessian* frame, const Mat33f& hostToFrame_KRKi, const Vec3f& hostToFrame_Kt, const Vec2f& hostToFrame_affine, CalibHessian* HCalib, bool debugPrint)
 	{
 		if (lastTraceStatus == ImmaturePointStatus::IPS_OOB) return lastTraceStatus;
 
 
 		debugPrint = false;//rand()%100==0;
-		float maxPixSearch = (wG[0] + hG[0])*setting_maxPixSearch;
+		float maxPixSearch = (wG[0] + hG[0]) * setting_maxPixSearch;
 
 		if (debugPrint)
 			printf("trace pt (%.1f %.1f) from frame %d to %d. Range %f -> %f. t %f %f %f!\n",
@@ -148,14 +148,14 @@ namespace dso
 
 
 			// ============== check their distance. everything below 2px is OK (-> skip). ===================
-			dist = (uMin - uMax)*(uMin - uMax) + (vMin - vMax)*(vMin - vMax);
+			dist = (uMin - uMax) * (uMin - uMax) + (vMin - vMax) * (vMin - vMax);
 			dist = sqrtf(dist);
 			if (dist < setting_trace_slackInterval)
 			{
 				if (debugPrint)
 					printf("TOO CERTAIN ALREADY (dist %f)!\n", dist);
 
-				lastTraceUV = Vec2f(uMax + uMin, vMax + vMin)*0.5;
+				lastTraceUV = Vec2f(uMax + uMin, vMax + vMin) * 0.5;
 				lastTracePixelInterval = dist;
 				return lastTraceStatus = ImmaturePointStatus::IPS_SKIPPED;
 			}
@@ -173,11 +173,11 @@ namespace dso
 			// direction.
 			float dx = uMax - uMin;
 			float dy = vMax - vMin;
-			float d = 1.0f / sqrtf(dx*dx + dy * dy);
+			float d = 1.0f / sqrtf(dx * dx + dy * dy);
 
 			// set to [setting_maxPixSearch].
-			uMax = uMin + dist * dx*d;
-			vMax = vMin + dist * dy*d;
+			uMax = uMin + dist * dx * d;
+			vMax = vMin + dist * dy * d;
 
 			// may still be out!
 			if (!(uMax > 4 && vMax > 4 && uMax < wG[0] - 5 && vMax < hG[0] - 5))
@@ -200,7 +200,6 @@ namespace dso
 			return lastTraceStatus = ImmaturePointStatus::IPS_OOB;
 		}
 
-
 		// ============== compute error-bounds on result in pixel. if the new interval is not at least 1/2 of the old, SKIP ===================
 		float dx = setting_trace_stepsize * (uMax - uMin);
 		float dy = setting_trace_stepsize * (vMax - vMin);
@@ -209,18 +208,16 @@ namespace dso
 		float b = (Vec2f(dy, -dx).transpose() * gradH * Vec2f(dy, -dx));
 		float errorInPixel = 0.2f + 0.2f * (a + b) / a;
 
-		if (errorInPixel*setting_trace_minImprovementFactor > dist && std::isfinite(idepth_max))
+		if (errorInPixel * setting_trace_minImprovementFactor > dist && std::isfinite(idepth_max))
 		{
 			if (debugPrint)
 				printf("NO SIGNIFICANT IMPROVMENT (%f)!\n", errorInPixel);
-			lastTraceUV = Vec2f(uMax + uMin, vMax + vMin)*0.5;
+			lastTraceUV = Vec2f(uMax + uMin, vMax + vMin) * 0.5;
 			lastTracePixelInterval = dist;
 			return lastTraceStatus = ImmaturePointStatus::IPS_BADCONDITION;
 		}
 
 		if (errorInPixel > 10) errorInPixel = 10;
-
-
 
 		// ============== do the discrete search ===================
 		dx /= dist;
@@ -234,7 +231,6 @@ namespace dso
 				idepth_max, uMax, vMax,
 				errorInPixel
 			);
-
 
 		if (dist > maxPixSearch)
 		{
@@ -250,13 +246,9 @@ namespace dso
 		float ptx = uMin - randShift * dx;
 		float pty = vMin - randShift * dy;
 
-
 		Vec2f rotatetPattern[MAX_RES_PER_POINT];
 		for (int idx = 0; idx < patternNum; idx++)
 			rotatetPattern[idx] = Rplane * Vec2f(patternP[idx][0], patternP[idx][1]);
-
-
-
 
 		if (!std::isfinite(dx) || !std::isfinite(dy))
 		{
@@ -287,7 +279,7 @@ namespace dso
 				if (!std::isfinite(hitColor)) { energy += 1e5; continue; }
 				float residual = hitColor - (float)(hostToFrame_affine[0] * color[idx] + hostToFrame_affine[1]);
 				float hw = fabs(residual) < setting_huberTH ? 1 : setting_huberTH / fabs(residual);
-				energy += hw * residual*residual*(2 - hw);
+				energy += hw * residual * residual * (2 - hw);
 			}
 
 			if (debugPrint)
@@ -335,9 +327,9 @@ namespace dso
 				float dResdDist = dx * hitColor[1] + dy * hitColor[2];
 				float hw = fabs(residual) < setting_huberTH ? 1 : setting_huberTH / fabs(residual);
 
-				H += hw * dResdDist*dResdDist;
-				b += hw * residual*dResdDist;
-				energy += weights[idx] * weights[idx] * hw *residual*residual*(2 - hw);
+				H += hw * dResdDist * dResdDist;
+				b += hw * residual * dResdDist;
+				energy += weights[idx] * weights[idx] * hw * residual * residual * (2 - hw);
 			}
 
 
@@ -386,7 +378,7 @@ namespace dso
 	//	float absGrad0 = getInterpolatedElement(frame->absSquaredGrad[0],bestU, bestV, wG[0]);
 	//	float absGrad1 = getInterpolatedElement(frame->absSquaredGrad[1],bestU*0.5-0.25, bestV*0.5-0.25, wG[1]);
 	//	float absGrad2 = getInterpolatedElement(frame->absSquaredGrad[2],bestU*0.25-0.375, bestV*0.25-0.375, wG[2]);
-		if (!(bestEnergy < energyTH*setting_trace_extraSlackOnTH))
+		if (!(bestEnergy < energyTH * setting_trace_extraSlackOnTH))
 			//			|| (absGrad0*areaGradientSlackFactor < host->frameGradTH
 			//		     && absGrad1*areaGradientSlackFactor < host->frameGradTH*0.75f
 			//			 && absGrad2*areaGradientSlackFactor < host->frameGradTH*0.50f))
@@ -404,7 +396,7 @@ namespace dso
 
 
 		// ============== set new interval ===================
-		if (dx*dx > dy*dy)
+		if (dx * dx > dy * dy)
 		{
 			idepth_min = (pr[2] * (bestU - errorInPixel * dx) - pr[0]) / (hostToFrame_Kt[0] - hostToFrame_Kt[2] * (bestU - errorInPixel * dx));
 			idepth_max = (pr[2] * (bestU + errorInPixel * dx) - pr[0]) / (hostToFrame_Kt[0] - hostToFrame_Kt[2] * (bestU + errorInPixel * dx));

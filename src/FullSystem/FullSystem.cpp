@@ -44,8 +44,8 @@ namespace dso
 		q = q / q.norm();
 	}
 
-	Eigen::Vector4d rotationToQuaternion(const Eigen::Matrix3d& R) {
-
+	Eigen::Vector4d rotationToQuaternion(const Eigen::Matrix3d& R) \
+	{
 		Eigen::Vector4d q = Eigen::Vector4d::Zero();
 		double trR = R(0, 0) + R(1, 1) + R(2, 2);
 		q(3) = sqrt(trR + 1) / 2;
@@ -56,6 +56,9 @@ namespace dso
 		return q;
 	}
 
+	/// <summary>
+	/// FullSystem构造函数：为主要成员变量赋初值
+	/// </summary>
 	FullSystem::FullSystem()
 	{
 		int retstat = 0;
@@ -99,21 +102,20 @@ namespace dso
 			variancesLog->open("logs/variancesLog.txt", std::ios::trunc | std::ios::out);
 			variancesLog->precision(10);
 
-
 			nullspacesLog = new std::ofstream();
 			nullspacesLog->open("logs/nullspacesLog.txt", std::ios::trunc | std::ios::out);
 			nullspacesLog->precision(10);
 		}
 		else
 		{
-			nullspacesLog = 0;
-			variancesLog = 0;
-			DiagonalLog = 0;
-			eigenALog = 0;
-			eigenPLog = 0;
-			eigenAllLog = 0;
-			numsLog = 0;
-			calibLog = 0;
+			nullspacesLog = NULL;
+			variancesLog = NULL;
+			DiagonalLog = NULL;
+			eigenALog = NULL;
+			eigenPLog = NULL;
+			eigenAllLog = NULL;
+			numsLog = NULL;
+			calibLog = NULL;
 		}
 
 		assert(retstat != 293847);
@@ -158,16 +160,21 @@ namespace dso
 		mappingThread = std::thread(&FullSystem::mappingLoop, this);
 	}
 
+	/// <summary>
+	/// FullSystem析构函数
+	/// </summary>
 	FullSystem::~FullSystem()
 	{
+		// 1、等待mapping线程完成
 		blockUntilMappingIsFinished();
 
+		// 2、释放成员变量的内存空间
 		if (setting_logStuff)
 		{
 			calibLog->close(); delete calibLog;
 			numsLog->close(); delete numsLog;
 			coarseTrackingLog->close(); delete coarseTrackingLog;
-			//errorsLog->close(); delete errorsLog;
+			errorsLog->close(); delete errorsLog;
 			eigenAllLog->close(); delete eigenAllLog;
 			eigenPLog->close(); delete eigenPLog;
 			eigenALog->close(); delete eigenALog;
@@ -191,30 +198,38 @@ namespace dso
 		delete ef;
 	}
 
+	/// <summary>
+	/// 未实现函数
+	/// </summary>
+	/// <param name="originalCalib"></param>
+	/// <param name="originalW"></param>
+	/// <param name="originalH"></param>
 	void FullSystem::setOriginalCalib(const VecXf &originalCalib, int originalW, int originalH)
 	{
 
 	}
 
+	/// <summary>
+	/// 设置Gamma校正参数
+	/// </summary>
+	/// <param name="BInv">校正参数</param>
 	void FullSystem::setGammaFunction(float* BInv)
 	{
-		if (BInv == 0) return;
+		if (BInv == NULL) return;
 
 		// copy BInv.
 		memcpy(Hcalib.Binv, BInv, sizeof(float) * 256);
 
-
 		// invert.
-		for (int i = 1; i < 255; i++)
+		for (int it = 1; it < 255; ++it)
 		{
 			// find val, such that Binv[val] = i.
 			// I dont care about speed for this, so do it the stupid way.
-
 			for (int s = 1; s < 255; s++)
 			{
-				if (BInv[s] <= i && BInv[s + 1] >= i)
+				if (BInv[s] <= it && BInv[s + 1] >= it)
 				{
-					Hcalib.B[i] = s + (i - BInv[s]) / (BInv[s + 1] - BInv[s]);
+					Hcalib.B[it] = s + (it - BInv[s]) / (BInv[s + 1] - BInv[s]);
 					break;
 				}
 			}
@@ -223,6 +238,10 @@ namespace dso
 		Hcalib.B[255] = 255;
 	}
 
+	/// <summary>
+	/// 输出系统中所有帧的位姿信息
+	/// </summary>
+	/// <param name="file">信息保存路径</param>
 	void FullSystem::printResult(std::string file)
 	{
 		std::unique_lock<std::mutex> lock(trackMutex);
@@ -248,6 +267,16 @@ namespace dso
 		myfile.close();
 	}
 
+	/// <summary>
+	/// 系统跟踪最新帧的位姿
+	/// </summary>
+	/// <param name="fh">最新进入系统的帧</param>
+	/// <returns>
+	/// [0]：跟踪时第零层金字塔的光度残差；
+	/// [1]：跟踪时第零层金字塔仅平移时参考帧与最新帧间的像素位移；
+	/// [2]：固定为0；
+	/// [3]：跟踪时第零层金字塔平移与旋转时参考帧与最新帧间的像素位移；
+	/// </returns>
 	Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 	{
 		assert(allFrameHistory.size() > 0);
@@ -259,108 +288,110 @@ namespace dso
 		AffLight aff_last_2_l = AffLight(0, 0);
 		std::vector<SE3, Eigen::aligned_allocator<SE3>> lastF_2_fh_tries;
 
+		// 1、根据既定规则设置一系列最新帧与参考关键帧之间的位姿变换
 		if (use_stereo && (allFrameHistory.size() == 2 || first_track_flag == false))
 		{
 			//initializeFromInitializer(fh);
 			first_track_flag = true;
-			lastF_2_fh_tries.push_back(SE3(Eigen::Matrix<double, 3, 3>::Identity(), Eigen::Matrix<double, 3, 1>::Zero()));
+			lastF_2_fh_tries.emplace_back(SE3(Eigen::Matrix<double, 3, 3>::Identity(), Eigen::Matrix<double, 3, 1>::Zero()));
 
 			for (float rotDelta = 0.02; rotDelta < 0.05; rotDelta = rotDelta + 0.02)
 			{
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, rotDelta, 0, 0), Vec3(0, 0, 0)));			
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, 0, rotDelta, 0), Vec3(0, 0, 0)));			
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, 0, 0, rotDelta), Vec3(0, 0, 0)));		
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, -rotDelta, 0, 0), Vec3(0, 0, 0)));			
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, 0, -rotDelta, 0), Vec3(0, 0, 0)));			
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, 0, 0, -rotDelta), Vec3(0, 0, 0)));			
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, rotDelta, rotDelta, 0), Vec3(0, 0, 0)));	
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, 0, rotDelta, rotDelta), Vec3(0, 0, 0)));
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, rotDelta, 0, rotDelta), Vec3(0, 0, 0)));
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, -rotDelta, rotDelta, 0), Vec3(0, 0, 0)));
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, 0, -rotDelta, rotDelta), Vec3(0, 0, 0)));	
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, -rotDelta, 0, rotDelta), Vec3(0, 0, 0)));	
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, rotDelta, -rotDelta, 0), Vec3(0, 0, 0)));	
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, 0, rotDelta, -rotDelta), Vec3(0, 0, 0)));	
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, rotDelta, 0, -rotDelta), Vec3(0, 0, 0)));
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, -rotDelta, -rotDelta, 0), Vec3(0, 0, 0)));
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, 0, -rotDelta, -rotDelta), Vec3(0, 0, 0)));
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, -rotDelta, 0, -rotDelta), Vec3(0, 0, 0)));
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, -rotDelta, -rotDelta, -rotDelta), Vec3(0, 0, 0)));	
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, -rotDelta, -rotDelta, rotDelta), Vec3(0, 0, 0)));	
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, -rotDelta, rotDelta, -rotDelta), Vec3(0, 0, 0)));
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, -rotDelta, rotDelta, rotDelta), Vec3(0, 0, 0)));	
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, rotDelta, -rotDelta, -rotDelta), Vec3(0, 0, 0)));	
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, rotDelta, -rotDelta, rotDelta), Vec3(0, 0, 0)));	
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, rotDelta, rotDelta, -rotDelta), Vec3(0, 0, 0)));	
-				lastF_2_fh_tries.push_back(SE3(Sophus::Quaterniond(1, rotDelta, rotDelta, rotDelta), Vec3(0, 0, 0)));	
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, rotDelta, 0, 0), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, 0, rotDelta, 0), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, 0, 0, rotDelta), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, -rotDelta, 0, 0), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, 0, -rotDelta, 0), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, 0, 0, -rotDelta), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, rotDelta, rotDelta, 0), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, 0, rotDelta, rotDelta), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, rotDelta, 0, rotDelta), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, -rotDelta, rotDelta, 0), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, 0, -rotDelta, rotDelta), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, -rotDelta, 0, rotDelta), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, rotDelta, -rotDelta, 0), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, 0, rotDelta, -rotDelta), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, rotDelta, 0, -rotDelta), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, -rotDelta, -rotDelta, 0), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, 0, -rotDelta, -rotDelta), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, -rotDelta, 0, -rotDelta), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, -rotDelta, -rotDelta, -rotDelta), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, -rotDelta, -rotDelta, rotDelta), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, -rotDelta, rotDelta, -rotDelta), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, -rotDelta, rotDelta, rotDelta), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, rotDelta, -rotDelta, -rotDelta), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, rotDelta, -rotDelta, rotDelta), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, rotDelta, rotDelta, -rotDelta), Vec3(0, 0, 0)));
+				lastF_2_fh_tries.emplace_back(SE3(Sophus::Quaterniond(1, rotDelta, rotDelta, rotDelta), Vec3(0, 0, 0)));
 			}
 
 			coarseTracker->makeK(&Hcalib);
 			coarseTracker->setCTRefForFirstFrame(frameHessians);
 			lastF = coarseTracker->lastRef;
 		}
-		else if (allFrameHistory.size() == 2) {
-			for (unsigned int i = 0; i < lastF_2_fh_tries.size(); i++)
-				lastF_2_fh_tries.push_back(SE3());
+		else if (allFrameHistory.size() == 2) 
+		{
+			for (unsigned int it = 0; it < lastF_2_fh_tries.size(); ++it)
+				lastF_2_fh_tries.emplace_back(SE3());
 		}
 		else
 		{
-			FrameShell* slast = allFrameHistory[allFrameHistory.size() - 2];
-			FrameShell* sprelast = allFrameHistory[allFrameHistory.size() - 3];
+			FrameShell* slast = allFrameHistory[allFrameHistory.size() - 2];		// 最新帧上一帧
+			FrameShell* sprelast = allFrameHistory[allFrameHistory.size() - 3];		// 最新帧上上帧
 			SE3 slast_2_sprelast;
 			SE3 lastF_2_slast;
-			{	// lock on global pose consistency!
+
+			{
 				std::unique_lock<std::mutex> crlock(shellPoseMutex);
 				slast_2_sprelast = sprelast->camToWorld.inverse() * slast->camToWorld;
 				lastF_2_slast = slast->camToWorld.inverse() * lastF->shell->camToWorld;
 				aff_last_2_l = slast->aff_g2l;
 			}
-			SE3 fh_2_slast = slast_2_sprelast;// assumed to be the same as fh_2_slast.
+			SE3 fh_2_slast = slast_2_sprelast;
 
-			// get last delta-movement.
-			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast);	// assume constant motion.
-			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * fh_2_slast.inverse() * lastF_2_slast);	// assume double motion (frame skipped)
-			lastF_2_fh_tries.push_back(SE3::exp(fh_2_slast.log()*0.5).inverse() * lastF_2_slast); // assume half motion.
-			lastF_2_fh_tries.push_back(lastF_2_slast); // assume zero motion.
-			lastF_2_fh_tries.push_back(SE3()); // assume zero motion FROM KF.
+			lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast);						// 匀速模型
+			lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * fh_2_slast.inverse() * lastF_2_slast);	// 倍速模型
+			lastF_2_fh_tries.emplace_back(SE3::exp(fh_2_slast.log()*0.5).inverse() * lastF_2_slast);	// 半速模型
+			lastF_2_fh_tries.emplace_back(lastF_2_slast);												// 零速模型
+			lastF_2_fh_tries.emplace_back(SE3());														// 静止模型
 
 			// just try a TON of different initializations (all rotations). In the end,
 			// if they don't work they will only be tried on the coarsest level, which is super fast anyway.
 			// also, if tracking rails here we loose, so we really, really want to avoid that.
-			for (float rotDelta = 0.02; rotDelta < 0.05; rotDelta++)
+			for (float rotDelta = 0.02; rotDelta < 0.05; rotDelta += 0.02)
 			{
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, rotDelta, 0, 0), Vec3(0, 0, 0)));			// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, 0, rotDelta, 0), Vec3(0, 0, 0)));			// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, 0, 0, rotDelta), Vec3(0, 0, 0)));			// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, -rotDelta, 0, 0), Vec3(0, 0, 0)));			// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, 0, -rotDelta, 0), Vec3(0, 0, 0)));			// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, 0, 0, -rotDelta), Vec3(0, 0, 0)));			// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, rotDelta, rotDelta, 0), Vec3(0, 0, 0)));	// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, 0, rotDelta, rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, rotDelta, 0, rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, -rotDelta, rotDelta, 0), Vec3(0, 0, 0)));	// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, 0, -rotDelta, rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, -rotDelta, 0, rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, rotDelta, -rotDelta, 0), Vec3(0, 0, 0)));	// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, 0, rotDelta, -rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, rotDelta, 0, -rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, -rotDelta, -rotDelta, 0), Vec3(0, 0, 0)));	// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, 0, -rotDelta, -rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, -rotDelta, 0, -rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, -rotDelta, -rotDelta, -rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, -rotDelta, -rotDelta, rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, -rotDelta, rotDelta, -rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, -rotDelta, rotDelta, rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, rotDelta, -rotDelta, -rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, rotDelta, -rotDelta, rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, rotDelta, rotDelta, -rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
-				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, rotDelta, rotDelta, rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, rotDelta, 0, 0), Vec3(0, 0, 0)));			// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, 0, rotDelta, 0), Vec3(0, 0, 0)));			// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, 0, 0, rotDelta), Vec3(0, 0, 0)));			// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, -rotDelta, 0, 0), Vec3(0, 0, 0)));			// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, 0, -rotDelta, 0), Vec3(0, 0, 0)));			// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, 0, 0, -rotDelta), Vec3(0, 0, 0)));			// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, rotDelta, rotDelta, 0), Vec3(0, 0, 0)));	// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, 0, rotDelta, rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, rotDelta, 0, rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, -rotDelta, rotDelta, 0), Vec3(0, 0, 0)));	// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, 0, -rotDelta, rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, -rotDelta, 0, rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, rotDelta, -rotDelta, 0), Vec3(0, 0, 0)));	// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, 0, rotDelta, -rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, rotDelta, 0, -rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, -rotDelta, -rotDelta, 0), Vec3(0, 0, 0)));	// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, 0, -rotDelta, -rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, -rotDelta, 0, -rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, -rotDelta, -rotDelta, -rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, -rotDelta, -rotDelta, rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, -rotDelta, rotDelta, -rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, -rotDelta, rotDelta, rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, rotDelta, -rotDelta, -rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, rotDelta, -rotDelta, rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, rotDelta, rotDelta, -rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
+				lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1, rotDelta, rotDelta, rotDelta), Vec3(0, 0, 0)));	// assume constant motion.
 			}
 
 			if (!slast->poseValid || !sprelast->poseValid || !lastF->shell->poseValid)
 			{
 				lastF_2_fh_tries.clear();
-				lastF_2_fh_tries.push_back(SE3());
+				lastF_2_fh_tries.emplace_back(SE3());
 			}
 		}
 
@@ -374,28 +405,30 @@ namespace dso
 		Vec5 achievedRes = Vec5::Constant(NAN);
 		bool haveOneGood = false;
 		int tryIterations = 0;
-		for (unsigned int i = 0; i < lastF_2_fh_tries.size(); i++)
+
+		// 2、一一尝试上述设置的一系类位姿变换，计算出光度残差较小的尝试作为跟踪结果
+		for (unsigned int it = 0; it < lastF_2_fh_tries.size(); ++it)
 		{
-			if (use_stereo&&frameHessians.size() < setting_maxFrames - 1)
+			if (use_stereo && frameHessians.size() < setting_maxFrames - 1)
 			{
-				if (i > 0)
+				if (it > 0)
 				{
 					initFailed = true;
 					first_track_flag = false;
 				}
 			}
+
 			AffLight aff_g2l_this = aff_last_2_l;
-			SE3 lastF_2_fh_this = lastF_2_fh_tries[i];
-			bool trackingIsGood = coarseTracker->trackNewestCoarse(
-				fh, lastF_2_fh_this, aff_g2l_this,
-				pyrLevelsUsed - 1, achievedRes);	// in each level has to be at least as good as the last try.
+			SE3 lastF_2_fh_this = lastF_2_fh_tries[it];
+			bool trackingIsGood = coarseTracker->trackNewestCoarse(fh, lastF_2_fh_this,
+				aff_g2l_this, pyrLevelsUsed - 1, achievedRes);
 			tryIterations++;
-			// 		LOG(INFO)<<"coarseTracker->lastResiduals[0]: "<<coarseTracker->lastResiduals[0];
-			if (i != 0)
+
+			if (it != 0)
 			{
 				printf("RE-TRACK ATTEMPT %d with initOption %d and start-lvl %d (ab %f %f): %f %f %f %f %f -> %f %f %f %f %f \n",
-					i,
-					i, pyrLevelsUsed - 1,
+					it,
+					it, pyrLevelsUsed - 1,
 					aff_g2l_this.a, aff_g2l_this.b,
 					achievedRes[0],
 					achievedRes[1],
@@ -408,43 +441,33 @@ namespace dso
 					coarseTracker->lastResiduals[3],
 					coarseTracker->lastResiduals[4]);
 			}
-			// 		if(i>10&&frameHessians.size()==1){
-			// 		  initFailed = true;
-			// 		}
 
-			// do we have a new winner?
-			if (trackingIsGood && std::isfinite((float)coarseTracker->lastResiduals[0]) && !(coarseTracker->lastResiduals[0] >= achievedRes[0]))
+			// 若跟踪成功并且第零层光度残差小于所记录的第零层最小残差，将此时的位姿及光度变换视为最优
+			if (trackingIsGood && std::isfinite((float)coarseTracker->lastResiduals[0]) &&
+				!(coarseTracker->lastResiduals[0] >= achievedRes[0]))
 			{
-				//printf("take over. minRes %f -> %f!\n", achievedRes[0], coarseTracker->lastResiduals[0]);
 				flowVecs = coarseTracker->lastFlowIndicators;
 				aff_g2l = aff_g2l_this;
 				lastF_2_fh = lastF_2_fh_this;
 				haveOneGood = true;
 			}
 
-			// take over achieved res (always).
+			// 本次尝试跟踪成功，更新各层金字塔的最小光度残差阈值
 			if (haveOneGood)
 			{
-				for (int i = 0; i < 5; i++)
+				for (int idx = 0; idx < 5; ++idx)
 				{
-					if (!std::isfinite((float)achievedRes[i]) || achievedRes[i] > coarseTracker->lastResiduals[i])	// take over if achievedRes is either bigger or NAN.
-						achievedRes[i] = coarseTracker->lastResiduals[i];
+					if (!std::isfinite((float)achievedRes[idx]) || achievedRes[idx] > coarseTracker->lastResiduals[idx])
+						achievedRes[idx] = coarseTracker->lastResiduals[idx];
 				}
 			}
 
-
-			if (haveOneGood &&  achievedRes[0] < lastCoarseRMSE[0] * setting_reTrackThreshold)
+			// 若本次尝试的光度残差明显很小，那么直接认为本次尝试的效果很好，可直接退出循环
+			if (haveOneGood && achievedRes[0] < lastCoarseRMSE[0] * setting_reTrackThreshold)
 				break;
 		}
-		// 	if(frameHessians.size()==1){
-		// 	    if(!haveOneGood){
-		// 	      initFailed = true;
-		// 	    }
-		// 	    LOG(INFO)<<"achievedRes[0]: "<<achievedRes[0];
-		// 	    if(achievedRes[0]>11){
-		// 	      initFailed = true;
-		// 	    }
-		// 	}
+
+		// 3、若找不到光度残差较低的尝试那么认为跟踪失败
 		if (!haveOneGood)
 		{
 			printf("BIG ERROR! tracking failed entirely. Take predictred pose and hope we may somehow recover.\n");
@@ -455,7 +478,7 @@ namespace dso
 
 		lastCoarseRMSE = achievedRes;
 
-		// no lock required, as fh is not used anywhere yet.
+		// 4、记录跟踪结果：包含当前帧位姿以及光度参数
 		fh->shell->camToTrackingRef = lastF_2_fh.inverse();
 		fh->shell->trackingRef = lastF->shell;
 		fh->shell->aff_g2l = aff_g2l;
@@ -483,11 +506,21 @@ namespace dso
 		return Vec4(achievedRes[0], flowVecs[0], flowVecs[1], flowVecs[2]);
 	}
 
+	/// <summary>
+	/// 将关键帧中的未激活点在最新帧中跟踪一遍，优化其逆深度信息
+	/// </summary>
+	/// <param name="fh">系统中的最新帧</param>
 	void FullSystem::traceNewCoarse(FrameHessian* fh)
 	{
 		std::unique_lock<std::mutex> lock(mapMutex);
 
-		int trace_total = 0, trace_good = 0, trace_oob = 0, trace_out = 0, trace_skip = 0, trace_badcondition = 0, trace_uninitialized = 0;
+		int trace_total = 0;
+		int trace_good = 0;
+		int trace_oob = 0;
+		int trace_out = 0;
+		int trace_skip = 0;
+		int trace_badcondition = 0;
+		int trace_uninitialized = 0;
 
 		Mat33f K = Mat33f::Identity();
 		K(0, 0) = Hcalib.fxl();
@@ -495,15 +528,15 @@ namespace dso
 		K(0, 2) = Hcalib.cxl();
 		K(1, 2) = Hcalib.cyl();
 
-		for (FrameHessian* host : frameHessians)		// go through all active frames
+		for (FrameHessian* host : frameHessians)
 		{
-
 			SE3 hostToNew = fh->PRE_worldToCam * host->PRE_camToWorld;
 			Mat33f KRKi = K * hostToNew.rotationMatrix().cast<float>() * K.inverse();
 			Vec3f Kt = K * hostToNew.translation().cast<float>();
 
 			Vec2f aff = AffLight::fromToVecExposure(host->ab_exposure, fh->ab_exposure, host->aff_g2l(), fh->aff_g2l()).cast<float>();
 
+			// host帧中的未激活点在最新帧中跟踪一遍，优化点的状态
 			for (ImmaturePoint* ph : host->immaturePoints)
 			{
 				ph->traceOn(fh, KRKi, Kt, aff, &Hcalib, false);
@@ -517,21 +550,13 @@ namespace dso
 				trace_total++;
 			}
 		}
-		//	printf("ADD: TRACE: %'d points. %'d (%.0f%%) good. %'d (%.0f%%) skip. %'d (%.0f%%) badcond. %'d (%.0f%%) oob. %'d (%.0f%%) out. %'d (%.0f%%) uninit.\n",
-		//			trace_total,
-		//			trace_good, 100*trace_good/(float)trace_total,
-		//			trace_skip, 100*trace_skip/(float)trace_total,
-		//			trace_badcondition, 100*trace_badcondition/(float)trace_total,
-		//			trace_oob, 100*trace_oob/(float)trace_total,
-		//			trace_out, 100*trace_out/(float)trace_total,
-		//			trace_uninitialized, 100*trace_uninitialized/(float)trace_total);
 	}
 
 	// process nonkey frame to refine key frame idepth
-	void FullSystem::traceNewCoarseNonKey(FrameHessian *fh, FrameHessian *fh_right)
+	void FullSystem::traceNewCoarseNonKey(FrameHessian *fh, FrameHessian *fhRight)
 	{
 		std::unique_lock<std::mutex> lock(mapMutex);
-		// new idepth after refinement
+
 		float idepth_min_update = 0;
 		float idepth_max_update = 0;
 
@@ -540,37 +565,34 @@ namespace dso
 		K(1, 1) = Hcalib.fyl();
 		K(0, 2) = Hcalib.cxl();
 		K(1, 2) = Hcalib.cyl();
-
 		Mat33f Ki = K.inverse();
 
-		for (FrameHessian *host : frameHessians)        // go through all active frames
+		for (FrameHessian *host : frameHessians)
 		{
-			//		number++;
-			int trace_total = 0, trace_good = 0, trace_oob = 0, trace_out = 0, trace_skip = 0, trace_badcondition = 0, trace_uninitialized = 0;
+			int trace_total = 0;
+			int	trace_good = 0;
+			int	trace_oob = 0;
+			int	trace_out = 0;
+			int trace_skip = 0;
+			int	trace_badcondition = 0;
+			int	trace_uninitialized = 0;
 
-			// trans from reference keyframe to newest frame
 			SE3 hostToNew = fh->PRE_worldToCam * host->PRE_camToWorld;
-			// KRK-1
 			Mat33f KRKi = K * hostToNew.rotationMatrix().cast<float>() * K.inverse();
-			// KRi
 			Mat33f KRi = K * hostToNew.rotationMatrix().inverse().cast<float>();
-			// Kt
 			Vec3f Kt = K * hostToNew.translation().cast<float>();
-			// t
 			Vec3f t = hostToNew.translation().cast<float>();
 
-			//aff
 			Vec2f aff = AffLight::fromToVecExposure(host->ab_exposure, fh->ab_exposure, host->aff_g2l(), fh->aff_g2l()).cast<float>();
 
 			for (ImmaturePoint *ph : host->immaturePoints)
 			{
 				// do temperol stereo match
-				ImmaturePointStatus phTrackStatus = ph->traceOn(fh, KRKi, Kt, aff, &Hcalib, false);
+				auto phTrackStatus = ph->traceOn(fh, KRKi, Kt, aff, &Hcalib, false);
 				if (phTrackStatus == ImmaturePointStatus::IPS_GOOD)
 				{
 					ImmaturePoint *phNonKey = new ImmaturePoint(ph->lastTraceUV(0), ph->lastTraceUV(1), fh, &Hcalib);
 
-					// project onto newest frame
 					Vec3f ptpMin = KRKi * (Vec3f(ph->u, ph->v, 1) / ph->idepth_min) + Kt;
 					float idepth_min_project = 1.0f / ptpMin[2];
 					Vec3f ptpMax = KRKi * (Vec3f(ph->u, ph->v, 1) / ph->idepth_max) + Kt;
@@ -583,8 +605,8 @@ namespace dso
 					phNonKey->idepth_min_stereo = phNonKey->idepth_min;
 					phNonKey->idepth_max_stereo = phNonKey->idepth_max;
 
-					// do static stereo match from left image to right
-					ImmaturePointStatus phNonKeyStereoStatus = phNonKey->traceStereo(fh_right, &Hcalib, 1);
+					// 双目匹配
+					auto phNonKeyStereoStatus = phNonKey->traceStereo(fhRight, &Hcalib, 1);
 					if (phNonKeyStereoStatus == ImmaturePointStatus::IPS_GOOD)
 					{
 						ImmaturePoint* phNonKeyRight = new ImmaturePoint(phNonKey->lastTraceUV(0), phNonKey->lastTraceUV(1), fh_right, &Hcalib);
@@ -641,12 +663,17 @@ namespace dso
 		}
 	}
 
-	//process keyframe
-	void FullSystem::traceNewCoarseKey(FrameHessian* fh, FrameHessian* fh_right)
+	void FullSystem::traceNewCoarseKey(FrameHessian* fh, FrameHessian* fhRight)
 	{
 		std::unique_lock<std::mutex> lock(mapMutex);
 
-		int trace_total = 0, trace_good = 0, trace_oob = 0, trace_out = 0, trace_skip = 0, trace_badcondition = 0, trace_uninitialized = 0;
+		int trace_total = 0;
+		int	trace_good = 0;
+		int	trace_oob = 0;
+		int	trace_out = 0;
+		int	trace_skip = 0;
+		int	trace_badcondition = 0;
+		int	trace_uninitialized = 0;
 
 		Mat33f K = Mat33f::Identity();
 		K(0, 0) = Hcalib.fxl();
@@ -654,24 +681,18 @@ namespace dso
 		K(0, 2) = Hcalib.cxl();
 		K(1, 2) = Hcalib.cyl();
 
-		for (FrameHessian* host : frameHessians)		// go through all active frames
+		for (FrameHessian* host : frameHessians)
 		{
-
-			// trans from reference key frame to the newest one
 			SE3 hostToNew = fh->PRE_worldToCam * host->PRE_camToWorld;
-			//KRK-1
 			Mat33f KRKi = K * hostToNew.rotationMatrix().cast<float>() * K.inverse();
-			//Kt
 			Vec3f Kt = K * hostToNew.translation().cast<float>();
 
 			Vec2f aff = AffLight::fromToVecExposure(host->ab_exposure, fh->ab_exposure, host->aff_g2l(), fh->aff_g2l()).cast<float>();
 
 			for (ImmaturePoint* ph : host->immaturePoints)
 			{
-				ImmaturePointStatus phTrackStatus = ph->traceOn(fh, KRKi, Kt, aff, &Hcalib, false);
-				// 				if(ph->u==145&&ph->v==21){
-				// 				    LOG(INFO)<<"trace depthmax: "<<ph->idepth_max<<" min: "<<ph->idepth_min;
-				// 				}
+				ph->traceOn(fh, KRKi, Kt, aff, &Hcalib, false);
+
 				if (ph->lastTraceStatus == ImmaturePointStatus::IPS_GOOD) trace_good++;
 				if (ph->lastTraceStatus == ImmaturePointStatus::IPS_BADCONDITION) trace_badcondition++;
 				if (ph->lastTraceStatus == ImmaturePointStatus::IPS_OOB) trace_oob++;
@@ -687,7 +708,7 @@ namespace dso
 		std::vector<ImmaturePoint*>* toOptimize, int min, int max, Vec10* stats, int tid)
 	{
 		ImmaturePointTemporaryResidual* tr = new ImmaturePointTemporaryResidual[frameHessians.size()];
-		for (int k = min; k < max; k++)
+		for (int k = min; k < max; ++k)
 		{
 			(*optimized)[k] = optimizeImmaturePoint((*toOptimize)[k], 1, tr);
 		}
@@ -739,7 +760,6 @@ namespace dso
 			Mat33f KRKi = (coarseDistanceMap->K[1] * fhToNew.rotationMatrix().cast<float>() * coarseDistanceMap->Ki[0]);
 			Vec3f Kt = (coarseDistanceMap->K[1] * fhToNew.translation().cast<float>());
 
-
 			for (unsigned int i = 0; i < host->immaturePoints.size(); i += 1)
 			{
 				ImmaturePoint* ph = host->immaturePoints[i];
@@ -788,7 +808,7 @@ namespace dso
 				if ((u > 0 && v > 0 && u < wG[1] && v < hG[1]))
 				{
 
-					float dist = coarseDistanceMap->fwdWarpedIDDistFinal[u + wG[1] * v] + (ptp[0] - floorf((float)(ptp[0])));
+					float dist = float(coarseDistanceMap->fwdWarpedIDDistFinal[u + wG[1] * v]) + (ptp[0] - floorf((float)(ptp[0])));
 
 					if (dist >= currentMinActDist * ph->my_type)
 					{
@@ -1134,7 +1154,7 @@ namespace dso
 		shell->aff_g2l = AffLight(0, 0);
 		shell->marginalizedAt = shell->id = allFrameHistory.size();
 		shell->timestamp = image->timestamp;
-		shell->incoming_id = id;
+		shell->incomingId = id;
 		fh->shell = shell;
 		fh_right->shell = shell;
 
@@ -1241,7 +1261,7 @@ namespace dso
 					setting_kfGlobalWeight * setting_maxShiftWeightR * sqrtf((double)tres[2]) / (wG[0] + hG[0]) +
 					setting_kfGlobalWeight * setting_maxShiftWeightRT * sqrtf((double)tres[3]) / (wG[0] + hG[0]) +
 					setting_kfGlobalWeight * setting_maxAffineWeight * fabs(logf((float)refToFh[0]));
-				double interval = pic_time_stamp[fh->shell->incoming_id] - pic_time_stamp[coarseTracker->lastRef->shell->incoming_id];
+				double interval = pic_time_stamp[fh->shell->incomingId] - pic_time_stamp[coarseTracker->lastRef->shell->incomingId];
 
 				if (interval >= 0.45 && delta > 0.5f) needToMakeKF = true;
 			}
@@ -1268,8 +1288,8 @@ namespace dso
 		{
 			for (int idx = 0; idx < imu_time_stamp.size(); ++idx)
 			{
-				if (imu_time_stamp[idx] >= pic_time_stamp[fh->shell->incoming_id] ||
-					std::fabs(imu_time_stamp[idx] - pic_time_stamp[fh->shell->incoming_id]) < 0.001)
+				if (imu_time_stamp[idx] >= pic_time_stamp[fh->shell->incomingId] ||
+					std::fabs(imu_time_stamp[idx] - pic_time_stamp[fh->shell->incomingId]) < 0.001)
 				{
 					imuStartIdx = idx;
 					break;
@@ -1281,8 +1301,8 @@ namespace dso
 		{
 			for (int idx = 0; idx < gt_time_stamp.size(); ++idx)
 			{
-				if (gt_time_stamp[idx] >= pic_time_stamp[fh->shell->incoming_id] ||
-					fabs(gt_time_stamp[idx] - pic_time_stamp[fh->shell->incoming_id]) < 0.001)
+				if (gt_time_stamp[idx] >= pic_time_stamp[fh->shell->incomingId] ||
+					fabs(gt_time_stamp[idx] - pic_time_stamp[fh->shell->incomingId]) < 0.001)
 				{
 					imuStartIdxGT = idx;
 					break;
@@ -1377,8 +1397,17 @@ namespace dso
 		}
 	}
 
-	void FullSystem::deliverTrackedFrame(FrameHessian* fh, FrameHessian* fh_right, bool needKF)
+	/// <summary>
+	/// 系统跟踪最新帧成功后，根据系统当前是否需要关键帧进行对应的建图操作；
+	/// 若最新帧是关键帧，进行makeKeyFrame()的操作；
+	/// 若最新帧不是关键帧，进行makeNonKeyFrame()的操作；
+	/// </summary>
+	/// <param name="fh">双目最新帧左目帧</param>
+	/// <param name="fhRight">双目最新帧右目帧</param>
+	/// <param name="needKF">系统是否需要关键帧</param>
+	void FullSystem::deliverTrackedFrame(FrameHessian* fh, FrameHessian* fhRight, bool needKF)
 	{
+		// 通过外部输入控制已跟踪的帧逐帧进行建图操作
 		if (linearizeOperation)
 		{
 			if (goStepByStep && lastRefStopID != coarseTracker->refFrameID)
@@ -1395,9 +1424,10 @@ namespace dso
 			}
 			else handleKey(IOWrap::waitKey(1));
 
-			if (needKF) makeKeyFrame(fh, fh_right);
-			else makeNonKeyFrame(fh, fh_right);
+			if (needKF) makeKeyFrame(fh, fhRight);
+			else makeNonKeyFrame(fh, fhRight);
 		}
+		// 跟踪线程与建图线程间通过互斥锁自动进行建图操作
 		else
 		{
 			std::unique_lock<std::mutex> lock(trackMapSyncMutex);
@@ -1414,13 +1444,17 @@ namespace dso
 		}
 	}
 
+	/// <summary>
+	/// 建图线程Loop函数：每当跟踪线程跟踪成功提交最新帧后，
+	/// 建图线程开始工程，并在工作完成后告知跟踪线程
+	/// </summary>
 	void FullSystem::mappingLoop()
 	{
 		std::unique_lock<std::mutex> lock(trackMapSyncMutex);
 
 		while (runMapping)
 		{
-			while (unmappedTrackedFrames.size() == 0)
+			while (unmappedTrackedFrames.empty())
 			{
 				trackedFrameSignal.wait(lock);
 				if (!runMapping) return;
@@ -1428,14 +1462,14 @@ namespace dso
 
 			FrameHessian* fh = unmappedTrackedFrames.front();
 			unmappedTrackedFrames.pop_front();
-			FrameHessian* fh_right = unmappedTrackedFrames_right.front();
-			unmappedTrackedFrames_right.pop_front();
+			FrameHessian* fhRight = unmappedTrackedFramesRight.front();
+			unmappedTrackedFramesRight.pop_front();
 
-			// guaranteed to make a KF for the very first two tracked frames.
+			// 对于系统最开始跟踪的几帧都设置为关键帧
 			if (allKeyFramesHistory.size() <= 2)
 			{
 				lock.unlock();
-				makeKeyFrame(fh, fh_right);
+				makeKeyFrame(fh, fhRight);
 				lock.lock();
 				mappedFrameSignal.notify_all();
 				continue;
@@ -1444,11 +1478,10 @@ namespace dso
 			if (unmappedTrackedFrames.size() > 3)
 				needToKetchupMapping = true;
 
-
 			if (unmappedTrackedFrames.size() > 0) // if there are other frames to tracke, do that first.
 			{
 				lock.unlock();
-				makeNonKeyFrame(fh, fh_right);
+				makeNonKeyFrame(fh, fhRight);
 				lock.lock();
 
 				if (needToKetchupMapping && unmappedTrackedFrames.size() > 0)
@@ -1463,21 +1496,22 @@ namespace dso
 					}
 					delete fh;
 				}
-
 			}
 			else
 			{
+				// 1、系统中已设定一直需要关键帧
+				// 2、最新帧参考关键帧ID大于等于滑窗关键帧最后一帧ID
 				if (setting_realTimeMaxKF || needNewKFAfter >= frameHessians.back()->shell->id)
 				{
 					lock.unlock();
-					makeKeyFrame(fh, fh_right);
+					makeKeyFrame(fh, fhRight);
 					needToKetchupMapping = false;
 					lock.lock();
 				}
 				else
 				{
 					lock.unlock();
-					makeNonKeyFrame(fh, fh_right);
+					makeNonKeyFrame(fh, fhRight);
 					lock.lock();
 				}
 			}
@@ -1486,6 +1520,9 @@ namespace dso
 		printf("MAPPING FINISHED!\n");
 	}
 
+	/// <summary>
+	/// 阻塞跟踪线程（主线程），等待建图线程完成任务
+	/// </summary>
 	void FullSystem::blockUntilMappingIsFinished()
 	{
 		std::unique_lock<std::mutex> lock(trackMapSyncMutex);
@@ -1496,7 +1533,7 @@ namespace dso
 		mappingThread.join();
 	}
 
-	void FullSystem::makeNonKeyFrame(FrameHessian* fh, FrameHessian* fh_right)
+	void FullSystem::makeNonKeyFrame(FrameHessian* fh, FrameHessian* fhRight)
 	{
 		//needs to be set by mapping thread. no lock required since we are in mapping thread.
 		{
@@ -1510,10 +1547,10 @@ namespace dso
 
 		//traceNewCoarseNonKey(fh, fh_right);
 		delete fh;
-		delete fh_right;
+		delete fhRight;
 	}
 
-	void FullSystem::makeKeyFrame(FrameHessian* fh, FrameHessian* fh_right)
+	void FullSystem::makeKeyFrame(FrameHessian* fh, FrameHessian* fhRight)
 	{
 		// needs to be set by mapping thread
 		{
@@ -1599,7 +1636,7 @@ namespace dso
 		{
 			std::unique_lock<std::mutex> crlock(coarseTrackerSwapMutex);
 			coarseTracker_forNewKF->makeK(&Hcalib);
-			coarseTracker_forNewKF->setCoarseTrackingRef(frameHessians, fh_right, Hcalib);
+			coarseTracker_forNewKF->setCoarseTrackingRef(frameHessians, fhRight, Hcalib);
 
 			coarseTracker_forNewKF->debugPlotIDepthMap(&minIdJetVisTracker, &maxIdJetVisTracker, outputWrapper);
 			coarseTracker_forNewKF->debugPlotIDepthMapFloat(outputWrapper);
@@ -1735,8 +1772,6 @@ namespace dso
 				(int)frameHessians.size() << " " << "\n";
 			numsLog->flush();
 		}
-
-
 	}
 
 	void FullSystem::printEigenValLine()

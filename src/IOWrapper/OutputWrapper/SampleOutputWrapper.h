@@ -77,7 +77,7 @@ public:
                 printf("OUT: KF %d (%s) (id %d, tme %f): %d active, %d marginalized, %d immature points. CameraToWorld:\n",
                        f->frameID,
                        final ? "final" : "non-final",
-                       f->shell->incoming_id,
+                       f->shell->incomingId,
                        f->shell->timestamp,
                        (int)f->pointHessians.size(), (int)f->pointHessiansMarginalized.size(), (int)f->immaturePoints.size());
                 std::cout << f->shell->camToWorld.matrix3x4() << "\n";
@@ -97,7 +97,7 @@ public:
         virtual void publishCamPose(FrameShell* frame, CalibHessian* HCalib) override
         {
             printf("OUT: Current Frame %d (time %f, internal ID %d). CameraToWorld:\n",
-                   frame->incoming_id,
+                   frame->incomingId,
                    frame->timestamp,
                    frame->id);
             std::cout << frame->camToWorld.matrix3x4() << "\n";
@@ -122,7 +122,7 @@ public:
         {
             printf("OUT: Predicted depth for KF %d (id %d, time %f, internal frame-ID %d). CameraToWorld:\n",
                    KF->frameID,
-                   KF->shell->incoming_id,
+                   KF->shell->incomingId,
                    KF->shell->timestamp,
                    KF->shell->id);
             std::cout << KF->shell->camToWorld.matrix3x4() << "\n";
