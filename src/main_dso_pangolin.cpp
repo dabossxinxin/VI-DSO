@@ -626,10 +626,10 @@ void getIMUinfo()
 	SE3 temp(R, t);
 	T_BC = temp;
 
-	GyrCov = Mat33::Identity()*noise(0)*noise(0) / 0.005;
-	AccCov = Mat33::Identity()*noise(1)*noise(1) / 0.005;
-	GyrRandomWalkNoise = Mat33::Identity()*noise(2)*noise(2);
-	AccRandomWalkNoise = Mat33::Identity()*noise(3)*noise(3);
+	GyrCov = Mat33::Identity() * noise(0) * noise(0) / 0.005;
+	AccCov = Mat33::Identity() * noise(1) * noise(1) / 0.005;
+	GyrRandomWalkNoise = Mat33::Identity() * noise(2) * noise(2);
+	AccRandomWalkNoise = Mat33::Identity() * noise(3) * noise(3);
 
 	LOG(INFO) << "T_BC: \n" << T_BC.matrix();
 	LOG(INFO) << "noise: " << noise.transpose();

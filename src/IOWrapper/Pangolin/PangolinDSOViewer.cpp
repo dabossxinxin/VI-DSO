@@ -474,7 +474,7 @@ namespace dso
 			if (!setting_render_display3D) return;
 
 			currentCam->setFromF(frame, HCalib);
-			allFramePoses.push_back((SE3(T_WD.matrix()*frame->camToWorld.matrix()*T_WD.inverse().matrix())).translation().cast<float>());
+			allFramePoses.emplace_back((SE3(T_WD.matrix() * frame->camToWorld.matrix() * T_WD.inverse().matrix())).translation().cast<float>());
 		}
 
 		void PangolinDSOViewer::pushLiveFrame(FrameHessian* image)

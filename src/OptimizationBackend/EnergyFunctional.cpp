@@ -695,10 +695,10 @@ namespace dso
 		fh->efFrame = eff;
 
 		//stereo
-		EFFrame* eff_right = new EFFrame(fh->frame_right);
-		eff_right->idx = frames.size() + 10000;
+		EFFrame* effRight = new EFFrame(fh->frameRight);
+		effRight->idx = frames.size() + 10000;
 		// 	eff_right->idx = frames.size();
-		fh->frame_right->efFrame = eff_right;
+		fh->frameRight->efFrame = effRight;
 
 		assert(HM.cols() == 8 * nFrames + CPARS - 8);
 		bM.conservativeResize(8 * nFrames + CPARS);

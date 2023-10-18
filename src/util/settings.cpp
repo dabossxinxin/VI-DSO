@@ -27,8 +27,8 @@ namespace dso
 	int pyrLevelsUsed = PYR_LEVELS;
 
 	/* Parameters controlling when KF's are taken */
-	float setting_keyframesPerSecond = 0;   // if !=0, takes a fixed number of KF per second.
-	bool setting_realTimeMaxKF = false;   // if true, takes as many KF's as possible (will break the system if the camera stays stationary)
+	float setting_keyframesPerSecond = 0;   // 若该值不为0，系统每秒固定生成此数量的关键帧
+	bool setting_realTimeMaxKF = false;		// if true, takes as many KF's as possible (will break the system if the camera stays stationary)
 	float setting_maxShiftWeightT = 0.04f * (640 + 480);
 	float setting_maxShiftWeightR = 0.0f * (640 + 480);
 	float setting_maxShiftWeightRT = 0.02f * (640 + 480);
@@ -223,7 +223,22 @@ namespace dso
 			printf("new freeDebugParam5: %f!\n", freeDebugParam5);
 			break;
 		}
+	}
 
+	int findNearestIdx(const std::vector <double>& messages, const double val)
+	{
+		if (!messages.empty())
+		{
+			for (int it = 0; it < messages.size(); ++it)
+			{
+				if (val <= messages[it] ||
+					std::fabs(val - messages[it] < 1e-3))
+					return it;
+			}
+		}
+		else
+			return -1;
+		return -1;
 	}
 
 	int staticPattern[10][40][2] = {

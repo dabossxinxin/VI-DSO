@@ -52,7 +52,7 @@ namespace dso
 			int coarsestLvl, Vec5 minResForAbort, IOWrap::Output3DWrapper* wrap = 0);
 
 		void setCTRefForFirstFrame(std::vector<FrameHessian*> frameHessians);
-		void setCoarseTrackingRef(std::vector<FrameHessian*> frameHessians, FrameHessian* fh_right, CalibHessian Hcalib);
+		void setCoarseTrackingRef(std::vector<FrameHessian*> frameHessians, FrameHessian* fhRight, CalibHessian Hcalib);
 		
 		void makeCoarseDepthForFirstFrame(FrameHessian* fh);
 		void makeK(CalibHessian* HCalib);

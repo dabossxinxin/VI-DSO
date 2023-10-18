@@ -609,7 +609,8 @@ namespace dso
 					auto phNonKeyStereoStatus = phNonKey->traceStereo(fhRight, &Hcalib, 1);
 					if (phNonKeyStereoStatus == ImmaturePointStatus::IPS_GOOD)
 					{
-						ImmaturePoint* phNonKeyRight = new ImmaturePoint(phNonKey->lastTraceUV(0), phNonKey->lastTraceUV(1), fh_right, &Hcalib);
+						ImmaturePoint* phNonKeyRight = new ImmaturePoint(phNonKey->lastTraceUV(0),
+							phNonKey->lastTraceUV(1), fhRight, &Hcalib);
 
 						phNonKeyRight->u_stereo = phNonKeyRight->u;
 						phNonKeyRight->v_stereo = phNonKeyRight->v;
@@ -704,6 +705,15 @@ namespace dso
 		}
 	}
 
+	/// <summary>
+	/// 激活未成熟特征
+	/// </summary>
+	/// <param name="optimized">优化后的特征</param>
+	/// <param name="toOptimize">待激活特征</param>
+	/// <param name="min">待激活点索引</param>
+	/// <param name="max">待激活点索引</param>
+	/// <param name="stats">状态返回值，该函数中没作用</param>
+	/// <param name="tid">线程ID</param>
 	void FullSystem::activatePointsMT_Reductor(std::vector<PointHessian*>* optimized,
 		std::vector<ImmaturePoint*>* toOptimize, int min, int max, Vec10* stats, int tid)
 	{
@@ -715,6 +725,13 @@ namespace dso
 		delete[] tr;
 	}
 
+	/// <summary>
+	/// 一次跟踪成功后，对关键帧中的未激活点进行优化并激活；
+	/// step1：根据系统参数设定计算特征稀疏参数currentMinActDis；
+	/// step2：计算滑窗关键帧中最新帧中的特征距离地图便于均匀选取未激活特征；
+	/// step3：在滑窗关键帧中选择满足激活条件以及均匀性条件的特征准备优化激活；
+	/// step4：针对选定的特征进行基于多帧观测的优化，并将优化结果写入关键帧数据中；
+	/// </summary>
 	void FullSystem::activatePointsMT()
 	{
 		if (ef->nPoints < setting_desiredPointDensity*0.66)
@@ -744,15 +761,17 @@ namespace dso
 
 		FrameHessian* newestHs = frameHessians.back();
 
-		// make dist map.
+		// 1、以滑窗中的最新帧构造距离地图，便于均匀选取未激活点进行优化激活操作
 		coarseDistanceMap->makeK(&Hcalib);
 		coarseDistanceMap->makeDistanceMap(frameHessians, newestHs);
 
 		//coarseTracker->debugPlotDistMap("distMap");
 
-		std::vector<ImmaturePoint*> toOptimize; toOptimize.reserve(20000);
+		std::vector<ImmaturePoint*> toOptimize; 
+		toOptimize.reserve(20000);
 
-		for (FrameHessian* host : frameHessians)		// go through all active frames
+		// 2、遍历滑窗中所有关键帧，选择能被激活的特征加入toOptimized中准备进行优化激活
+		for (FrameHessian* host : frameHessians)
 		{
 			if (host == newestHs) continue;
 
@@ -760,22 +779,18 @@ namespace dso
 			Mat33f KRKi = (coarseDistanceMap->K[1] * fhToNew.rotationMatrix().cast<float>() * coarseDistanceMap->Ki[0]);
 			Vec3f Kt = (coarseDistanceMap->K[1] * fhToNew.translation().cast<float>());
 
-			for (unsigned int i = 0; i < host->immaturePoints.size(); i += 1)
+			for (unsigned int it = 0; it < host->immaturePoints.size(); ++it)
 			{
-				ImmaturePoint* ph = host->immaturePoints[i];
-				ph->idxInImmaturePoints = i;
+				auto ph = host->immaturePoints[it];
+				ph->idxInImmaturePoints = it;
 
-				// delete points that have never been traced successfully, or that are outlier on the last trace.
 				if (!std::isfinite(ph->idepth_max) || ph->lastTraceStatus == IPS_OUTLIER)
 				{
-					//				immature_invalid_deleted++;
-									// remove point.
 					delete ph;
-					host->immaturePoints[i] = 0;
+					host->immaturePoints[it] = NULL;
 					continue;
 				}
 
-				// can activate only if this is true.
 				bool canActivate = (ph->lastTraceStatus == IPS_GOOD
 					|| ph->lastTraceStatus == IPS_SKIPPED
 					|| ph->lastTraceStatus == IPS_BADCONDITION
@@ -784,78 +799,68 @@ namespace dso
 					&& ph->quality > setting_minTraceQuality
 					&& (ph->idepth_max + ph->idepth_min) > 0;
 
-
-				// if I cannot activate the point, skip it. Maybe also delete it.
 				if (!canActivate)
 				{
-					// if point will be out afterwards, delete it instead.
 					if (ph->host->flaggedForMarginalization || ph->lastTraceStatus == IPS_OOB)
 					{
-						//					immature_notReady_deleted++;
 						delete ph;
-						host->immaturePoints[i] = 0;
+						host->immaturePoints[it] = NULL;
 					}
-					//				immature_notReady_skipped++;
 					continue;
 				}
 
-
-				// see if we need to activate point due to distance map.
 				Vec3f ptp = KRKi * Vec3f(ph->u, ph->v, 1) + Kt * (0.5f*(ph->idepth_max + ph->idepth_min));
 				int u = ptp[0] / ptp[2] + 0.5f;
 				int v = ptp[1] / ptp[2] + 0.5f;
 
 				if ((u > 0 && v > 0 && u < wG[1] && v < hG[1]))
 				{
-
-					float dist = float(coarseDistanceMap->fwdWarpedIDDistFinal[u + wG[1] * v]) + (ptp[0] - floorf((float)(ptp[0])));
+					float dist = (ptp[0] - floorf((float)(ptp[0]))) +
+						float(coarseDistanceMap->fwdWarpedIDDistFinal[u + wG[1] * v]);
 
 					if (dist >= currentMinActDist * ph->my_type)
 					{
 						coarseDistanceMap->addIntoDistFinal(u, v);
-						toOptimize.push_back(ph);
+						toOptimize.emplace_back(ph);
 					}
 				}
 				else
 				{
 					delete ph;
-					host->immaturePoints[i] = 0;
+					host->immaturePoints[it] = NULL;
 				}
 			}
 		}
-		// 	LOG(INFO)<<"toOptimize.size(): "<<toOptimize.size();
-		//	printf("ACTIVATE: %d. (del %d, notReady %d, marg %d, good %d, marg-skip %d)\n",
-		//			(int)toOptimize.size(), immature_deleted, immature_notReady, immature_needMarg, immature_want, immature_margskip);
 
-		std::vector<PointHessian*> optimized; optimized.resize(toOptimize.size());
+		// 3、特征根据多帧观测以及观测的光度残差进行优化，并将优化结果写入滑窗关键帧中
+		std::vector<PointHessian*> optimized; 
+		optimized.resize(toOptimize.size());
 
 		if (multiThreading)
 			treadReduce.reduce(std::bind(&FullSystem::activatePointsMT_Reductor, this, &optimized, &toOptimize,
 				std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, toOptimize.size(), 50);
-
 		else
 			activatePointsMT_Reductor(&optimized, &toOptimize, 0, toOptimize.size(), 0, 0);
 
-		// 	LOG(INFO)<<"toOptimize.size(): "<<toOptimize.size();
-		for (unsigned k = 0; k < toOptimize.size(); k++)
+		for (unsigned k = 0; k < toOptimize.size(); ++k)
 		{
-			PointHessian* newpoint = optimized[k];
+			PointHessian* opt = optimized[k];
 			ImmaturePoint* ph = toOptimize[k];
 
-			if (newpoint != 0 && newpoint != (PointHessian*)((long)(-1)))
+			if (opt != 0 && opt != (PointHessian*)((long)(-1)))
 			{
-				newpoint->host->immaturePoints[ph->idxInImmaturePoints] = 0;
-				newpoint->host->pointHessians.push_back(newpoint);
-				ef->insertPoint(newpoint);
-				for (PointFrameResidual* r : newpoint->residuals)
+				opt->host->immaturePoints[ph->idxInImmaturePoints] = NULL;
+				opt->host->pointHessians.emplace_back(opt);
+				ef->insertPoint(opt);
+				for (PointFrameResidual* r : opt->residuals)
 					ef->insertResidual(r);
-				assert(newpoint->efPoint != 0);
+				assert(newpoint->efPoint != NULL);
 				delete ph;
 			}
-			else if (newpoint == (PointHessian*)((long)(-1)) || ph->lastTraceStatus == IPS_OOB)
+			else if (opt == (PointHessian*)((long)(-1)) || ph->lastTraceStatus == IPS_OOB)
 			{
+				ph->host->immaturePoints[ph->idxInImmaturePoints] = NULL;
 				delete ph;
-				ph->host->immaturePoints[ph->idxInImmaturePoints] = 0;
 			}
 			else
 			{
@@ -863,25 +868,24 @@ namespace dso
 			}
 		}
 
+		// 4、清除滑窗关键帧中未激活特征序列中数据为空的部分
 		for (FrameHessian* host : frameHessians)
 		{
-			for (int i = 0; i < (int)host->immaturePoints.size(); i++)
+			for (int it = 0; it < (int)host->immaturePoints.size(); ++it)
 			{
-				if (host->immaturePoints[i] == 0)
+				if (host->immaturePoints[it] == NULL)
 				{
-					host->immaturePoints[i] = host->immaturePoints.back();
+					host->immaturePoints[it] = host->immaturePoints.back();
 					host->immaturePoints.pop_back();
-					i--;
+					it--;
 				}
 			}
 		}
 	}
 
-	void FullSystem::activatePointsOldFirst()
-	{
-		assert(false);
-	}
-
+	/// <summary>
+	/// 对于已经激活的特征去掉其中质量不好的特征
+	/// </summary>
 	void FullSystem::flagPointsForRemoval()
 	{
 		assert(EFIndicesValid);
@@ -900,21 +904,24 @@ namespace dso
 
 		//ef->setAdjointsF();
 		//ef->setDeltaF(&Hcalib);
-		int flag_oob = 0, flag_in = 0, flag_inin = 0, flag_nores = 0;
+		int flag_oob = 0;
+		int flag_in = 0;
+		int flag_inin = 0;
+		int flag_ignores = 0;
 
-		for (FrameHessian* host : frameHessians)		// go through all active frames
+		for (FrameHessian* host : frameHessians)
 		{
-			for (unsigned int i = 0; i < host->pointHessians.size(); i++)
+			for (unsigned int it = 0; it < host->pointHessians.size(); ++it)
 			{
-				PointHessian* ph = host->pointHessians[i];
-				if (ph == 0) continue;
+				auto ph = host->pointHessians[it];
+				if (ph == NULL) continue;
 
-				if (ph->idepth_scaled < 0 || ph->residuals.size() == 0)
+				if (ph->idepth_scaled < 0 || ph->residuals.empty())
 				{
-					host->pointHessiansOut.push_back(ph);
+					host->pointHessiansOut.emplace_back(ph);
 					ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
-					host->pointHessians[i] = 0;
-					flag_nores++;
+					host->pointHessians[it] = NULL;
+					flag_ignores++;
 				}
 				else if (ph->isOOB(fhsToKeepPoints, fhsToMargPoints) || host->flaggedForMarginalization)
 				{
@@ -925,13 +932,11 @@ namespace dso
 						int ngoodRes = 0;
 						for (PointFrameResidual* r : ph->residuals)
 						{
-							// 						if(r->efResidual->idxInAll==0)continue;
 							r->resetOOB();
-							if (r->stereoResidualFlag == true)
+							if (r->stereoResidualFlag)
 								r->linearizeStereo(&Hcalib);
 							else
 								r->linearize(&Hcalib);
-							// 						r->linearize(&Hcalib);
 							r->efResidual->isLinearized = false;
 							r->applyRes(true);
 							if (r->efResidual->isActive())
@@ -944,44 +949,42 @@ namespace dso
 						{
 							flag_inin++;
 							ph->efPoint->stateFlag = EFPointStatus::PS_MARGINALIZE;
-							host->pointHessiansMarginalized.push_back(ph);
+							host->pointHessiansMarginalized.emplace_back(ph);
 						}
 						else
 						{
 							ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
-							host->pointHessiansOut.push_back(ph);
+							host->pointHessiansOut.emplace_back(ph);
 						}
-
-
 					}
 					else
 					{
-						host->pointHessiansOut.push_back(ph);
+						host->pointHessiansOut.emplace_back(ph);
 						ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
-
-
-						//printf("drop point in frame %d (%d goodRes, %d activeRes)\n", ph->host->idx, ph->numGoodResiduals, (int)ph->residuals.size());
 					}
 
-					host->pointHessians[i] = 0;
+					host->pointHessians[it] = NULL;
 				}
 			}
 
-
-			for (int i = 0; i < (int)host->pointHessians.size(); i++)
+			// 去掉pointHessians中被声明为空指针的特征数据
+			for (int it = 0; it < (int)host->pointHessians.size(); ++it)
 			{
-				if (host->pointHessians[i] == 0)
+				if (host->pointHessians[it] == NULL)
 				{
-					host->pointHessians[i] = host->pointHessians.back();
+					host->pointHessians[it] = host->pointHessians.back();
 					host->pointHessians.pop_back();
-					i--;
+					it--;
 				}
 			}
 		}
 	}
 
 	/// <summary>
-	/// 根据最新帧newFrame进行视觉初始化
+	/// 根据Initializer handle的结果进行初始化操作；
+	/// step1：统计初始化handle中得到的特征逆深度并计算逆深度归一化因子；
+	/// step2：将初始化handle中得到的特征加入以firstFrame为主帧的激活特征中
+	/// step3：使用归一化因子归一化帧间位姿平移参数并将该位姿以及光度参数赋值给初始化帧
 	/// </summary>
 	/// <param name="newFrame">DSO系统最新进入的帧</param>
 	void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
@@ -991,15 +994,12 @@ namespace dso
 		coarseInitializer->firstFrame->idx = frameHessians.size();
 		frameHessians.emplace_back(coarseInitializer->firstFrame);
 		coarseInitializer->firstFrame->frameID = allKeyFramesHistory.size();
-		coarseInitializer->firstFrame->frame_right->frameID = 10000 + allKeyFramesHistory.size();
+		coarseInitializer->firstFrame->frameRight->frameID = 10000 + allKeyFramesHistory.size();
 		allKeyFramesHistory.emplace_back(coarseInitializer->firstFrame->shell);
 
 		ef->insertFrame(coarseInitializer->firstFrame, &Hcalib);
-
-		// 这一步实际已经计算出来了初始化两帧之间的姿态
 		setPrecalcValues();
-
-		FrameHessian* firstFrameRight = coarseInitializer->firstFrame_right;
+		FrameHessian* firstFrameRight = coarseInitializer->firstFrameRight;
 
 		//int numPointsTotal = makePixelStatus(firstFrame->dI, selectionMap, wG[0], hG[0], setting_desiredDensity);
 		//int numPointsTotal = pixelSelector->makeMaps(firstFrame->dIp, selectionMap,setting_desiredDensity);
@@ -1012,7 +1012,7 @@ namespace dso
 		float sumIDepth = 1e-5;
 		float numIDepth = 1e-5;
 
-		// 计算初始化得到的特征点深度平均值
+		// 1、统计初始化器中计算得到的特征逆深度，并计算逆深度归一化因子
 		for (int it = 0; it < coarseInitializer->numPoints[0]; ++it)
 		{
 			sumIDepth += coarseInitializer->points[0][it].iR;
@@ -1025,15 +1025,16 @@ namespace dso
 			printf("Initialization: keep %.1f%% (need %d, have %d)!\n",
 				100 * keepPercentage, (int)(setting_desiredPointDensity), coarseInitializer->numPoints[0]);
 
+		// 2、将初始化器中计算得到的特征加入到以firstFrame为主帧的激活点中并添加到energyFunction中
 		if (use_stereo)
 		{
-			// 双目情况中将特征点激活加入firstFrame中并向energyFunction中添加双目残差
 			for (int idx = 0; idx < coarseInitializer->numPoints[0]; ++idx)
 			{
 				if (rand() / (float)RAND_MAX > keepPercentage) continue;
 
 				Pnt* point = coarseInitializer->points[0] + idx;
-				ImmaturePoint* pt = new ImmaturePoint(point->u + 0.5f, point->v + 0.5f, coarseInitializer->firstFrame, point->my_type, &Hcalib);
+				ImmaturePoint* pt = new ImmaturePoint(point->u + 0.5f, point->v + 0.5f,
+					coarseInitializer->firstFrame, point->my_type, &Hcalib);
 
 				pt->u_stereo = pt->u;
 				pt->v_stereo = pt->v;
@@ -1055,8 +1056,18 @@ namespace dso
 				}
 
 				PointHessian* ph = new PointHessian(pt, &Hcalib);
-				if (pt != NULL) { delete pt; pt = NULL; }
-				if (!std::isfinite(ph->energyTH)) { delete ph; continue; }
+				if (pt != NULL) 
+				{ 
+					delete pt; 
+					pt = NULL;
+					pt = NULL; 
+				}
+				if (!std::isfinite(ph->energyTH)) 
+				{ 
+					delete ph; 
+					ph = NULL;
+					continue; 
+				}
 
 				ph->setIdepthScaled(idepthStereo);
 				ph->setIdepthZero(idepthStereo);
@@ -1066,7 +1077,7 @@ namespace dso
 				coarseInitializer->firstFrame->pointHessians.emplace_back(ph);
 				ef->insertPoint(ph);
 
-				PointFrameResidual* r = new PointFrameResidual(ph, ph->host, ph->host->frame_right);
+				PointFrameResidual* r = new PointFrameResidual(ph, ph->host, ph->host->frameRight);
 				r->state_NewEnergy = r->state_energy = 0;
 				r->state_NewState = ResState::OUTLIER;
 				r->setState(ResState::INNER);
@@ -1077,7 +1088,6 @@ namespace dso
 		}
 		else
 		{
-			// 初始化器中的特征点激活加入到firstFrame中
 			for (int idx = 0; idx < coarseInitializer->numPoints[0]; ++idx)
 			{
 				if (rand() / (float)RAND_MAX > keepPercentage) continue;
@@ -1085,15 +1095,28 @@ namespace dso
 				Pnt* point = coarseInitializer->points[0] + idx;
 				ImmaturePoint* pt = new ImmaturePoint(point->u + 0.5f, point->v + 0.5f,
 					coarseInitializer->firstFrame, point->my_type, &Hcalib);
-
-				if (!std::isfinite(pt->energyTH)) { delete pt; continue; }
+				if (!std::isfinite(pt->energyTH)) 
+				{ 
+					delete pt;
+					pt = NULL;
+					continue;
+				}
 
 				pt->idepth_max = pt->idepth_min = 1;
 				PointHessian* ph = new PointHessian(pt, &Hcalib);
-				if (pt != NULL) { delete pt; pt = NULL; }
-				if (!std::isfinite(ph->energyTH)) { delete ph; continue; }
+				if (pt != NULL) 
+				{ 
+					delete pt; 
+					pt = NULL; 
+				}
+				if (!std::isfinite(ph->energyTH)) 
+				{ 
+					delete ph; 
+					ph = NULL;
+					continue; 
+				}
 
-				ph->setIdepthScaled(point->iR * rescaleFactor);
+				ph->setIdepthScaled(point->iR* rescaleFactor);
 				ph->setIdepthZero(ph->idepth);
 				ph->hasDepthPrior = true;
 				ph->setPointStatus(PointHessian::ACTIVE);
@@ -1103,14 +1126,14 @@ namespace dso
 			}
 		}
 
-		// 根据得到的深度尺度归一化初始化两帧之间的平移参数
+		// 3、根据得到的深度尺度归一化初始化两帧之间的平移参数，并将优化得到的位姿光度参数赋给初始化帧
 		SE3 firstToNew = coarseInitializer->thisToNext;
 		firstToNew.translation() /= rescaleFactor;
 
 		// really no lock required, as we are initializing.
 		{
 			std::unique_lock<std::mutex> crlock(shellPoseMutex);
-			coarseInitializer->firstFrame->shell->trackingRef = 0;
+			coarseInitializer->firstFrame->shell->trackingRef = NULL;
 			coarseInitializer->firstFrame->shell->camToTrackingRef = SE3();
 
 			newFrame->shell->camToWorld = coarseInitializer->firstFrame->shell->camToWorld * firstToNew.inverse();
@@ -1124,7 +1147,16 @@ namespace dso
 		printf("INITIALIZE FROM INITIALIZER (%d pts)!\n", (int)coarseInitializer->firstFrame->pointHessians.size());
 	}
 
-	void FullSystem::addActiveFrame(ImageAndExposure* image, ImageAndExposure* image_right, int id)
+	/// <summary>
+	/// 向系统中加入最新观测的图像进行定位建图
+	/// step1：输入图像构造FrameHessian，并将shell数据加入到allFrameHistory中
+	/// step2：将帧数据送入系统中，若未初始化则进行初始化，若已初始化则进行跟踪
+	/// step3：跟踪成功后将被跟踪的帧数据发布到建图线程进行建图，并记录跟踪结果
+	/// </summary>
+	/// <param name="image">输入左目图像</param>
+	/// <param name="image_right">输入右目图像</param>
+	/// <param name="id">图像全局ID</param>
+	void FullSystem::addActiveFrame(ImageAndExposure* image, ImageAndExposure* imageRight, int id)
 	{
 		printf("image id-stamp: %d-%.12f, marginalization total-half: %d-%d\n",
 			id, pic_time_stamp[id], marg_num, marg_num_half);
@@ -1146,24 +1178,24 @@ namespace dso
 			printf("tracking error scale\n");
 		}
 
-		// =========================== add into allFrameHistory =========================
+		// 1、将输入图像构造Framehessian结构，并将帧shell数据加入allFrameHistory中
 		FrameHessian* fh = new FrameHessian();
-		FrameHessian* fh_right = new FrameHessian();
+		FrameHessian* fhRight = new FrameHessian();
 		FrameShell* shell = new FrameShell();
-		shell->camToWorld = SE3(); 					// no lock required, as fh is not used anywhere yet.
+
+		shell->camToWorld = SE3();
 		shell->aff_g2l = AffLight(0, 0);
 		shell->marginalizedAt = shell->id = allFrameHistory.size();
 		shell->timestamp = image->timestamp;
 		shell->incomingId = id;
 		fh->shell = shell;
-		fh_right->shell = shell;
+		fhRight->shell = shell;
 
-		// =========================== make Images / derivatives etc. =========================
 		fh->ab_exposure = image->exposure_time;
 		fh->makeImages(image->image, &Hcalib);
-		fh_right->ab_exposure = image_right->exposure_time;
-		fh_right->makeImages(image_right->image, &Hcalib);
-		fh->frame_right = fh_right;
+		fhRight->ab_exposure = imageRight->exposure_time;
+		fhRight->makeImages(imageRight->image, &Hcalib);
+		fh->frameRight = fhRight;
 
 		if (allFrameHistory.size() > 0)
 		{
@@ -1173,54 +1205,44 @@ namespace dso
 		}
 		allFrameHistory.emplace_back(shell);
 
-		// 系统还未完成初始化提供以下几种初始化方式
-		// 1、双目初始化并且加上惯导的信息
-		// 2、单目初始化并且加上惯导的信息
+		// 2、将帧数据输入系统中，若系统未初始化则进行初始化，若初始化成功则进行跟踪
+		// 双目初始化流程：提取第一帧图像的特征并在右目图像中跟踪，并初始化惯导信息完成初始化
+		// 单目初始化流程：提取第一帧图像的特征并初始化惯导信息，在接下来输入系统的帧中找到位
+		//				   移较大的帧并且接下来连续5帧都可以成功跟踪则完成初始化
 		if (!initialized)
 		{
-			// 双目情况下设置初始化的第一帧图像
 			if (coarseInitializer->frameID < 0 && use_stereo)
 			{
-				coarseInitializer->setFirstStereo(&Hcalib, fh, fh_right);
-				initFirstFrame_imu(fh);
+				coarseInitializer->setFirstStereo(&Hcalib, fh, fhRight);
+				initFirstFrameImu(fh);
 				initializeFromInitializer(fh);
-				//initialized = true;		// 使用一帧双目的数据就可以成功进行初始化
 				marg_num = 0;
 				marg_num_half = 0;
 			}
-			// 单目情况下设置初始化的第一帧图像
 			else if (coarseInitializer->frameID < 0)
 			{
 				coarseInitializer->setFirst(&Hcalib, fh);
-				initFirstFrame_imu(fh);
+				initFirstFrameImu(fh);
 			}
-			// 初始化中找到位移较大的两帧并且连续5帧都可以跟踪成功
-			else if (coarseInitializer->trackFrame(fh, outputWrapper))	
+			else if (coarseInitializer->trackFrame(fh, outputWrapper))
 			{
 				initializeFromInitializer(fh);
-				lock.unlock();
-				deliverTrackedFrame(fh, fh_right, true);
+				lock.unlock();							// 跟踪完毕，释放与跟踪线程绑定的互斥锁
+				deliverTrackedFrame(fh, fhRight, true);	// 跟踪成功，将跟踪的帧提交进行建图线程进行建图操作
 			}
 			else
 			{
-				// if still initializing
 				fh->shell->poseValid = false;
 				delete fh;
+				fh = NULL;
 			}
-			/*std::ofstream f1;
-			std::string dsoposefile = "./data/" + savefile_tail + ".txt";
-			f1.open(dsoposefile, std::ios::out);
-			f1.close();
-			std::ofstream f2;
-			std::string gtfile = "./data/" + savefile_tail + "_gt.txt";
-			f2.open(gtfile, std::ios::out);
-			f2.close();*/
+
 			return;
 		}
-		// 系统已经初始化成功开始进行前端跟踪操作
 		else
 		{
-			// =========================== SWAP tracking reference?. =========================
+			// 系统中以滑窗中最后一帧作为coarseTraker的参考关键帧，建图线程会根据系统是否需要关键帧
+			// 向滑窗中添加关键帧，此时最新关键帧发生变化，要求coarseTraker更新参考帧
 			if (coarseTracker_forNewKF->refFrameID > coarseTracker->refFrameID)
 			{
 				std::unique_lock<std::mutex> crlock(coarseTrackerSwapMutex);
@@ -1229,6 +1251,7 @@ namespace dso
 				coarseTracker_forNewKF = tmp;
 			}
 
+			// coarseTracker handle跟踪最新进入系统的帧并根据返回值判断是否跟踪失败
 			Vec4 tres = trackNewCoarse(fh);
 
 			if (!std::isfinite((double)tres[0]) || !std::isfinite((double)tres[1]) ||
@@ -1239,6 +1262,7 @@ namespace dso
 				return;
 			}
 
+			// 根据系统设定、帧位置变化情况、亮度变化情况以及帧间时间间隔，向系统中添加关键帧
 			bool needToMakeKF = false;
 			if (setting_keyframesPerSecond > 0)
 			{
@@ -1250,6 +1274,9 @@ namespace dso
 				Vec2 refToFh = AffLight::fromToVecExposure(coarseTracker->lastRef->ab_exposure, fh->ab_exposure,
 					coarseTracker->lastRef_aff_g2l, fh->shell->aff_g2l);
 
+				double delta = 0;		// coarseTracker中参考帧与跟踪帧的像素位移
+				double interval = 0;	// coarseTracker中参考帧与跟踪帧的时间间隔
+
 				// 位置变化 & 亮度变化 & 时间间隔
 				needToMakeKF = allFrameHistory.size() == 1 ||
 					setting_kfGlobalWeight * setting_maxShiftWeightT * sqrtf((double)tres[1]) / (wG[0] + hG[0]) +
@@ -1257,66 +1284,51 @@ namespace dso
 					setting_kfGlobalWeight * setting_maxShiftWeightRT * sqrtf((double)tres[3]) / (wG[0] + hG[0]) +
 					setting_kfGlobalWeight * setting_maxAffineWeight * fabs(logf((float)refToFh[0])) > 1 ||
 					2 * coarseTracker->firstCoarseRMSE < tres[0];
-				double delta = setting_kfGlobalWeight * setting_maxShiftWeightT * sqrtf((double)tres[1]) / (wG[0] + hG[0]) +
+				delta = setting_kfGlobalWeight * setting_maxShiftWeightT * sqrtf((double)tres[1]) / (wG[0] + hG[0]) +
 					setting_kfGlobalWeight * setting_maxShiftWeightR * sqrtf((double)tres[2]) / (wG[0] + hG[0]) +
 					setting_kfGlobalWeight * setting_maxShiftWeightRT * sqrtf((double)tres[3]) / (wG[0] + hG[0]) +
 					setting_kfGlobalWeight * setting_maxAffineWeight * fabs(logf((float)refToFh[0]));
-				double interval = pic_time_stamp[fh->shell->incomingId] - pic_time_stamp[coarseTracker->lastRef->shell->incomingId];
+				interval = pic_time_stamp[fh->shell->incomingId] - pic_time_stamp[coarseTracker->lastRef->shell->incomingId];
 
 				if (interval >= 0.45 && delta > 0.5f) needToMakeKF = true;
 			}
 
+			// 3、跟踪成功后发布被跟踪的帧到建图线程中，发布跟踪结果到显示线程中并记录跟踪结果
 			for (IOWrap::Output3DWrapper* ow : outputWrapper)
 				ow->publishCamPose(fh->shell, &Hcalib);
 
 			lock.unlock();
-			deliverTrackedFrame(fh, fh_right, needToMakeKF);
+			deliverTrackedFrame(fh, fhRight, needToMakeKF);
 
-			Sophus::Matrix4d T = T_WD.matrix() * shell->camToWorld.matrix() * T_WD.inverse().matrix();
+			auto T = T_WD.matrix() * shell->camToWorld.matrix() * T_WD.inverse().matrix();
 			savetrajectory_tum(SE3(T), run_time);
+
 			return;
 		}
 	}
 
-	void FullSystem::initFirstFrame_imu(FrameHessian* fh)
+	/// <summary>
+	/// 初始化惯导信息：包含设置第一帧坐标系为世界系以及定义世界系与DSO系之间的变换
+	/// </summary>
+	/// <param name="fh">进入系统的第一帧数据</param>
+	void FullSystem::initFirstFrameImu(FrameHessian* fh)
 	{
-		int imuStartIdx = 0;
-		int imuStartIdxGT = 0;
+		int imuStartIdx = -1;
+		int imuStartIdxGT = -1;
+		double fhTime = pic_time_stamp[fh->shell->incomingId];
 
-		// 获取fh帧时刻对应的IMU数据索引
-		if (!imu_time_stamp.empty())
-		{
-			for (int idx = 0; idx < imu_time_stamp.size(); ++idx)
-			{
-				if (imu_time_stamp[idx] >= pic_time_stamp[fh->shell->incomingId] ||
-					std::fabs(imu_time_stamp[idx] - pic_time_stamp[fh->shell->incomingId]) < 0.001)
-				{
-					imuStartIdx = idx;
-					break;
-				}
-			}
-		}
+		imuStartIdx = findNearestIdx(imu_time_stamp, fhTime);
+		imuStartIdxGT = findNearestIdx(gt_time_stamp, fhTime);
 
-		if (!gt_time_stamp.empty())
-		{
-			for (int idx = 0; idx < gt_time_stamp.size(); ++idx)
-			{
-				if (gt_time_stamp[idx] >= pic_time_stamp[fh->shell->incomingId] ||
-					fabs(gt_time_stamp[idx] - pic_time_stamp[fh->shell->incomingId]) < 0.001)
-				{
-					imuStartIdxGT = idx;
-					break;
-				}
-			}
-		}
+		if (imuStartIdx == -1) printf("timestamp error, check it\n");
+		if (imuStartIdxGT == -1) printf("timestamp error, check it\n");
+		if (imuStartIdx == -1 || imuStartIdxGT == -1) return;
 
 		Vec3 g_b = Vec3::Zero();
-		Vec3 g_w; g_w << 0, 0, -1;	// 世界坐标系下的重力方向
+		Vec3 g_w(0, 0, -1);
 
-		// IMU开始工作时要求机器人静止一段时间采集静态IMU数据
-		// 此时采集到的IMU加速度计数据等于重力数据取负数
-		for (int j = 0; j < 40; j++)
-			g_b = g_b + m_acc[imuStartIdx - j];
+		for (int idx = 0; idx < 40; ++idx)
+			g_b = g_b + m_acc[imuStartIdx - idx];
 
 		g_b = -g_b / g_b.norm();
 		Vec3 g_c = T_BC.inverse().rotationMatrix() * g_b;
@@ -1330,8 +1342,11 @@ namespace dso
 		double sin_theta = nNorm;
 		double cos_theta = g_c.dot(g_w);
 
-		Mat33 R_wc = cos_theta * Mat33::Identity() + (1 - cos_theta) * rAxis_wc * rAxis_wc.transpose() + sin_theta * Sophus::SO3::hat(rAxis_wc);
+		Mat33 R_wc = sin_theta * Sophus::SO3::hat(rAxis_wc) +
+			cos_theta * Mat33::Identity() + (1 - cos_theta) * rAxis_wc * rAxis_wc.transpose();
 
+		// T_WR_align为GroundTruth与当前系统坐标系之间的变换
+		// 这个参数的作用为将GroundTruth坐标转换到当前系统坐标系下
 		SE3 T_wc(R_wc, Vec3::Zero());
 		if (gt_path.empty()) T_WR_align = SE3();
 		else T_WR_align = T_wc * T_BC.inverse() * gt_pose[imuStartIdxGT].inverse();
@@ -1340,61 +1355,64 @@ namespace dso
 		fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(), fh->shell->aff_g2l);
 
 		Mat33 R_wd = Mat33::Identity();
-
 		T_WD = Sim3(RxSO3(1, R_wd), Vec3::Zero());
 		T_WD_l = T_WD;
 		T_WD_l_half = T_WD;
 		state_twd.setZero();
 	}
 
-	void FullSystem::savetrajectory(const Sophus::Matrix4d &T)
+	/// <summary>
+	/// 保存系统跟踪得到的位姿信息
+	/// </summary>
+	/// <param name="T">待保存的位姿信息</param>
+	void FullSystem::savetrajectory(const Sophus::Matrix4d& T)
 	{
-		std::ofstream f1;
-		std::string dsoposefile = "./data/" + savefile_tail + ".txt";
-		f1.open(dsoposefile, std::ios::out | std::ios::app);
-		f1 << std::fixed << std::setprecision(9)
+		std::ofstream fs;
+		std::string dsoPoseFile = "./data/" + savefile_tail + ".txt";
+		fs.open(dsoPoseFile, std::ios::out | std::ios::app);
+
+		fs << std::fixed << std::setprecision(9)
 			<< T(0, 0) << " " << T(0, 1) << " " << T(0, 2) << " " << T(0, 3) << " "
 			<< T(1, 0) << " " << T(1, 1) << " " << T(1, 2) << " " << T(1, 3) << " "
 			<< T(2, 0) << " " << T(2, 1) << " " << T(2, 2) << " " << T(2, 3) << std::endl;
-		f1.close();
+		fs.close();
 	}
 
-	void FullSystem::savetrajectory_tum(const SE3 &T, double time)
+	/// <summary>
+	/// 按照TUM格式保存系统跟踪得到的位姿信息
+	/// </summary>
+	/// <param name="T"></param>
+	/// <param name="time"></param>
+	void FullSystem::savetrajectoryTum(const SE3& T, const double time)
 	{
-		std::ofstream f1;
-		std::string dsoposefile = "./data/" + savefile_tail + ".txt";
-		f1.open(dsoposefile, std::ios::out | std::ios::app);
+		std::ofstream fs;
+		std::string dsoPoseFile = "./data/" + savefile_tail + ".txt";
+		fs.open(dsoPoseFile, std::ios::out | std::ios::app);
 
-		Eigen::Quaterniond q = Eigen::Quaterniond(T.rotationMatrix());
-		Vec4 q4 = q.coeffs();
 		Vec3 t = T.translation();
+		Vec4 q = Eigen::Quaterniond(T.rotationMatrix()).coeffs();
 
-		f1 << std::fixed << std::setprecision(9) << time << " "
-			<< t(0) << " " << t(1) << " " << t(2) << " " << q4(0) << " " << q4(1) << " " << q4(2) << " " << q4(3) << std::endl;
-		f1.close();
+		fs << std::fixed << std::setprecision(9) << time << " "
+			<< t(0) << " " << t(1) << " " << t(2) << " "
+			<< q(0) << " " << q(1) << " " << q(2) << " " << q(3) << std::endl;
+		fs.close();
 
-		int index2 = 0;
-		if (gt_path.size() > 0 && gt_time_stamp.size() > 0) {
-			for (int i = 0; i < gt_time_stamp.size(); ++i) {
-				if (gt_time_stamp[i] >= time || fabs(gt_time_stamp[i] - time) < 0.001) {
-					index2 = i;
-					break;
-				}
-			}
-		}
-		if (gt_path.size() > 0 && fabs(gt_time_stamp[index2] - time) < 0.001) {
-			std::ofstream f2;
-			std::string gtfile = "./data/" + savefile_tail + "_gt.txt";
-			f2.open(gtfile, std::ios::out | std::ios::app);
+		int idxStart = -1;
+		findNearestIdx(gt_time_stamp, time);
+		assert(idxStart != -1);
 
-			SE3 gt_C = T_WR_align * gt_pose[index2] * T_BC;
-			q = Eigen::Quaterniond(gt_C.rotationMatrix());
-			q4 = q.coeffs();
-			t = gt_C.translation();
-			f2 << std::fixed << std::setprecision(9) << gt_time_stamp[index2] << " "
-				<< t(0) << " " << t(1) << " " << t(2) << " " << q4(0) << " " << q4(1) << " " << q4(2) << " " << q4(3) << std::endl;
-			f2.close();
-		}
+		std::ofstream fsGT;
+		std::string gtfile = "./data/" + savefile_tail + "_gt.txt";
+		fsGT.open(gtfile, std::ios::out | std::ios::app);
+
+		SE3 gt_C = T_WR_align * gt_pose[idxStart] * T_BC;
+		t = gt_C.translation();
+		q = Eigen::Quaterniond(gt_C.rotationMatrix()).coeffs();
+
+		fsGT << std::fixed << std::setprecision(9) << gt_time_stamp[idxStart] << " "
+			<< t(0) << " " << t(1) << " " << t(2) << " "
+			<< q(0) << " " << q(1) << " " << q(2) << " " << q(3) << std::endl;
+		fsGT.close();
 	}
 
 	/// <summary>
@@ -1435,6 +1453,7 @@ namespace dso
 			if (needKF) needNewKFAfter = fh->shell->trackingRef->id;
 			trackedFrameSignal.notify_all();
 
+			// 系统单目初始化的时候这两个handle的refFrameID同时为-1，这部分仅在初始化时会被调用
 			while (coarseTracker_forNewKF->refFrameID == -1 && coarseTracker->refFrameID == -1)
 			{
 				mappedFrameSignal.wait(lock);
@@ -1571,12 +1590,9 @@ namespace dso
 
 		// =========================== add New Frame to Hessian Struct. =========================
 		fh->idx = frameHessians.size();
-		// 	fh_right->idx = frameHessians_right.size();
-		frameHessians.push_back(fh);
-		// 	frameHessians_right.push_back(fh_right);
+		frameHessians.emplace_back(fh);
 		fh->frameID = allKeyFramesHistory.size();
-		fh->frame_right->frameID = 10000 + allKeyFramesHistory.size();
-		// 	fh->frame_right->frameID = allKeyFramesHistory.size();
+		fh->frameRight->frameID = 10000 + allKeyFramesHistory.size();
 
 		allKeyFramesHistory.push_back(fh->shell);
 		ef->insertFrame(fh, &Hcalib);

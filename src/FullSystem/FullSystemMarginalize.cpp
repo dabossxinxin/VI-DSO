@@ -157,15 +157,15 @@ void FullSystem::flagFramesForMarginalization(FrameHessian* newFH)
 void FullSystem::marginalizeFrame(FrameHessian* frame)
 {
 	// marginalize or remove all this frames points.
-
 	assert((int)frame->pointHessians.size()==0);
 
-	delete frame->frame_right->efFrame;
-	frame->frame_right->efFrame=0;
-	delete frame->frame_right;
+	delete frame->frameRight->efFrame;
+	frame->frameRight->efFrame = NULL;
+	delete frame->frameRight;
+	frame->frameRight = NULL;
 	ef->marginalizeFrame(frame->efFrame);
-	// drop all observations of existing points in that frame.
 
+	// drop all observations of existing points in that frame
 	for(FrameHessian* fh : frameHessians)
 	{
 		if(fh==frame) continue;

@@ -987,11 +987,11 @@ namespace dso
 	/// <param name="frameHessians">滑窗中所有的关键帧</param>
 	/// <param name="fh_right">在函数中好像并没有用到</param>
 	/// <param name="Hcalib">相机内参信息</param>
-	void CoarseTracker::setCoarseTrackingRef(std::vector<FrameHessian*> frameHessians, FrameHessian* fh_right, CalibHessian Hcalib)
+	void CoarseTracker::setCoarseTrackingRef(std::vector<FrameHessian*> frameHessians, FrameHessian* fhRight, CalibHessian Hcalib)
 	{
 		assert(frameHessians.size() > 0);
 		lastRef = frameHessians.back();
-		makeCoarseDepthL0(frameHessians, fh_right, Hcalib);
+		makeCoarseDepthL0(frameHessians, fhRight, Hcalib);
 
 		refFrameID = lastRef->shell->id;
 		lastRef_aff_g2l = lastRef->aff_g2l();

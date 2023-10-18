@@ -109,7 +109,7 @@ namespace dso
 		//DepthImageWrap* frame;
 		FrameShell* shell;
 
-		FrameHessian* frame_right;			// 双目情况时当前帧对应的双目图像帧
+		FrameHessian* frameRight;			// 双目情况时当前帧对应的双目图像帧
 
 		Eigen::Vector3f* dI;				// 当前帧的灰度通道图像数据:[0]为图像灰度值、[1]为x方向梯度、[2]为y方向梯度
 		Eigen::Vector3f* dIp[PYR_LEVELS];	// 当前帧不同金字塔层的图像数据:[0]为图像灰度值、[1]为x方向梯度、[2]为y方向梯度
@@ -430,7 +430,7 @@ namespace dso
 		inline void setIdepthZero(float idepth) {
 			idepth_zero = idepth;
 			idepth_zero_scaled = SCALE_IDEPTH * idepth;
-			nullspaces_scale = -(idepth*1.001 - idepth / 1.001) * 500;
+			nullspaces_scale = -(idepth * 1.001 - idepth / 1.001) * 500;
 		}
 
 		std::vector<PointFrameResidual*> residuals;					// only contains good residuals (not OOB and not OUTLIER). Arbitrary order.

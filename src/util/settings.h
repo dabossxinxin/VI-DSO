@@ -188,6 +188,7 @@ namespace dso
 	extern float freeDebugParam5;
 
 	void handleKey(char k);
+	int findNearestIdx(const std::vector <double>&, const double);
 
 	extern int staticPattern[10][40][2];
 	extern int staticPatternNum[10];

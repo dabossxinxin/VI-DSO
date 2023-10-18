@@ -177,7 +177,7 @@ PointHessian* FullSystem::optimizeImmaturePoint(
 	p->setIdepth(currentIdepth);
 	p->setPointStatus(PointHessian::ACTIVE);
 
-	PointFrameResidual* r = new PointFrameResidual(p, p->host, p->host->frame_right);
+	PointFrameResidual* r = new PointFrameResidual(p, p->host, p->host->frameRight);
 	r->state_NewEnergy = r->state_energy = 0;
 	r->state_NewState = ResState::OUTLIER;
 	r->setState(ResState::INNER);

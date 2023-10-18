@@ -132,7 +132,7 @@ namespace dso
 		virtual ~FullSystem();
 
 		// adds a new frame, and creates point & residual structs.
-		void addActiveFrame(ImageAndExposure* image, ImageAndExposure* image_right, int id);
+		void addActiveFrame(ImageAndExposure* image, ImageAndExposure* imageRight, int id);
 
 		// marginalizes a frame. drops / marginalizes points & residuals.
 		void marginalizeFrame(FrameHessian* frame);
@@ -158,9 +158,9 @@ namespace dso
 		void setOriginalCalib(const VecXf& originalCalib, int originalW, int originalH);
 
 		void savetrajectory(const Sophus::Matrix4d& T);
-		void savetrajectory_tum(const SE3& T, double time);
+		void savetrajectoryTum(const SE3& T, const double time);
 
-		void initFirstFrame_imu(FrameHessian* fh);
+		void initFirstFrameImu(FrameHessian* fh);
 
 	private:
 
@@ -179,7 +179,6 @@ namespace dso
 		void traceNewCoarseKey(FrameHessian* fh, FrameHessian* fhRight);
 		void activatePoints();
 		void activatePointsMT();
-		void activatePointsOldFirst();
 		void flagPointsForRemoval();
 		void makeNewTraces(FrameHessian* newFrame, float* gtDepth);
 		void initializeFromInitializer(FrameHessian* newFrame);
@@ -259,16 +258,18 @@ namespace dso
 		CoarseDistanceMap* coarseDistanceMap;
 
 		std::vector<FrameHessian*> frameHessians;		// 维护系统滑窗优化时滑窗中的关键帧
-		std::vector<FrameHessian*> frameHessians_right;	// 维护系统滑窗优化时滑窗中的关键帧，针对双目右相机图像
+		std::vector<FrameHessian*> frameHessiansRight;	// 维护系统滑窗优化时滑窗中的关键帧，针对双目右相机图像
 		std::vector<PointFrameResidual*> activeResiduals;
 		float currentMinActDist;
 
 		std::vector<float> allResVec;
 
-		// mutex etc. for tracker exchange.
-		std::mutex coarseTrackerSwapMutex;			// if tracker sees that there is a new reference, tracker locks [coarseTrackerSwapMutex] and swaps the two.
-		CoarseTracker* coarseTracker_forNewKF;			// set as as reference. protected by [coarseTrackerSwapMutex].
-		CoarseTracker* coarseTracker;					// always used to track new frames. protected by [trackMutex].
+		// 滑窗中将最后一帧作为coarseTracker参考关键帧，建图线程会改变滑窗关键帧序列，此时跟踪线程应该
+		// 重新更新coarseTracker参考关键帧，系统中设置两个coarseTracker handle分别管理参考帧关键帧变化
+		// 前后的coarseTracker
+		std::mutex coarseTrackerSwapMutex;				// 建图线程和跟踪线程都会访问下面两个handle，添加互斥锁保护
+		CoarseTracker* coarseTracker_forNewKF;			// tracker参考关键帧变化后实际采用的跟踪handle
+		CoarseTracker* coarseTracker;					// tracker参考关键帧变化前实际采用的跟踪handle
 		float minIdJetVisTracker, maxIdJetVisTracker;
 		float minIdJetVisDebug, maxIdJetVisDebug;
 
