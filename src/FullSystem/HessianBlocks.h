@@ -121,7 +121,7 @@ namespace dso
 
 		// Photometric Calibration Stuff
 		float frameEnergyTH;	// set dynamically depending on tracking residual
-		float ab_exposure;
+		float ab_exposure;		// 相机在当前帧的曝光时间
 
 		bool flaggedForMarginalization;
 
@@ -403,12 +403,12 @@ namespace dso
 
 		float idepth_scaled;
 		float idepth_zero_scaled;
-		float idepth_zero;
-		float idepth;
-		float step;
-		float step_backup;
-		float idepth_backup;
-
+		float idepth_zero;			
+		float idepth;				// 特征最新一次迭代得到的逆深度
+		float idepth_backup;		// 特征上一次迭代得到的更新量
+		float step;					// 特征逆深度最新一次迭代更新量
+		float step_backup;			// 特征逆深度上一次迭代更新量
+			
 		float nullspaces_scale;
 		float idepth_hessian;
 		float maxRelBaseline;

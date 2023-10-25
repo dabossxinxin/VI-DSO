@@ -919,8 +919,8 @@ namespace dso
 				if (ph->idepth_scaled < 0 || ph->residuals.empty())
 				{
 					host->pointHessiansOut.emplace_back(ph);
-					ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
 					host->pointHessians[it] = NULL;
+					ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
 					flag_ignores++;
 				}
 				else if (ph->isOOB(fhsToKeepPoints, fhsToMargPoints) || host->flaggedForMarginalization)
@@ -1301,7 +1301,7 @@ namespace dso
 			deliverTrackedFrame(fh, fhRight, needToMakeKF);
 
 			auto T = T_WD.matrix() * shell->camToWorld.matrix() * T_WD.inverse().matrix();
-			savetrajectory_tum(SE3(T), run_time);
+			savetrajectoryTum(SE3(T), run_time);
 
 			return;
 		}
@@ -1552,9 +1552,15 @@ namespace dso
 		mappingThread.join();
 	}
 
+	/// <summary>
+	/// 最新跟踪的帧fh不是关键帧时，设置该帧的位姿以及光度参数并且使用该帧追踪滑窗关键帧
+	/// 中的未成熟点，优化未成熟点的精度
+	/// </summary>
+	/// <param name="fh"></param>
+	/// <param name="fhRight"></param>
 	void FullSystem::makeNonKeyFrame(FrameHessian* fh, FrameHessian* fhRight)
 	{
-		//needs to be set by mapping thread. no lock required since we are in mapping thread.
+		// 1、根据跟踪结果设置帧fh的位姿以及光度参数
 		{
 			std::unique_lock<std::mutex> crlock(shellPoseMutex);
 			assert(fh->shell->trackingRef != 0);
@@ -1562,69 +1568,81 @@ namespace dso
 			fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(), fh->shell->aff_g2l);
 		}
 
+		// 2、滑窗中关键帧管理的未成熟点跟踪最新帧fh优化未成熟点的精度
 		traceNewCoarse(fh);
 
-		//traceNewCoarseNonKey(fh, fh_right);
+		// 3、帧fh不能成为关键帧，那么在用完fh后需要将其内存空间释放掉
 		delete fh;
+		fh = NULL;
 		delete fhRight;
+		fhRight = NULL;
 	}
 
+	/// <summary>
+	/// 最新跟踪的帧fh是关键帧时，系统进行滑窗优化并将边缘化的帧信息以及特征信息以舒尔补形式加入到优化中；
+	/// step1：设置最新跟踪帧的线性化点处位姿以及光度参数并让所有未成熟点都跟踪一下最新帧提升特征精度；
+	/// step2：标记需边缘化的滑窗关键帧并向优化函数中添加关键帧、特征以及残差，从而进行滑窗优化；
+	/// step3：进行滑窗优化并根据返回的优化残差判断初始化结果的好坏，并去除被观测次数为零的特征；
+	/// step4：对于标记为边缘化的帧和特征，计算其舒尔补保证信息不丢失，并在成员中去除帧和特征的结构；
+	/// </summary>
+	/// <param name="fh">最新跟踪的帧</param>
+	/// <param name="fhRight">最新跟踪的帧的右目帧</param>
 	void FullSystem::makeKeyFrame(FrameHessian* fh, FrameHessian* fhRight)
-	{
-		// needs to be set by mapping thread
+	{	
+		// 1、设置最新帧的位姿以及光度参数，并在最新帧中跟踪滑窗关键帧管理的未成熟点，提升其精度
 		{
 			std::unique_lock<std::mutex> crlock(shellPoseMutex);
 			assert(fh->shell->trackingRef != 0);
 			fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef;
 			fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(), fh->shell->aff_g2l);
 		}
-		// 	LOG(INFO)<<"make keyframe";
 		traceNewCoarse(fh);
-		// 	traceNewCoarseKey(fh, fh_right);
-		// 	traceNewCoarseNonKey(fh, fh_right);
 
 		std::unique_lock<std::mutex> lock(mapMutex);
 
-		// =========================== Flag Frames to be Marginalized. =========================
+		// 2、根据设定的准则确定滑窗中需要边缘化的帧并将最新跟踪到的帧加入滑窗关键帧中
 		flagFramesForMarginalization(fh);
 
-		// =========================== add New Frame to Hessian Struct. =========================
 		fh->idx = frameHessians.size();
 		frameHessians.emplace_back(fh);
 		fh->frameID = allKeyFramesHistory.size();
 		fh->frameRight->frameID = 10000 + allKeyFramesHistory.size();
+		allKeyFramesHistory.emplace_back(fh->shell);
 
-		allKeyFramesHistory.push_back(fh->shell);
+		// 3、向EnergyFunctio中添加关键帧、添加残差并激活更多的特征，进行基于滑窗的优化操作
 		ef->insertFrame(fh, &Hcalib);
-
 		setPrecalcValues();
 
-		// =========================== add new residuals for old points =========================
+		// 最新关键帧进入滑窗后，原来滑窗中管理的特征在最新关键帧中也有观测值，为
+		// 原来滑窗中管理的特征在最新关键帧与特征主帧间构造光度观测残差
 		int numFwdResAdde = 0;
-		for (FrameHessian* fh1 : frameHessians)		// go through all active frames
+		for (FrameHessian* itFh : frameHessians)
 		{
-			if (fh1 == fh) continue;
-			for (PointHessian* ph : fh1->pointHessians)
+			if (itFh == fh) continue;
+			for (PointHessian* ph : itFh->pointHessians)
 			{
-				PointFrameResidual* r = new PointFrameResidual(ph, fh1, fh);
+				PointFrameResidual* r = new PointFrameResidual(ph, itFh, fh);
 				r->setState(ResState::INNER);
-				ph->residuals.push_back(r);
+				ph->residuals.emplace_back(r);
 				ef->insertResidual(r);
 				ph->lastResiduals[1] = ph->lastResiduals[0];
 				ph->lastResiduals[0] = std::pair<PointFrameResidual*, ResState>(r, ResState::INNER);
 				numFwdResAdde += 1;
 			}
 		}
+		printf("Add %d features in Sliding Window\n", numFwdResAdde);
 
-		// =========================== Activate Points (& flag for marginalization). =========================
+		// 试着再激活一些特征，使得在滑窗优化中有充足的特征进行优化操作
 		activatePointsMT();
 		ef->makeIDX();
 
-		// =========================== OPTIMIZE ALL =========================
+		// 滑窗优化的执行步骤，并返回优化残差
 		fh->frameEnergyTH = frameHessians.back()->frameEnergyTH;
 		float rmse = optimize(setting_maxOptIterations);
 
-		// =========================== Figure Out if INITIALIZATION FAILED =========================
+		// 系统的初始化结果至关重要，为了保证良好的初始化结果，在系统刚开始一段时间内，持续校验滑窗内的优化残差；
+		// 若残差比较大说明系统初始化效果不好，应该放弃此次初始化；并且随着观测的关键帧数据增多，滑窗优化中用于
+		// 优化的数据越多，此时滑窗优化的残差应该降低，以满足对初始化结果的有效校验
 		if (allKeyFramesHistory.size() <= 4)
 		{
 			if (allKeyFramesHistory.size() == 2 && rmse > 20 * benchmark_initializerSlackFactor)
@@ -1646,9 +1664,10 @@ namespace dso
 
 		if (isLost) return;
 
-		// =========================== REMOVE OUTLIER =========================
+		// 4、去除被观测次数为零的特征，并维护coarseTracker的参考关键帧始终为滑窗最后一帧
 		removeOutliers();
 
+		// 滑窗关键帧发生改变后，以最后一帧滑窗关键帧为跟踪基准的coarseTracker也要发生改变
 		{
 			std::unique_lock<std::mutex> crlock(coarseTrackerSwapMutex);
 			coarseTracker_forNewKF->makeK(&Hcalib);
@@ -1660,25 +1679,17 @@ namespace dso
 
 		debugPlot("post Optimize");
 
-		// =========================== (Activate-)Marginalize Points =========================
+		// 5、滑窗优化完成后，为了维护滑窗中关键帧数量恒定，将需边缘化的帧和特征的信息以舒尔补形式加入Hessian和b
 		flagPointsForRemoval();
-		// 	LOG(INFO)<<"ef->dropPointsF()";
 		ef->dropPointsF();
-		// 	LOG(INFO)<<"after dropPoints: "<<ef->nPoints;
-		// 	LOG(INFO)<<"getNullspaces";
-		getNullspaces(
-			ef->lastNullspaces_pose,
-			ef->lastNullspaces_scale,
-			ef->lastNullspaces_affA,
-			ef->lastNullspaces_affB);
-		// 	LOG(INFO)<<"ef->marginalizePointsF();";
+		getNullspaces(ef->lastNullspaces_pose, ef->lastNullspaces_scale,
+			ef->lastNullspaces_affA, ef->lastNullspaces_affB);
+
+		// 边缘化精度较高的特征，将信息保留在关键帧中
 		ef->marginalizePointsF();
 
-		// 	LOG(INFO)<<"makeNewTraces";
-		// =========================== add new Immature points & new residuals =========================
-		makeNewTraces(fh, 0);
-
-		// 	LOG(INFO)<<"makeNewTraces end";
+		// 在最新滑窗关键帧中提取更多的特征，避免特征随着跟踪进行越来越少
+		makeNewTraces(fh, NULL);
 
 		for (IOWrap::Output3DWrapper* ow : outputWrapper)
 		{
@@ -1686,49 +1697,43 @@ namespace dso
 			ow->publishKeyframes(frameHessians, false, &Hcalib);
 		}
 
-		// LOG(INFO)<<"marginalizeFrame";
-		// =========================== Marginalize Frames =========================
-
-		for (unsigned int i = 0; i < frameHessians.size(); i++)
+		// 边缘化关键帧
+		for (unsigned int it = 0; it < frameHessians.size(); ++it)
 		{
-			if (frameHessians[i]->flaggedForMarginalization)
+			if (frameHessians[it]->flaggedForMarginalization)
 			{
-				marginalizeFrame(frameHessians[i]);
-				i = 0;
+				marginalizeFrame(frameHessians[it]);
+				it = 0;
 			}
 		}
-
-		//LOG(INFO)<<"make key end";
-		//delete fh_right;
-
-		//printLogLine();
-		//printEigenValLine();
 	}
 
+	/// <summary>
+	/// 在最新关键帧中使用pixelSelector选取特征，避免特征越跟踪越少
+	/// </summary>
+	/// <param name="newFrame">最新关键帧</param>
+	/// <param name="gtDepth">GroundTruth Depth</param>
 	void FullSystem::makeNewTraces(FrameHessian* newFrame, float* gtDepth)
 	{
 		pixelSelector->allowFast = true;
-		//int numPointsTotal = makePixelStatus(newFrame->dI, selectionMap, wG[0], hG[0], setting_desiredDensity);
 		int numPointsTotal = pixelSelector->makeMaps(newFrame, selectionMap, setting_desiredImmatureDensity);
 
-		newFrame->pointHessians.reserve(numPointsTotal*1.2f);
-		//fh->pointHessiansInactive.reserve(numPointsTotal*1.2f);
-		newFrame->pointHessiansMarginalized.reserve(numPointsTotal*1.2f);
-		newFrame->pointHessiansOut.reserve(numPointsTotal*1.2f);
+		newFrame->pointHessians.reserve(numPointsTotal * 1.2f);
+		newFrame->pointHessiansMarginalized.reserve(numPointsTotal * 1.2f);
+		newFrame->pointHessiansOut.reserve(numPointsTotal * 1.2f);
 
-		for (int y = patternPadding + 1; y < hG[0] - patternPadding - 2; y++)
+		for (int y = patternPadding + 1; y < hG[0] - patternPadding - 2; ++y)
 		{
-			for (int x = patternPadding + 1; x < wG[0] - patternPadding - 2; x++)
+			for (int x = patternPadding + 1; x < wG[0] - patternPadding - 2; ++x)
 			{
 				int i = x + y * wG[0];
 				if (selectionMap[i] == 0) continue;
 
-				ImmaturePoint* impt = new ImmaturePoint(x, y, newFrame, selectionMap[i], &Hcalib);
+				auto impt = new ImmaturePoint(x, y, newFrame, selectionMap[i], &Hcalib);
 				if (!std::isfinite(impt->energyTH)) delete impt;
-				else newFrame->immaturePoints.push_back(impt);
+				else newFrame->immaturePoints.emplace_back(impt);
 			}
 		}
-		//printf("MADE %d IMMATURE POINTS!\n", (int)newFrame->immaturePoints.size());
 	}
 
 	/// <summary>
@@ -1893,10 +1898,5 @@ namespace dso
 
 		lg->close();
 		delete lg;
-	}
-
-	void FullSystem::printEvalLine()
-	{
-		return;
 	}
 }

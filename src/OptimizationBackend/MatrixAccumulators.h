@@ -55,9 +55,9 @@ namespace dso
 			num = numIn1 + numIn1k + numIn1m;
 		}
 
-		inline void update(const Eigen::Matrix<float, i, 1> &L, const Eigen::Matrix<float, j, 1> &R, float w)
+		inline void update(const Eigen::Matrix<float, i, 1>& L, const Eigen::Matrix<float, j, 1>& R, float w)
 		{
-			A += w * L*R.transpose();
+			A += w * L * R.transpose();
 			numIn1++;
 			shiftUp(false);
 		}
@@ -603,19 +603,23 @@ namespace dso
 
 			int idx = 0;
 			for (int r = 0; r < 10; r++)
+			{
 				for (int c = r; c < 10; c++)
 				{
 					H(r, c) = H(c, r) = Data1m[idx];
 					idx++;
 				}
+			}
 
 			idx = 0;
 			for (int r = 0; r < 10; r++)
+			{
 				for (int c = 0; c < 3; c++)
 				{
 					H(r, c + 10) = H(c + 10, r) = TopRight_Data1m[idx];
 					idx++;
 				}
+			}
 
 			H(10, 10) = BotRight_Data1m[0];
 			H(10, 11) = H(11, 10) = BotRight_Data1m[1];
@@ -623,7 +627,6 @@ namespace dso
 			H(11, 11) = BotRight_Data1m[3];
 			H(11, 12) = H(12, 11) = BotRight_Data1m[4];
 			H(12, 12) = BotRight_Data1m[5];
-
 
 			num = numIn1 + numIn1k + numIn1m;
 		}
@@ -635,7 +638,6 @@ namespace dso
 			const float b,
 			const float c)
 		{
-
 			Data[0] += a * x[0] * x[0] + c * y[0] * y[0] + b * (x[0] * y[0] + y[0] * x[0]);
 			Data[1] += a * x[1] * x[0] + c * y[1] * y[0] + b * (x[1] * y[0] + y[1] * x[0]);
 			Data[2] += a * x[2] * x[0] + c * y[2] * y[0] + b * (x[2] * y[0] + y[2] * x[0]);
@@ -647,7 +649,6 @@ namespace dso
 			Data[8] += a * x[8] * x[0] + c * y[8] * y[0] + b * (x[8] * y[0] + y[8] * x[0]);
 			Data[9] += a * x[9] * x[0] + c * y[9] * y[0] + b * (x[9] * y[0] + y[9] * x[0]);
 
-
 			Data[10] += a * x[1] * x[1] + c * y[1] * y[1] + b * (x[1] * y[1] + y[1] * x[1]);
 			Data[11] += a * x[2] * x[1] + c * y[2] * y[1] + b * (x[2] * y[1] + y[2] * x[1]);
 			Data[12] += a * x[3] * x[1] + c * y[3] * y[1] + b * (x[3] * y[1] + y[3] * x[1]);
@@ -658,8 +659,6 @@ namespace dso
 			Data[17] += a * x[8] * x[1] + c * y[8] * y[1] + b * (x[8] * y[1] + y[8] * x[1]);
 			Data[18] += a * x[9] * x[1] + c * y[9] * y[1] + b * (x[9] * y[1] + y[9] * x[1]);
 
-
-
 			Data[19] += a * x[2] * x[2] + c * y[2] * y[2] + b * (x[2] * y[2] + y[2] * x[2]);
 			Data[20] += a * x[3] * x[2] + c * y[3] * y[2] + b * (x[3] * y[2] + y[3] * x[2]);
 			Data[21] += a * x[4] * x[2] + c * y[4] * y[2] + b * (x[4] * y[2] + y[4] * x[2]);
@@ -669,8 +668,6 @@ namespace dso
 			Data[25] += a * x[8] * x[2] + c * y[8] * y[2] + b * (x[8] * y[2] + y[8] * x[2]);
 			Data[26] += a * x[9] * x[2] + c * y[9] * y[2] + b * (x[9] * y[2] + y[9] * x[2]);
 
-
-
 			Data[27] += a * x[3] * x[3] + c * y[3] * y[3] + b * (x[3] * y[3] + y[3] * x[3]);
 			Data[28] += a * x[4] * x[3] + c * y[4] * y[3] + b * (x[4] * y[3] + y[4] * x[3]);
 			Data[29] += a * x[5] * x[3] + c * y[5] * y[3] + b * (x[5] * y[3] + y[5] * x[3]);
@@ -679,8 +676,6 @@ namespace dso
 			Data[32] += a * x[8] * x[3] + c * y[8] * y[3] + b * (x[8] * y[3] + y[8] * x[3]);
 			Data[33] += a * x[9] * x[3] + c * y[9] * y[3] + b * (x[9] * y[3] + y[9] * x[3]);
 
-
-
 			Data[34] += a * x[4] * x[4] + c * y[4] * y[4] + b * (x[4] * y[4] + y[4] * x[4]);
 			Data[35] += a * x[5] * x[4] + c * y[5] * y[4] + b * (x[5] * y[4] + y[5] * x[4]);
 			Data[36] += a * x[6] * x[4] + c * y[6] * y[4] + b * (x[6] * y[4] + y[6] * x[4]);
@@ -688,43 +683,41 @@ namespace dso
 			Data[38] += a * x[8] * x[4] + c * y[8] * y[4] + b * (x[8] * y[4] + y[8] * x[4]);
 			Data[39] += a * x[9] * x[4] + c * y[9] * y[4] + b * (x[9] * y[4] + y[9] * x[4]);
 
-
-
 			Data[40] += a * x[5] * x[5] + c * y[5] * y[5] + b * (x[5] * y[5] + y[5] * x[5]);
 			Data[41] += a * x[6] * x[5] + c * y[6] * y[5] + b * (x[6] * y[5] + y[6] * x[5]);
 			Data[42] += a * x[7] * x[5] + c * y[7] * y[5] + b * (x[7] * y[5] + y[7] * x[5]);
 			Data[43] += a * x[8] * x[5] + c * y[8] * y[5] + b * (x[8] * y[5] + y[8] * x[5]);
 			Data[44] += a * x[9] * x[5] + c * y[9] * y[5] + b * (x[9] * y[5] + y[9] * x[5]);
 
-
 			Data[45] += a * x[6] * x[6] + c * y[6] * y[6] + b * (x[6] * y[6] + y[6] * x[6]);
 			Data[46] += a * x[7] * x[6] + c * y[7] * y[6] + b * (x[7] * y[6] + y[7] * x[6]);
 			Data[47] += a * x[8] * x[6] + c * y[8] * y[6] + b * (x[8] * y[6] + y[8] * x[6]);
 			Data[48] += a * x[9] * x[6] + c * y[9] * y[6] + b * (x[9] * y[6] + y[9] * x[6]);
 
-
 			Data[49] += a * x[7] * x[7] + c * y[7] * y[7] + b * (x[7] * y[7] + y[7] * x[7]);
 			Data[50] += a * x[8] * x[7] + c * y[8] * y[7] + b * (x[8] * y[7] + y[8] * x[7]);
 			Data[51] += a * x[9] * x[7] + c * y[9] * y[7] + b * (x[9] * y[7] + y[9] * x[7]);
-
 
 			Data[52] += a * x[8] * x[8] + c * y[8] * y[8] + b * (x[8] * y[8] + y[8] * x[8]);
 			Data[53] += a * x[9] * x[8] + c * y[9] * y[8] + b * (x[9] * y[8] + y[9] * x[8]);
 
 			Data[54] += a * x[9] * x[9] + c * y[9] * y[9] + b * (x[9] * y[9] + y[9] * x[9]);
 
-
 			num++;
 			numIn1++;
 			shiftUp(false);
 		}
 
-
-
-
-		/*
-		 * same as other method, just that x/y are composed of two parts, the first 4 elements are in x4/y4, the last 6 in x6/y6.
-		 */
+		/// <summary>
+		/// 生成光度残差关于相机内参以及相机位姿部分的Hessian
+		/// </summary>
+		/// <param name="x4">特征在target帧上的u轴像素坐标相对相机内参的导数</param>
+		/// <param name="x6">特征在target帧上的u轴像素坐标相对相机位姿的导数</param>
+		/// <param name="y4">特征在target帧上的v轴像素坐标相对相机内参的导数</param>
+		/// <param name="y6">特征在target帧上的v轴像素坐标相对相机位姿的导数</param>
+		/// <param name="a">特征在target帧上的u轴方向梯度平方和</param>
+		/// <param name="b">特征在target帧上u轴和v轴梯度相乘之和</param>
+		/// <param name="c">特征在target帧上的v轴方向梯度平方和</param>
 		inline void update(
 			const float* const x4,
 			const float* const x6,
@@ -734,7 +727,6 @@ namespace dso
 			const float b,
 			const float c)
 		{
-
 			Data[0] += a * x4[0] * x4[0] + c * y4[0] * y4[0] + b * (x4[0] * y4[0] + y4[0] * x4[0]);
 			Data[1] += a * x4[1] * x4[0] + c * y4[1] * y4[0] + b * (x4[1] * y4[0] + y4[1] * x4[0]);
 			Data[2] += a * x4[2] * x4[0] + c * y4[2] * y4[0] + b * (x4[2] * y4[0] + y4[2] * x4[0]);
@@ -746,9 +738,6 @@ namespace dso
 			Data[8] += a * x6[4] * x4[0] + c * y6[4] * y4[0] + b * (x6[4] * y4[0] + y6[4] * x4[0]);
 			Data[9] += a * x6[5] * x4[0] + c * y6[5] * y4[0] + b * (x6[5] * y4[0] + y6[5] * x4[0]);
 
-
-
-
 			Data[10] += a * x4[1] * x4[1] + c * y4[1] * y4[1] + b * (x4[1] * y4[1] + y4[1] * x4[1]);
 			Data[11] += a * x4[2] * x4[1] + c * y4[2] * y4[1] + b * (x4[2] * y4[1] + y4[2] * x4[1]);
 			Data[12] += a * x4[3] * x4[1] + c * y4[3] * y4[1] + b * (x4[3] * y4[1] + y4[3] * x4[1]);
@@ -759,8 +748,6 @@ namespace dso
 			Data[17] += a * x6[4] * x4[1] + c * y6[4] * y4[1] + b * (x6[4] * y4[1] + y6[4] * x4[1]);
 			Data[18] += a * x6[5] * x4[1] + c * y6[5] * y4[1] + b * (x6[5] * y4[1] + y6[5] * x4[1]);
 
-
-
 			Data[19] += a * x4[2] * x4[2] + c * y4[2] * y4[2] + b * (x4[2] * y4[2] + y4[2] * x4[2]);
 			Data[20] += a * x4[3] * x4[2] + c * y4[3] * y4[2] + b * (x4[3] * y4[2] + y4[3] * x4[2]);
 			Data[21] += a * x6[0] * x4[2] + c * y6[0] * y4[2] + b * (x6[0] * y4[2] + y6[0] * x4[2]);
@@ -770,8 +757,6 @@ namespace dso
 			Data[25] += a * x6[4] * x4[2] + c * y6[4] * y4[2] + b * (x6[4] * y4[2] + y6[4] * x4[2]);
 			Data[26] += a * x6[5] * x4[2] + c * y6[5] * y4[2] + b * (x6[5] * y4[2] + y6[5] * x4[2]);
 
-
-
 			Data[27] += a * x4[3] * x4[3] + c * y4[3] * y4[3] + b * (x4[3] * y4[3] + y4[3] * x4[3]);
 			Data[28] += a * x6[0] * x4[3] + c * y6[0] * y4[3] + b * (x6[0] * y4[3] + y6[0] * x4[3]);
 			Data[29] += a * x6[1] * x4[3] + c * y6[1] * y4[3] + b * (x6[1] * y4[3] + y6[1] * x4[3]);
@@ -780,8 +765,6 @@ namespace dso
 			Data[32] += a * x6[4] * x4[3] + c * y6[4] * y4[3] + b * (x6[4] * y4[3] + y6[4] * x4[3]);
 			Data[33] += a * x6[5] * x4[3] + c * y6[5] * y4[3] + b * (x6[5] * y4[3] + y6[5] * x4[3]);
 
-
-
 			Data[34] += a * x6[0] * x6[0] + c * y6[0] * y6[0] + b * (x6[0] * y6[0] + y6[0] * x6[0]);
 			Data[35] += a * x6[1] * x6[0] + c * y6[1] * y6[0] + b * (x6[1] * y6[0] + y6[1] * x6[0]);
 			Data[36] += a * x6[2] * x6[0] + c * y6[2] * y6[0] + b * (x6[2] * y6[0] + y6[2] * x6[0]);
@@ -789,37 +772,30 @@ namespace dso
 			Data[38] += a * x6[4] * x6[0] + c * y6[4] * y6[0] + b * (x6[4] * y6[0] + y6[4] * x6[0]);
 			Data[39] += a * x6[5] * x6[0] + c * y6[5] * y6[0] + b * (x6[5] * y6[0] + y6[5] * x6[0]);
 
-
-
 			Data[40] += a * x6[1] * x6[1] + c * y6[1] * y6[1] + b * (x6[1] * y6[1] + y6[1] * x6[1]);
 			Data[41] += a * x6[2] * x6[1] + c * y6[2] * y6[1] + b * (x6[2] * y6[1] + y6[2] * x6[1]);
 			Data[42] += a * x6[3] * x6[1] + c * y6[3] * y6[1] + b * (x6[3] * y6[1] + y6[3] * x6[1]);
 			Data[43] += a * x6[4] * x6[1] + c * y6[4] * y6[1] + b * (x6[4] * y6[1] + y6[4] * x6[1]);
 			Data[44] += a * x6[5] * x6[1] + c * y6[5] * y6[1] + b * (x6[5] * y6[1] + y6[5] * x6[1]);
 
-
 			Data[45] += a * x6[2] * x6[2] + c * y6[2] * y6[2] + b * (x6[2] * y6[2] + y6[2] * x6[2]);
 			Data[46] += a * x6[3] * x6[2] + c * y6[3] * y6[2] + b * (x6[3] * y6[2] + y6[3] * x6[2]);
 			Data[47] += a * x6[4] * x6[2] + c * y6[4] * y6[2] + b * (x6[4] * y6[2] + y6[4] * x6[2]);
 			Data[48] += a * x6[5] * x6[2] + c * y6[5] * y6[2] + b * (x6[5] * y6[2] + y6[5] * x6[2]);
 
-
 			Data[49] += a * x6[3] * x6[3] + c * y6[3] * y6[3] + b * (x6[3] * y6[3] + y6[3] * x6[3]);
 			Data[50] += a * x6[4] * x6[3] + c * y6[4] * y6[3] + b * (x6[4] * y6[3] + y6[4] * x6[3]);
 			Data[51] += a * x6[5] * x6[3] + c * y6[5] * y6[3] + b * (x6[5] * y6[3] + y6[5] * x6[3]);
-
 
 			Data[52] += a * x6[4] * x6[4] + c * y6[4] * y6[4] + b * (x6[4] * y6[4] + y6[4] * x6[4]);
 			Data[53] += a * x6[5] * x6[4] + c * y6[5] * y6[4] + b * (x6[5] * y6[4] + y6[5] * x6[4]);
 
 			Data[54] += a * x6[5] * x6[5] + c * y6[5] * y6[5] + b * (x6[5] * y6[5] + y6[5] * x6[5]);
 
-
 			num++;
 			numIn1++;
 			shiftUp(false);
 		}
-
 
 		inline void updateTopRight(
 			const float* const x4,
@@ -869,7 +845,6 @@ namespace dso
 			TopRight_Data[27] += x6[5] * TR00 + y6[5] * TR10;
 			TopRight_Data[28] += x6[5] * TR01 + y6[5] * TR11;
 			TopRight_Data[29] += x6[5] * TR02 + y6[5] * TR12;
-
 		}
 
 		inline void updateBotRight(
@@ -888,9 +863,8 @@ namespace dso
 			BotRight_Data[5] += a22;
 		}
 
-
-
 	private:
+		// 表示残差关于相机内参以及相机位姿的Hessian数据
 		EIGEN_ALIGN16 float Data[60];
 		EIGEN_ALIGN16 float Data1k[60];
 		EIGEN_ALIGN16 float Data1m[60];

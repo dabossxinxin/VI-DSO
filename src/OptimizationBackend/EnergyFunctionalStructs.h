@@ -78,7 +78,7 @@ namespace dso
 		// 	VecNRf res_toZeroF;
 		// 	Vec8f JpJdF=Vec8f::Zero();
 		EIGEN_ALIGN16 VecNRf res_toZeroF;
-		EIGEN_ALIGN16 Vec8f JpJdF = Vec8f::Zero();
+		EIGEN_ALIGN16 Vec8f JpJdF = Vec8f::Zero();		// p表示帧位姿以及光度参数、d表示特征逆深度
 
 		// status.
 		bool isLinearized;
@@ -115,12 +115,12 @@ namespace dso
 
 		float bdSumF;
 		float HdiF = 1e-3;		// TODO
-		float Hdd_accLF;
-		VecCf Hcd_accLF;
-		float bd_accLF;
-		float Hdd_accAF;
-		VecCf Hcd_accAF;
-		float bd_accAF;
+		float Hdd_accLF;		// 特征线性化状态下的你深度Hessian
+		VecCf Hcd_accLF;		// 特征线性化状态下的逆深度&相机内参Hessian
+		float bd_accLF;			// 特征线性化状态下的逆深度b
+		float Hdd_accAF;		// 特征激活状态下的逆深度Hessian
+		VecCf Hcd_accAF;		// 特征激活状态下的逆深度&相机内参Hessian
+		float bd_accAF;			// 特征激活状态下的逆深度b
 
 		EFPointStatus stateFlag;
 	};

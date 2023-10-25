@@ -187,6 +187,26 @@ namespace dso
 	extern float freeDebugParam4;
 	extern float freeDebugParam5;
 
+	template <typename T>
+	inline void freePointer(T* ptr)
+	{
+		if (ptr != NULL)
+		{
+			delete ptr;
+			ptr = NULL;
+		}
+	}
+
+	template <typename T>
+	inline void freePointerVec(T* ptr)
+	{
+		if (ptr != NULL)
+		{
+			delete[] ptr;
+			ptr = NULL;
+		}
+	}
+
 	void handleKey(char k);
 	int findNearestIdx(const std::vector <double>&, const double);
 

@@ -172,17 +172,17 @@ namespace dso
 		// Affine Parameters:
 		double a, b;	// I_frame = exp(a)*I_global + b. // I_global = exp(-a)*(I_frame - b).
 
-		static Vec2 fromToVecExposure(float exposureF, float exposureT, AffLight g2F, AffLight g2T)
+		static Vec2 fromToVecExposure(float exposureH, float exposureT, AffLight g2H, AffLight g2T)
 		{
-			if (exposureF == 0 || exposureT == 0)
+			if (exposureH == 0 || exposureT == 0)
 			{
-				exposureT = exposureF = 1;
+				exposureT = exposureH = 1;
 				//printf("got exposure value of 0! please choose the correct model.\n");
 				//assert(setting_brightnessTransferFunc < 2);
 			}
 
-			double a = exp(g2T.a - g2F.a) * exposureT / exposureF;
-			double b = g2T.b - a * g2F.b;
+			double a = exp(g2T.a - g2H.a) * exposureT / exposureH;
+			double b = g2T.b - a * g2H.b;
 			return Vec2(a, b);
 		}
 

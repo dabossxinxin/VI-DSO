@@ -63,48 +63,54 @@ namespace dso
 		residuals.clear();
 	}
 
-	void FrameHessian::setStateZero(const Vec10 &state_zero)
+	/// <summary>
+	/// 求解当前帧位姿参数以及光度参数的零空间
+	/// </summary>
+	/// <param name="state_zero"></param>
+	void FrameHessian::setStateZero(const Vec10& state_zero)
 	{
 		assert(state_zero.head<6>().squaredNorm() < 1e-20);
 		this->state_zero = state_zero;
+		Vec6 eps;
 
-		for (int i = 0; i < 6; i++)
+		// 计算位姿零空间
+		for (int it = 0; it < 6; ++it)
 		{
-			Vec6 eps; eps.setZero(); eps[i] = 1e-3;
+			eps.setZero();
+			eps[it] = 1e-3;
+
 			SE3 EepsP = SE3::exp(eps);
 			SE3 EepsM = SE3::exp(-eps);
 			SE3 w2c_leftEps_P_x0 = (get_worldToCam_evalPT() * EepsP) * get_worldToCam_evalPT().inverse();
 			SE3 w2c_leftEps_M_x0 = (get_worldToCam_evalPT() * EepsM) * get_worldToCam_evalPT().inverse();
-			nullspaces_pose.col(i) = (w2c_leftEps_P_x0.log() - w2c_leftEps_M_x0.log()) / (2e-3);
+			nullspaces_pose.col(it) = (w2c_leftEps_P_x0.log() - w2c_leftEps_M_x0.log()) / (2e-3);
 		}
-		//nullspaces_pose.topRows<3>() *= SCALE_XI_TRANS_INVERSE;
-		//nullspaces_pose.bottomRows<3>() *= SCALE_XI_ROT_INVERSE;
 
-		// scale change
+		// 计算尺度零空间
 		SE3 w2c_leftEps_P_x0 = (get_worldToCam_evalPT());
-		w2c_leftEps_P_x0.translation() *= 1.00001;
+		w2c_leftEps_P_x0.translation() *= 1.001;
 		w2c_leftEps_P_x0 = w2c_leftEps_P_x0 * get_worldToCam_evalPT().inverse();
 		SE3 w2c_leftEps_M_x0 = (get_worldToCam_evalPT());
-		w2c_leftEps_M_x0.translation() /= 1.00001;
+		w2c_leftEps_M_x0.translation() /= 1.001;
 		w2c_leftEps_M_x0 = w2c_leftEps_M_x0 * get_worldToCam_evalPT().inverse();
 		nullspaces_scale = (w2c_leftEps_P_x0.log() - w2c_leftEps_M_x0.log()) / (2e-3);
 
-
+		// 计算光度参数零空间                                
 		nullspaces_affine.setZero();
 		nullspaces_affine.topLeftCorner<2, 1>() = Vec2(1, 0);
 		assert(ab_exposure > 0);
-		nullspaces_affine.topRightCorner<2, 1>() = Vec2(0, expf(aff_g2l_0().a)*ab_exposure);
+		nullspaces_affine.topRightCorner<2, 1>() = Vec2(0, expf(aff_g2l_0().a) * ab_exposure);
 	};
 
+	/// <summary>
+	/// 析构帧内内存空间
+	/// </summary>
 	void FrameHessian::release()
 	{
-		// DELETE POINT
-		// DELETE RESIDUAL
-		for (unsigned int i = 0; i < pointHessians.size(); i++) delete pointHessians[i];
-		for (unsigned int i = 0; i < pointHessiansMarginalized.size(); i++) delete pointHessiansMarginalized[i];
-		for (unsigned int i = 0; i < pointHessiansOut.size(); i++) delete pointHessiansOut[i];
-		for (unsigned int i = 0; i < immaturePoints.size(); i++) delete immaturePoints[i];
-
+		for (unsigned int it = 0; it < pointHessians.size(); ++it) delete pointHessians[it];
+		for (unsigned int it = 0; it < pointHessiansMarginalized.size(); ++it) delete pointHessiansMarginalized[it];
+		for (unsigned int it = 0; it < pointHessiansOut.size(); ++it) delete pointHessiansOut[it];
+		for (unsigned int it = 0; it < immaturePoints.size(); ++it) delete immaturePoints[it];
 
 		pointHessians.clear();
 		pointHessiansMarginalized.clear();
@@ -159,10 +165,10 @@ namespace dso
 			}
 
 			// 计算第lvl层金字塔图像的梯度
-			for (int idx = wl; idx < wl*(hl - 1); ++idx)
+			for (int idx = wl; idx < wl * (hl - 1); ++idx)
 			{
-				float dx = 0.5f*(dI_l[idx + 1][0] - dI_l[idx - 1][0]);
-				float dy = 0.5f*(dI_l[idx + wl][0] - dI_l[idx - wl][0]);
+				float dx = 0.5f * (dI_l[idx + 1][0] - dI_l[idx - 1][0]);
+				float dy = 0.5f * (dI_l[idx + wl][0] - dI_l[idx - wl][0]);
 
 				if (!std::isfinite(dx)) dx = 0;
 				if (!std::isfinite(dy)) dy = 0;
@@ -191,7 +197,6 @@ namespace dso
 		PRE_RTll_0 = (leftToLeft_0.rotationMatrix()).cast<float>();
 		PRE_tTll_0 = (leftToLeft_0.translation()).cast<float>();
 
-		// 
 		SE3 leftToLeft = target->PRE_worldToCam * host->PRE_camToWorld;
 		PRE_RTll = (leftToLeft.rotationMatrix()).cast<float>();
 		PRE_tTll = (leftToLeft.translation()).cast<float>();

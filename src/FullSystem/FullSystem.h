@@ -86,22 +86,23 @@ namespace dso
 	template<typename T>
 	inline void deleteOutOrder(std::vector<T*>& v, const T* element)
 	{
-		int i = -1;
+		int idx = -1;
 		for (unsigned int k = 0; k < v.size(); k++)
 		{
 			if (v[k] == element)
 			{
-				i = k;
+				idx = k;
 				break;
 			}
 		}
-		assert(i != -1);
+		assert(idx != -1);
 
-		for (unsigned int k = i + 1; k < v.size(); k++)
+		for (unsigned int k = idx + 1; k < v.size(); k++)
 			v[k - 1] = v[k];
 		v.pop_back();
 
 		delete element;
+		element = NULL;
 	}
 
 	inline bool eigenTestNan(const MatXX& m, std::string msg)
@@ -177,7 +178,6 @@ namespace dso
 		void traceNewCoarse(FrameHessian* fh);
 		void traceNewCoarseNonKey(FrameHessian* fh, FrameHessian* fhRight);
 		void traceNewCoarseKey(FrameHessian* fh, FrameHessian* fhRight);
-		void activatePoints();
 		void activatePointsMT();
 		void flagPointsForRemoval();
 		void makeNewTraces(FrameHessian* newFrame, float* gtDepth);
@@ -214,7 +214,6 @@ namespace dso
 		void setNewFrameEnergyTH();
 
 		void printLogLine();
-		void printEvalLine();
 		void printEigenValLine();
 
 		// 各个模块的log信息

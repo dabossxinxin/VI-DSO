@@ -69,8 +69,8 @@ namespace dso
 					{
 						PointHessian* p = r->point;
 						Vec3f ptp_inf = r->host->targetPrecalc[r->target->idx].PRE_KRKiTll * Vec3f(p->u, p->v, 1);	// projected point assuming infinite depth.
-						Vec3f ptp = ptp_inf + r->host->targetPrecalc[r->target->idx].PRE_KtTll*p->idepth_scaled;	// projected point with real depth.
-						float relBS = 0.01*((ptp_inf.head<2>() / ptp_inf[2]) - (ptp.head<2>() / ptp[2])).norm();	// 0.01 = one pixel.
+						Vec3f ptp = ptp_inf + r->host->targetPrecalc[r->target->idx].PRE_KtTll * p->idepth_scaled;	// projected point with real depth.
+						float relBS = 0.01 * ((ptp_inf.head<2>() / ptp_inf[2]) - (ptp.head<2>() / ptp[2])).norm();	// 0.01 = one pixel.
 
 						if (relBS > p->maxRelBaseline)
 							p->maxRelBaseline = relBS;
@@ -120,8 +120,8 @@ namespace dso
 		float nthElement = sqrtf(allResVec[nthIdx]);
 
 		newFrame->frameEnergyTH = nthElement * setting_frameEnergyTHFacMedian;
-		newFrame->frameEnergyTH = 26.0f*setting_frameEnergyTHConstWeight + newFrame->frameEnergyTH*(1 - setting_frameEnergyTHConstWeight);
-		newFrame->frameEnergyTH = newFrame->frameEnergyTH*newFrame->frameEnergyTH;
+		newFrame->frameEnergyTH = 26.0f * setting_frameEnergyTHConstWeight + newFrame->frameEnergyTH * (1 - setting_frameEnergyTHConstWeight);
+		newFrame->frameEnergyTH = newFrame->frameEnergyTH * newFrame->frameEnergyTH;
 		newFrame->frameEnergyTH *= setting_overallEnergyTHWeight * setting_overallEnergyTHWeight;
 
 		/*int good=0,bad=0;
@@ -142,7 +142,7 @@ namespace dso
 
 		if (multiThreading)
 		{
-			treadReduce.reduce(std::bind(&FullSystem::linearizeAll_Reductor, this, fixLinearization, toRemove, 
+			treadReduce.reduce(std::bind(&FullSystem::linearizeAll_Reductor, this, fixLinearization, toRemove,
 				std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, activeResiduals.size(), 0);
 			lastEnergyP = treadReduce.stats[0];
 		}
@@ -213,7 +213,7 @@ namespace dso
 			for (FrameHessian* fh : frameHessians)
 			{
 				Vec10 step = fh->step;
-				step.head<6>() += 0.5f*(fh->step_backup.head<6>());
+				step.head<6>() += 0.5f * (fh->step_backup.head<6>());
 
 				fh->setState(fh->state_backup + step);
 				sumA += step[6] * step[6];
@@ -223,7 +223,7 @@ namespace dso
 
 				for (PointHessian* ph : fh->pointHessians)
 				{
-					float step = ph->step + 0.5f*(ph->step_backup);
+					float step = ph->step + 0.5f * (ph->step_backup);
 					ph->setIdepth(ph->idepth_backup + step);
 					sumID += step * step;
 					sumNID += fabsf(ph->idepth_backup);
@@ -237,10 +237,11 @@ namespace dso
 		{
 			Hcalib.setValue(Hcalib.value_backup + stepfacC * Hcalib.step);
 			T_WD_change = Sim3::exp(Vec7::Zero());
-			if (imu_use_flag) {
-				// 		  T_WD = T_WD*change;
+			if (imu_use_flag) 
+			{
 				state_twd += stepfacC * step_twd;
-				if (std::exp(state_twd[6]) < 0.1 || std::exp(state_twd[6]) > 10) {
+				if (std::exp(state_twd[6]) < 0.1 || std::exp(state_twd[6]) > 10) 
+				{
 					initFailed = true;
 					first_track_flag = false;
 					return false;
@@ -257,25 +258,23 @@ namespace dso
 				// 		  T_WD = Sim3(RxSO3(s_new*s_wd,T_WD_temp.rotationMatrix()),Vec3::Zero());+
 				T_WD = T_WD_l * T_WD_change;
 
-				if (marg_num_half == 0) 
+				if (marg_num_half == 0)
 				{
 					T_WD_l = T_WD;
 					state_twd.setZero();
 				}
-				// 		  LOG(INFO)<<"T_WD.scale(): "<<T_WD.scale();
-				// 		  LOG(INFO)<<"T_WD.translation(): "<<T_WD.translation().transpose();
-
 			}
+
 			for (FrameHessian* fh : frameHessians)
 			{
-				// 			LOG(INFO)<<"fh->step: "<<fh->step;
-				// 			LOG(INFO)<<"fh"<<fh->get_worldToCam_evalPT().matrix();
 				fh->setState(fh->state_backup + pstepfac.cwiseProduct(fh->step));
 				sumA += fh->step[6] * fh->step[6];
 				sumB += fh->step[7] * fh->step[7];
 				sumT += fh->step.segment<3>(0).squaredNorm();
 				sumR += fh->step.segment<3>(3).squaredNorm();
-				if (imu_use_flag) {
+
+				if (imu_use_flag) 
+				{
 					fh->velocity += stepfacC * fh->step_imu.block(0, 0, 3, 1);
 					fh->delta_bias_g += stepfacC * fh->step_imu.block(3, 0, 3, 1);
 					fh->delta_bias_a += stepfacC * fh->step_imu.block(6, 0, 3, 1);
@@ -287,7 +286,7 @@ namespace dso
 				for (PointHessian* ph : fh->pointHessians)
 				{
 					ph->setIdepth(ph->idepth_backup + stepfacD * ph->step);
-					sumID += ph->step*ph->step;
+					sumID += ph->step * ph->step;
 					sumNID += fabsf(ph->idepth_backup);
 					numID++;
 
@@ -305,18 +304,18 @@ namespace dso
 
 		if (!setting_debugout_runquiet)
 			printf("STEPS: A %.1f; B %.1f; R %.1f; T %.1f. \t",
-				sqrtf(sumA) / (0.0005*setting_thOptIterations),
-				sqrtf(sumB) / (0.00005*setting_thOptIterations),
-				sqrtf(sumR) / (0.00005*setting_thOptIterations),
-				sqrtf(sumT)*sumNID / (0.00005*setting_thOptIterations));
+				sqrtf(sumA) / (0.0005 * setting_thOptIterations),
+				sqrtf(sumB) / (0.00005 * setting_thOptIterations),
+				sqrtf(sumR) / (0.00005 * setting_thOptIterations),
+				sqrtf(sumT) * sumNID / (0.00005 * setting_thOptIterations));
 
 		EFDeltaValid = false;
 		setPrecalcValues();
 
-		return sqrtf(sumA) < 0.0005*setting_thOptIterations &&
-			sqrtf(sumB) < 0.00005*setting_thOptIterations &&
-			sqrtf(sumR) < 0.00005*setting_thOptIterations &&
-			sqrtf(sumT)*sumNID < 0.00005*setting_thOptIterations;
+		return sqrtf(sumA) < 0.0005 * setting_thOptIterations &&
+			sqrtf(sumB) < 0.00005 * setting_thOptIterations &&
+			sqrtf(sumR) < 0.00005 * setting_thOptIterations &&
+			sqrtf(sumT) * sumNID < 0.00005 * setting_thOptIterations;
 
 		//printf("mean steps: %f %f %f!\n", meanStepC, meanStepP, meanStepD);
 	}
@@ -400,10 +399,10 @@ namespace dso
 	}
 
 
-	void FullSystem::printOptRes(const Vec3 &res, double resL, double resM, double resPrior, double LExact, float a, float b)
+	void FullSystem::printOptRes(const Vec3& res, double resL, double resM, double resPrior, double LExact, float a, float b)
 	{
 		printf("A(%f)=(AV %.3f). Num: A(%'d) + M(%'d); ab %f %f!\n",
-			res[0], sqrtf((float)(res[0] / (patternNum*ef->resInA))), ef->resInA, ef->resInM, a, b);
+			res[0], sqrtf((float)(res[0] / (patternNum * ef->resInA))), ef->resInA, ef->resInM, a, b);
 	}
 
 
@@ -445,7 +444,7 @@ namespace dso
 		double lastEnergyM = calcMEnergy();
 
 		if (multiThreading)
-			treadReduce.reduce(std::bind(&FullSystem::applyRes_Reductor, this, true, 
+			treadReduce.reduce(std::bind(&FullSystem::applyRes_Reductor, this, true,
 				std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, activeResiduals.size(), 50);
 		else
 			applyRes_Reductor(true, 0, activeResiduals.size(), 0, 0);
@@ -472,10 +471,10 @@ namespace dso
 
 			if (std::isfinite(incDirChange) && (setting_solverMode & SOLVER_STEPMOMENTUM))
 			{
-				float newStepsize = exp(incDirChange*1.4);
-				if (incDirChange < 0 && stepsize>1) stepsize = 1;
+				float newStepsize = exp(incDirChange * 1.4);
+				if (incDirChange < 0 && stepsize > 1) stepsize = 1;
 
-				stepsize = sqrtf(sqrtf(newStepsize*stepsize*stepsize*stepsize));
+				stepsize = sqrtf(sqrtf(newStepsize * stepsize * stepsize * stepsize));
 				if (stepsize > 2) stepsize = 2;
 				if (stepsize < 0.25) stepsize = 0.25;
 			}
@@ -504,7 +503,7 @@ namespace dso
 				lastEnergy[0] + lastEnergy[1] + lastEnergyL + lastEnergyM))
 			{
 				if (multiThreading)
-					treadReduce.reduce(std::bind(&FullSystem::applyRes_Reductor, this, true, 
+					treadReduce.reduce(std::bind(&FullSystem::applyRes_Reductor, this, true,
 						std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, activeResiduals.size(), 50);
 				else
 					applyRes_Reductor(true, 0, activeResiduals.size(), 0, 0);
@@ -559,13 +558,13 @@ namespace dso
 			isLost = true;
 		}
 
-		statistics_lastFineTrackRMSE = sqrtf((float)(lastEnergy[0] / (patternNum*ef->resInA)));
+		statistics_lastFineTrackRMSE = sqrtf((float)(lastEnergy[0] / (patternNum * ef->resInA)));
 
 		if (calibLog != 0)
 		{
 			(*calibLog) << Hcalib.value_scaled.transpose() <<
 				" " << frameHessians.back()->get_state_scaled().transpose() <<
-				" " << sqrtf((float)(lastEnergy[0] / (patternNum*ef->resInA))) <<
+				" " << sqrtf((float)(lastEnergy[0] / (patternNum * ef->resInA))) <<
 				" " << ef->resInM << "\n";
 			calibLog->flush();
 		}
@@ -581,7 +580,7 @@ namespace dso
 
 		debugPlotTracking();
 
-		return sqrtf((float)(lastEnergy[0] / (patternNum*ef->resInA)));
+		return sqrtf((float)(lastEnergy[0] / (patternNum * ef->resInA)));
 	}
 
 	void FullSystem::solveSystem(int iteration, double lambda)
@@ -603,23 +602,26 @@ namespace dso
 		return Ef;
 	}
 
+	/// <summary>
+	/// 去除残差数量为0的特征
+	/// </summary>
 	void FullSystem::removeOutliers()
 	{
 		int numPointsDropped = 0;
 		for (FrameHessian* fh : frameHessians)
 		{
-			for (unsigned int i = 0; i < fh->pointHessians.size(); i++)
+			for (unsigned int it = 0; it < fh->pointHessians.size(); ++it)
 			{
-				PointHessian* ph = fh->pointHessians[i];
-				if (ph == 0) continue;
+				auto ph = fh->pointHessians[it];
+				if (ph == NULL) continue;
 
-				if (ph->residuals.size() == 0)
+				if (ph->residuals.empty())
 				{
-					fh->pointHessiansOut.push_back(ph);
-					ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
-					fh->pointHessians[i] = fh->pointHessians.back();
+					fh->pointHessiansOut.emplace_back(ph);
+					fh->pointHessians[it] = fh->pointHessians.back();
 					fh->pointHessians.pop_back();
-					i--;
+					ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
+					it--;
 					numPointsDropped++;
 				}
 			}
@@ -627,8 +629,8 @@ namespace dso
 		ef->dropPointsF();
 	}
 
-	std::vector<VecX> FullSystem::getNullspaces(std::vector<VecX> &nullspaces_pose,
-		std::vector<VecX> &nullspaces_scale, std::vector<VecX> &nullspaces_affA, std::vector<VecX> &nullspaces_affB)
+	std::vector<VecX> FullSystem::getNullspaces(std::vector<VecX>& nullspaces_pose,
+		std::vector<VecX>& nullspaces_scale, std::vector<VecX>& nullspaces_affA, std::vector<VecX>& nullspaces_affB)
 	{
 		nullspaces_pose.clear();
 		nullspaces_scale.clear();
@@ -637,32 +639,32 @@ namespace dso
 
 		int n = CPARS + frameHessians.size() * 8;
 		std::vector<VecX> nullspaces_x0_pre;
-		for (int i = 0; i < 6; i++)
+		for (int it = 0; it < 6; ++it)
 		{
 			VecX nullspace_x0(n);
 			nullspace_x0.setZero();
 			for (FrameHessian* fh : frameHessians)
 			{
-				nullspace_x0.segment<6>(CPARS + fh->idx * 8) = fh->nullspaces_pose.col(i);
+				nullspace_x0.segment<6>(CPARS + fh->idx * 8) = fh->nullspaces_pose.col(it);
 				nullspace_x0.segment<3>(CPARS + fh->idx * 8) *= SCALE_XI_TRANS_INVERSE;
 				nullspace_x0.segment<3>(CPARS + fh->idx * 8 + 3) *= SCALE_XI_ROT_INVERSE;
 			}
-			nullspaces_x0_pre.push_back(nullspace_x0);
-			nullspaces_pose.push_back(nullspace_x0);
+			nullspaces_x0_pre.emplace_back(nullspace_x0);
+			nullspaces_pose.emplace_back(nullspace_x0);
 		}
-		for (int i = 0; i < 2; i++)
+		for (int it = 0; it < 2; ++it)
 		{
 			VecX nullspace_x0(n);
 			nullspace_x0.setZero();
 			for (FrameHessian* fh : frameHessians)
 			{
-				nullspace_x0.segment<2>(CPARS + fh->idx * 8 + 6) = fh->nullspaces_affine.col(i).head<2>();
+				nullspace_x0.segment<2>(CPARS + fh->idx * 8 + 6) = fh->nullspaces_affine.col(it).head<2>();
 				nullspace_x0[CPARS + fh->idx * 8 + 6] *= SCALE_A_INVERSE;
 				nullspace_x0[CPARS + fh->idx * 8 + 7] *= SCALE_B_INVERSE;
 			}
-			nullspaces_x0_pre.push_back(nullspace_x0);
-			if (i == 0) nullspaces_affA.push_back(nullspace_x0);
-			if (i == 1) nullspaces_affB.push_back(nullspace_x0);
+			nullspaces_x0_pre.emplace_back(nullspace_x0);
+			if (it == 0) nullspaces_affA.emplace_back(nullspace_x0);
+			if (it == 1) nullspaces_affB.emplace_back(nullspace_x0);
 		}
 
 		VecX nullspace_x0(n);
@@ -673,8 +675,8 @@ namespace dso
 			nullspace_x0.segment<3>(CPARS + fh->idx * 8) *= SCALE_XI_TRANS_INVERSE;
 			nullspace_x0.segment<3>(CPARS + fh->idx * 8 + 3) *= SCALE_XI_ROT_INVERSE;
 		}
-		nullspaces_x0_pre.push_back(nullspace_x0);
-		nullspaces_scale.push_back(nullspace_x0);
+		nullspaces_x0_pre.emplace_back(nullspace_x0);
+		nullspaces_scale.emplace_back(nullspace_x0);
 
 		return nullspaces_x0_pre;
 	}

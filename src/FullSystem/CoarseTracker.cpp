@@ -917,7 +917,7 @@ namespace dso
 			{
 				if (debugPlot) resImage->setPixel4(lpc_u[i], lpc_v[i], Vec3b(residual + 128, residual + 128, residual + 128));
 
-				E += hw * residual*residual*(2 - hw);
+				E += hw * residual * residual * (2 - hw);
 				numTermsInE++;
 
 				buf_warped_idepth[numTermsInWarped] = new_idepth;

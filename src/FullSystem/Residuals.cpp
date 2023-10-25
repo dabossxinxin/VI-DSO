@@ -380,7 +380,6 @@ namespace dso
 
 			J->Jpdd[0] = d_d_x / T_WD.scale();
 			J->Jpdd[1] = d_d_y / T_WD.scale();
-
 		}
 
 		float JIdxJIdx_00 = 0, JIdxJIdx_11 = 0, JIdxJIdx_10 = 0;
@@ -408,7 +407,8 @@ namespace dso
 			float drdA = (color[idx] - b0);
 			if (!std::isfinite((float)hitColor[0]))
 			{
-				state_NewState = ResState::OOB; return state_energy;
+				state_NewState = ResState::OOB;
+				return state_energy;
 			}
 
 			float w = sqrtf(setting_outlierTHSumComponent / (setting_outlierTHSumComponent + hitColor.tail<2>().squaredNorm()));

@@ -35,6 +35,9 @@ namespace dso
 	class EFPoint;
 	class EnergyFunctional;
 
+	/// <summary>
+	/// 计算优化问题中视觉信息对应的Hessian和b
+	/// </summary>
 	class AccumulatedTopHessianSSE
 	{
 	public:
@@ -59,7 +62,6 @@ namespace dso
 
 		inline void setZero(int nFrames, int min = 0, int max = 1, Vec10* stats = 0, int tid = 0)
 		{
-
 			if (nFrames != nframes[tid])
 			{
 				if (acc[tid] != 0) delete[] acc[tid];
@@ -104,11 +106,11 @@ namespace dso
 				H = Hs[0];
 				b = bs[0];
 
-				for (int i = 1; i < NUM_THREADS; i++)
+				for (int it = 1; it < NUM_THREADS; ++it)
 				{
-					H.noalias() += Hs[i];
-					b.noalias() += bs[i];
-					nres[0] += nres[i];
+					H.noalias() += Hs[it];
+					b.noalias() += bs[it];
+					nres[0] += nres[it];
 				}
 			}
 			else
@@ -118,13 +120,13 @@ namespace dso
 				stitchDoubleInternal(&H, &b, EF, usePrior, 0, nframes[0] * nframes[0], 0, -1);
 			}
 
-			// make diagonal by copying over parts.
-			for (int h = 0; h < nframes[0]; h++)
+			// 将求解的Heesian变成对称形式
+			for (int h = 0; h < nframes[0]; ++h)
 			{
 				int hIdx = CPARS + h * 8;
 				H.block<CPARS, 8>(0, hIdx).noalias() = H.block<8, CPARS>(hIdx, 0).transpose();
 
-				for (int t = h + 1; t < nframes[0]; t++)
+				for (int t = h + 1; t < nframes[0]; ++t)
 				{
 					int tIdx = CPARS + t * 8;
 					H.block<8, 8>(hIdx, tIdx).noalias() += H.block<8, 8>(tIdx, hIdx).transpose();

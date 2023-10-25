@@ -43,9 +43,9 @@ namespace dso
 	//class AccumulatedTopHessian;
 	//class AccumulatedSCHessian;
 
-	extern bool EFAdjointsValid;
-	extern bool EFIndicesValid;
-	extern bool EFDeltaValid;
+	extern bool EFAdjointsValid;		// 优化函数中参数相对量对绝对量的雅可比是否求解完成
+	extern bool EFIndicesValid;			// 优化函数中滑窗关键帧以及管理特征的序号是否编好
+	extern bool EFDeltaValid;			// 优化函数中滑窗关键帧以及管理特征的增量是否设置好
 
 	class EnergyFunctional
 	{
@@ -86,13 +86,15 @@ namespace dso
 		void setAdjointsF(CalibHessian* Hcalib);
 
 		std::vector<EFFrame*> frames;		// 滑窗中所有的关键帧
-		int nPoints, nFrames, nResiduals;	// 滑窗中参加优化的特征点、关键帧以及残差数量
+		int nPoints;						// 参与滑窗优化的特征数量
+		int nFrames;						// 参与滑窗优化的关键帧数量
+		int nResiduals;						// 参与滑窗优化的光度残差数量
 
-		MatXX HM;				// 视觉部分边缘化的H
-		VecX bM;				// 视觉部分边缘化的b
+		MatXX HM;							// 视觉部分边缘化的H
+		VecX bM;							// 视觉部分边缘化的b
 		    
-		MatXX HM_imu;
-		VecX bM_imu;
+		MatXX HM_imu;						// 惯导部分边缘化的H
+		VecX bM_imu;						// 惯导部分边缘化的b
 
 		MatXX HM_bias;
 		VecX bM_bias;
@@ -141,25 +143,23 @@ namespace dso
 		void calcIMUHessian(MatXX &H, VecX &b);
 
 		void orthogonalize(VecX* b, MatXX* H);
-		Mat18f* adHTdeltaF;
+		Mat18f* adHTdeltaF;		// hostToTarget位姿、光度变换参数 [0~5：相机位姿，6、7：光度参数]
 
-		Mat88* adHost;
-		Mat88* adTarget;
+		Mat88* adHost;			// hostToTarget位姿、光度变换对host位姿、光度的雅可比 [double]
+		Mat88* adTarget;		// hostToTarget位姿、光度变换对target位姿、光度的雅可比 [double]
+		Mat88f* adHostF;		// hostToTarget位姿、光度变换对host位姿、光度的雅可比 [float]
+		Mat88f* adTargetF;		// hostToTarget位姿、光度变换对target位姿、光度的雅可比 [float]
 
-		Mat88f* adHostF;
-		Mat88f* adTargetF;
+		VecCf cDeltaF;			// 相机内参参数增量
+		VecC cPrior;			// 相机内参参数先验值 [double]
+		VecCf cPriorF;			// 相机内参参数先验值 [float]
+		
+		AccumulatedTopHessianSSE* accSSE_top_L;		// 计算滑窗中激活特征的Heesian信息
+		AccumulatedTopHessianSSE* accSSE_top_A;		// 计算滑窗中线性化特征的Hessian信息
+		AccumulatedSCHessianSSE* accSSE_bot;		// 计算滑窗中边缘化特征的舒尔补信息
 
-		VecC cPrior;
-		VecCf cDeltaF;
-		VecCf cPriorF;
-
-		AccumulatedTopHessianSSE* accSSE_top_L;
-		AccumulatedTopHessianSSE* accSSE_top_A;
-
-		AccumulatedSCHessianSSE* accSSE_bot;
-
-		std::vector<EFPoint*> allPoints;
-		std::vector<EFPoint*> allPointsToMarg;
+		std::vector<EFPoint*> allPoints;			// 参与优化计算的所有特征
+		std::vector<EFPoint*> allPointsToMarg;		// 参与优化计算的所有边缘化特征
 
 		float currentLambda;
 	};

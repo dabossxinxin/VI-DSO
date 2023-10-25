@@ -40,6 +40,11 @@ namespace dso
 	bool EFIndicesValid = false;
 	bool EFDeltaValid = false;
 
+	/// <summary>
+	/// 计算滑窗优化中惯导信息的Hessian和b 
+	/// </summary>
+	/// <param name="H"></param>
+	/// <param name="b"></param>
 	void EnergyFunctional::calcIMUHessian(MatXX& H, VecX& b)
 	{
 		b = VecX::Zero(7 + nFrames * 15);
@@ -54,9 +59,7 @@ namespace dso
 		double timeStart = 0, timeEnd = 0;
 		double dt = 0, delta_t = 0;
 		int fhIdxS = 0, fhIdxE = 0;
-
-		Vec3 g_w;
-		g_w << 0, 0, -G_norm;
+		Vec3 g_w(0, 0, -G_norm);
 
 		for (int fhIdx = 0; fhIdx < frames.size() - 1; ++fhIdx)
 		{
@@ -102,18 +105,9 @@ namespace dso
 			// 原因是IMU测量在较短时间内可保证一定精度
 			if (dt > 0.5) continue;
 
-			// TODO:这里时刻应该精准对齐，也就是说需要对IMU的测量进行插值
-			// 搜索当前帧时刻对应的IMU数据索引
-			imuStartStamp = 0;
-			for (int tIdx = 0; tIdx < imu_time_stamp.size(); ++tIdx)
-			{
-				if (imu_time_stamp[tIdx] > timeStart ||
-					std::fabs(timeStart - imu_time_stamp[tIdx]) < 0.001)
-				{
-					imuStartStamp = tIdx;
-					break;
-				}
-			}
+			imuStartStamp = -1;
+			imuStartStamp = findNearestIdx(imu_time_stamp, timeStart);
+			assert(imuStartStamp != -1);
 
 			// 从当前帧时刻到下一帧时刻内的IMU测量值预积分
 			while (true)
@@ -283,6 +277,11 @@ namespace dso
 		}
 	}
 
+	/// <summary>
+	/// 系统计算的是光度残差相对于相对位姿以及相对光度参数的雅可比,
+	/// 因此要得到绝对位姿和光度参数的解，必须再求相对参数对绝对参数的雅可比
+	/// </summary>
+	/// <param name="Hcalib">相机内参信息</param>
 	void EnergyFunctional::setAdjointsF(CalibHessian* Hcalib)
 	{
 		if (adHost != 0) delete[] adHost;
@@ -290,9 +289,10 @@ namespace dso
 		adHost = new Mat88[nFrames * nFrames];
 		adTarget = new Mat88[nFrames * nFrames];
 
-		for (int h = 0; h < nFrames; h++)
+		// target帧序号为行，host帧序号为列
+		for (int h = 0; h < nFrames; ++h)
 		{
-			for (int t = 0; t < nFrames; t++)
+			for (int t = 0; t < nFrames; ++t)
 			{
 				FrameHessian* host = frames[h]->data;
 				FrameHessian* target = frames[t]->data;
@@ -302,13 +302,14 @@ namespace dso
 				Mat88 AH = Mat88::Identity();
 				Mat88 AT = Mat88::Identity();
 
+				// 这里转置后，后面使用这个矩阵时不用再转置
 				AH.topLeftCorner<6, 6>() = -hostToTarget.Adj().transpose();
 				AT.topLeftCorner<6, 6>() = Mat66::Identity();
 
 				Vec2f affLL = AffLight::fromToVecExposure(host->ab_exposure, target->ab_exposure, host->aff_g2l_0(), target->aff_g2l_0()).cast<float>();
 				AT(6, 6) = -affLL[0];
-				AH(6, 6) = affLL[0];
 				AT(7, 7) = -1;
+				AH(6, 6) = affLL[0];
 				AH(7, 7) = affLL[0];
 
 				AH.block<3, 8>(0, 0) *= SCALE_XI_TRANS;
@@ -346,16 +347,19 @@ namespace dso
 		EFAdjointsValid = true;
 	}
 
+	/// <summary>
+	/// 优化函数的构造函数：给一些成员变量设置初值
+	/// </summary>
 	EnergyFunctional::EnergyFunctional()
 	{
-		adHost = 0;
-		adTarget = 0;
+		adHost = NULL;
+		adTarget = NULL;
 
-		red = 0;
+		red = NULL;
 
-		adHostF = 0;
-		adTargetF = 0;
-		adHTdeltaF = 0;
+		adHostF = NULL;
+		adTargetF = NULL;
+		adHTdeltaF = NULL;
 
 		nFrames = nResiduals = nPoints = 0;
 
@@ -365,11 +369,11 @@ namespace dso
 		HM_imu = MatXX::Zero(CPARS + 7, CPARS + 7);
 		bM_imu = VecX::Zero(CPARS + 7);
 
-		HM_bias = MatXX::Zero(CPARS + 7, CPARS + 7);
-		bM_bias = VecX::Zero(CPARS + 7);
-
 		HM_imu_half = MatXX::Zero(CPARS + 7, CPARS + 7);
 		bM_imu_half = VecX::Zero(CPARS + 7);
+
+		HM_bias = MatXX::Zero(CPARS + 7, CPARS + 7);
+		bM_bias = VecX::Zero(CPARS + 7);
 
 		accSSE_top_L = new AccumulatedTopHessianSSE();
 		accSSE_top_A = new AccumulatedTopHessianSSE();
@@ -379,42 +383,55 @@ namespace dso
 		currentLambda = 0;
 	}
 
+	/// <summary>
+	/// 优化函数的析构函数：释放成员内存空间
+	/// </summary>
 	EnergyFunctional::~EnergyFunctional()
 	{
+		// 释放滑窗中残差数据、特征数据以及关键帧数据
 		for (EFFrame* f : frames)
 		{
 			for (EFPoint* p : f->points)
 			{
 				for (EFResidual* r : p->residualsAll)
 				{
-					r->data->efResidual = 0;
-					delete r;
+					r->data->efResidual = NULL;
+					freePointer(r);
 				}
-				p->data->efPoint = 0;
-				delete p; p = NULL;
+				p->data->efPoint = NULL;
+				freePointer(p);
 			}
-			f->data->efFrame = 0;
-			delete f; f = NULL;
+			f->data->efFrame = NULL;
+			freePointer(f);
 		}
 
-		if (adHost != 0) delete[] adHost;
-		if (adTarget != 0) delete[] adTarget;
-		if (adHostF != 0) delete[] adHostF;
-		if (adTargetF != 0) delete[] adTargetF;
-		if (adHTdeltaF != 0) delete[] adHTdeltaF;
+		// 释放Hessian矩阵累加器handle
+		freePointer(accSSE_top_L);
+		freePointer(accSSE_top_A);
+		freePointer(accSSE_bot);
 
-		delete accSSE_top_L; accSSE_top_L = NULL;
-		delete accSSE_top_A; accSSE_top_A = NULL;
-		delete accSSE_bot; accSSE_bot = NULL;
+		// 释放参数相对量对绝对量的雅可比
+		freePointerVec(adHost);
+		freePointerVec(adTarget);
+		freePointerVec(adHostF);
+		freePointerVec(adTargetF);
+
+		// 释放滑窗两帧之间的相对参数
+		freePointerVec(adHTdeltaF);
 	}
 
+	/// <summary>
+	/// 获取关键帧以及所管理特征的参数增量以及滑窗关键帧之间位姿变化、光度变换的增量
+	/// </summary>
+	/// <param name="HCalib">相机内参信息</param>
 	void EnergyFunctional::setDeltaF(CalibHessian* HCalib)
 	{
-		if (adHTdeltaF != 0) delete[] adHTdeltaF;
+		// 1、计算滑窗关键帧之间的位姿变化、光度变换参数
+		if (adHTdeltaF != NULL) freePointerVec(adHTdeltaF);
 		adHTdeltaF = new Mat18f[nFrames * nFrames];
-		for (int h = 0; h < nFrames; h++)
+		for (int h = 0; h < nFrames; ++h)
 		{
-			for (int t = 0; t < nFrames; t++)
+			for (int t = 0; t < nFrames; ++t)
 			{
 				int idx = h + t * nFrames;
 				adHTdeltaF[idx] = frames[h]->data->get_state_minus_stateZero().head<8>().cast<float>().transpose() * adHostF[idx]
@@ -422,7 +439,10 @@ namespace dso
 			}
 		}
 
+		// 2、获取相机内参增量
 		cDeltaF = HCalib->value_minus_value_zero.cast<float>();
+
+		// 3、获取滑窗关键帧位姿、光度增量以及所管理的特征逆深度增量
 		for (EFFrame* f : frames)
 		{
 			f->delta = f->data->get_state_minus_stateZero().head<8>();
@@ -435,7 +455,12 @@ namespace dso
 		EFDeltaValid = true;
 	}
 
-	// accumulates & shifts L.
+	/// <summary>
+	/// 将已经激活的特征加入到累加器accSSE_top_A中计算其Hessian和b信息
+	/// </summary>
+	/// <param name="H">输出Hessian</param>
+	/// <param name="b">输出b</param>
+	/// <param name="MT">是否多线程操作</param>
 	void EnergyFunctional::accumulateAF_MT(MatXX &H, VecX &b, bool MT)
 	{
 		if (MT)
@@ -458,7 +483,12 @@ namespace dso
 		}
 	}
 
-	// accumulates & shifts L.
+	/// <summary>
+	/// 将已经线性化的特征加入到累加器accSSE_top_L中计算其Hessian和b信息
+	/// </summary>
+	/// <param name="H">输出Hessian</param>
+	/// <param name="b">输出b</param>
+	/// <param name="MT">是否多线程操作</param>
 	void EnergyFunctional::accumulateLF_MT(MatXX &H, VecX &b, bool MT)
 	{
 		if (MT)
@@ -481,6 +511,12 @@ namespace dso
 		}
 	}
 
+	/// <summary>
+	/// 将滑窗关键帧中管理的特征加入到累加器accSSE_bot中计算特征的舒尔补信息
+	/// </summary>
+	/// <param name="H">舒尔补Hessian</param>
+	/// <param name="b">舒尔补b</param>
+	/// <param name="MT">是否多线程操作</param>
 	void EnergyFunctional::accumulateSCF_MT(MatXX &H, VecX &b, bool MT)
 	{
 		if (MT)
@@ -501,24 +537,30 @@ namespace dso
 		}
 	}
 
-	// x：相机姿态以及内参负更新量
-	// Hcalib：相机相机内参信息
-	// MT：是否开启多线程的标志
+	/// <summary>
+	/// 计算滑窗关键帧管理的特征点在优化中的逆深度更新量
+	/// </summary>
+	/// <param name="x">滑窗关键帧</param>
+	/// <param name="HCalib"></param>
+	/// <param name="MT"></param>
 	void EnergyFunctional::resubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT)
 	{
 		assert(x.size() == CPARS + nFrames * 8);
 
-		VecXf xF = x.cast<float>();			// 相机姿态以及内参负更新量
-		Mat18f* xAd = new Mat18f[nFrames*nFrames];
+		VecXf xF = x.cast<float>();
+		Mat18f* xAd = new Mat18f[nFrames * nFrames];
 
-		HCalib->step = -x.head<CPARS>();	// 相机内参更新量
-		VecCf cstep = xF.head<CPARS>();		// 相机内参负更新量
+		// 相机内参增量
+		HCalib->step = -x.head<CPARS>();
+		VecCf cstep = xF.head<CPARS>();
 
 		for (EFFrame* h : frames)
 		{
-			h->data->step.head<8>() = -x.segment<8>(CPARS + 8 * h->idx);	// 相机相对姿态更新量
+			// 滑窗关键帧位姿、光度参数增量
+			h->data->step.head<8>() = -x.segment<8>(CPARS + 8 * h->idx);
 			h->data->step.tail<2>().setZero();
 
+			// 滑窗关键帧之间位姿变化、光度变化增量
 			for (EFFrame* t : frames)
 			{
 				xAd[nFrames * h->idx + t->idx] = xF.segment<8>(CPARS + 8 * h->idx).transpose() * adHostF[h->idx + nFrames * t->idx]
@@ -526,21 +568,21 @@ namespace dso
 			}
 		}
 
+		// 根据关键帧位姿增量以及相机内参增量计算特征逆深度增量
 		if (MT)
 			red->reduce(std::bind(&EnergyFunctional::resubstituteFPt, this, cstep, xAd, 
 				std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, allPoints.size(), 50);
 		else
 			resubstituteFPt(cstep, xAd, 0, allPoints.size(), 0, 0);
 
-		delete[] xAd;
-		xAd = nullptr;
+		freePointerVec(xAd);
 	}
 	
 	/// <summary>
-	/// 更新特征点的逆深度信息
+	/// 根据滑窗关键帧位姿、光度参数增量以及相机内参增量计算特征逆深度增量
 	/// </summary>
 	/// <param name="xc">相机内参的更新量</param>
-	/// <param name="xAd"></param>
+	/// <param name="xAd">滑窗关键帧之间位姿变化、光度变化增量</param>
 	/// <param name="min">用于索引优化中的路标点</param>
 	/// <param name="max">用于索引优化中的路标点</param>
 	/// <param name="stats">状态量信息、当前函数中不使用</param>
@@ -553,8 +595,10 @@ namespace dso
 
 			// 特征点对应的残差若无效那么这个特征不更新
 			int ngoodres = 0;
-			//for(EFResidual* r : p->residualsAll) if(r->isActive()&&r->data->stereoResidualFlag==false) ngoodres++;
-			for(EFResidual* r : p->residualsAll) if (r->isActive()) ngoodres++;
+			/*for (EFResidual* r : p->residualsAll)
+				if (r->isActive() && !r->data->stereoResidualFlag) ngoodres++;*/
+			for (EFResidual* r : p->residualsAll)
+				if (r->isActive()) ngoodres++;
 			if (ngoodres == 0)
 			{
 				p->data->step = 0;
@@ -567,11 +611,11 @@ namespace dso
 			for (EFResidual* r : p->residualsAll)
 			{
 				if (!r->isActive()) continue;
-				b -= xAd[r->hostIDX*nFrames + r->targetIDX] * r->JpJdF;
+				b -= xAd[r->hostIDX * nFrames + r->targetIDX] * r->JpJdF;
 			}
 
 			p->data->step = -b * p->HdiF;
-			if (std::isfinite(p->data->step) == false)
+			if (!std::isfinite(p->data->step))
 			{
 				LOG(INFO) << "b: " << b;
 				LOG(INFO) << "p->HdiF: " << p->HdiF;
@@ -584,6 +628,10 @@ namespace dso
 		}
 	}
 
+	/// <summary>
+	/// TODO：计算边缘化能量值
+	/// </summary>
+	/// <returns></returns>
 	double EnergyFunctional::calcMEnergyF()
 	{
 		assert(EFDeltaValid);
@@ -594,15 +642,22 @@ namespace dso
 		return delta.dot(2 * bM + HM * delta);
 	}
 
+	/// <summary>
+	/// TODO：计算滑窗关键帧中特征光度残差构成的能量值
+	/// </summary>
+	/// <param name="min">特征索引</param>
+	/// <param name="max">特征索引</param>
+	/// <param name="stats">多线程内返回需传出的状态值</param>
+	/// <param name="tid">线程ID</param>
 	void EnergyFunctional::calcLEnergyPt(int min, int max, Vec10* stats, int tid)
 	{
 		Accumulator11 E;
 		E.initialize();
 		VecCf dc = cDeltaF;
 
-		for (int i = min; i < max; i++)
+		for (int it = min; it < max; ++it)
 		{
-			EFPoint* p = allPoints[i];
+			auto p = allPoints[it];
 			float dd = p->deltaF;
 
 			for (EFResidual* r : p->residualsAll)
@@ -626,45 +681,52 @@ namespace dso
 				__m128 delta_a = _mm_set1_ps((float)(dp[6]));
 				__m128 delta_b = _mm_set1_ps((float)(dp[7]));
 
-				for (int i = 0; i + 3 < patternNum; i += 4)
+				// E = (2*r+J*delta)*J*delta.
+				for (int it = 0; it + 3 < patternNum; it += 4)
 				{
-					// PATTERN: E = (2*res_toZeroF + J*delta) * J*delta.
-					__m128 Jdelta = _mm_mul_ps(_mm_load_ps(((float*)(rJ->JIdx)) + i), Jp_delta_x);
-					Jdelta = _mm_add_ps(Jdelta, _mm_mul_ps(_mm_load_ps(((float*)(rJ->JIdx + 1)) + i), Jp_delta_y));
-					Jdelta = _mm_add_ps(Jdelta, _mm_mul_ps(_mm_load_ps(((float*)(rJ->JabF)) + i), delta_a));
-					Jdelta = _mm_add_ps(Jdelta, _mm_mul_ps(_mm_load_ps(((float*)(rJ->JabF + 1)) + i), delta_b));
+					__m128 Jdelta = _mm_mul_ps(_mm_load_ps(((float*)(rJ->JIdx)) + it), Jp_delta_x);
+					Jdelta = _mm_add_ps(Jdelta, _mm_mul_ps(_mm_load_ps(((float*)(rJ->JIdx + 1)) + it), Jp_delta_y));
+					Jdelta = _mm_add_ps(Jdelta, _mm_mul_ps(_mm_load_ps(((float*)(rJ->JabF)) + it), delta_a));
+					Jdelta = _mm_add_ps(Jdelta, _mm_mul_ps(_mm_load_ps(((float*)(rJ->JabF + 1)) + it), delta_b));
 
-					__m128 r0 = _mm_load_ps(((float*)&r->res_toZeroF) + i);
+					__m128 r0 = _mm_load_ps(((float*)&r->res_toZeroF) + it);
 					r0 = _mm_add_ps(r0, r0);
 					r0 = _mm_add_ps(r0, Jdelta);
 					Jdelta = _mm_mul_ps(Jdelta, r0);
 					E.updateSSENoShift(Jdelta);
 				}
-				for (int i = ((patternNum >> 2) << 2); i < patternNum; i++)
+				for (int it = ((patternNum >> 2) << 2); it < patternNum; ++it)
 				{
-					float Jdelta = rJ->JIdx[0][i] * Jp_delta_x_1 + rJ->JIdx[1][i] * Jp_delta_y_1 +
-						rJ->JabF[0][i] * dp[6] + rJ->JabF[1][i] * dp[7];
-					E.updateSingleNoShift((float)(Jdelta * (Jdelta + 2 * r->res_toZeroF[i])));
+					float Jdelta = rJ->JIdx[0][it] * Jp_delta_x_1 + rJ->JIdx[1][it] * Jp_delta_y_1 +
+						rJ->JabF[0][it] * dp[6] + rJ->JabF[1][it] * dp[7];
+					E.updateSingleNoShift((float)(Jdelta * (Jdelta + 2 * r->res_toZeroF[it])));
 				}
 			}
-			E.updateSingle(p->deltaF*p->deltaF*p->priorF);
+			E.updateSingle(p->deltaF * p->deltaF * p->priorF);		// 最后把每个特征的先验也加上
 		}
 		E.finish();
 		(*stats)[0] += E.A;
 	}
 
+	/// <summary>
+	/// TODO：计算滑窗优化中迭代优化后优化问题能量值
+	/// </summary>
+	/// <returns>优化问题能量值</returns>
 	double EnergyFunctional::calcLEnergyF_MT()
 	{
 		assert(EFDeltaValid);
 		assert(EFAdjointsValid);
 		assert(EFIndicesValid);
 
+		// 1、计算滑窗关键帧状态的先验能量值
 		double E = 0;
 		for (EFFrame* f : frames)
 			E += f->delta_prior.cwiseProduct(f->prior).dot(f->delta_prior);
 
+		// 2、计算相机内参的先验能量值
 		E += cDeltaF.cwiseProduct(cPriorF).dot(cDeltaF);
 
+		// 3、计算滑窗中管理的特征的能量值
 		red->reduce(std::bind(&EnergyFunctional::calcLEnergyPt, this, 
 			std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, allPoints.size(), 50);
 
@@ -774,7 +836,7 @@ namespace dso
 			connectivityMap[(((uint64_t)r->host->frameID) << 32) + ((uint64_t)r->target->frameID)][0]--;
 
 		nResiduals--;
-		r->data->efResidual = 0;
+		r->data->efResidual = NULL;
 		delete r; r = NULL;
 	}
 
@@ -1372,7 +1434,7 @@ namespace dso
 
 		allPointsToMarg.clear();
 
-		// 收集待边缘化帧中有效路标点
+		// 1、收集滑窗关键帧中标记为PS_MARGINALIZE且有效残差数量大于0的特征
 		for (EFFrame* f : frames)
 		{
 			for (int i = 0; i < (int)f->points.size(); ++i)
@@ -1397,7 +1459,7 @@ namespace dso
 			}
 		}
 
-		// 使用有效路标点边缘化计算Heesian以及b
+		// 2、使用边缘化特征计算Hessian以及b，为了包含质量较好的特征，需要计算舒尔补项
 		accSSE_bot->setZero(nFrames);
 		accSSE_top_A->setZero(nFrames);
 
@@ -1438,17 +1500,20 @@ namespace dso
 		makeIDX();
 	}
 
+	/// <summary>
+	/// 删除能量函数中状态为PS_DROP的特征
+	/// </summary>
 	void EnergyFunctional::dropPointsF()
 	{
 		for (EFFrame* f : frames)
 		{
-			for (int i = 0; i < (int)f->points.size(); i++)
+			for (int it = 0; it < (int)f->points.size(); ++it)
 			{
-				EFPoint* p = f->points[i];
+				EFPoint* p = f->points[it];
 				if (p->stateFlag == EFPointStatus::PS_DROP)
 				{
 					removePoint(p);
-					i--;
+					it--;
 				}
 			}
 		}
@@ -1477,53 +1542,49 @@ namespace dso
 		delete p; p = NULL;
 	}
 
+	/// <summary>
+	/// 正交化Hessian以及b，去除零空间分量的干扰
+	/// </summary>
+	/// <param name="b">输入b矩阵</param>
+	/// <param name="H">输入Hessian</param>
 	void EnergyFunctional::orthogonalize(VecX* b, MatXX* H)
 	{
-		//	VecX eigenvaluesPre = H.eigenvalues().real();
-		//	std::sort(eigenvaluesPre.data(), eigenvaluesPre.data()+eigenvaluesPre.size());
-		//	std::cout << "EigPre:: " << eigenvaluesPre.transpose() << "\n";
-
-		// decide to which nullspaces to orthogonalize.
+		// 1、将零空间向量进行列合并组成零空间矩阵
 		std::vector<VecX> ns;
 		ns.insert(ns.end(), lastNullspaces_pose.begin(), lastNullspaces_pose.end());
 		ns.insert(ns.end(), lastNullspaces_scale.begin(), lastNullspaces_scale.end());
-		//	if(setting_affineOptModeA <= 0)
-		//		ns.insert(ns.end(), lastNullspaces_affA.begin(), lastNullspaces_affA.end());
-		//	if(setting_affineOptModeB <= 0)
-		//		ns.insert(ns.end(), lastNullspaces_affB.begin(), lastNullspaces_affB.end());
+			/*if(setting_affineOptModeA <= 0)
+				ns.insert(ns.end(), lastNullspaces_affA.begin(), lastNullspaces_affA.end());
+			if(setting_affineOptModeB <= 0)
+				ns.insert(ns.end(), lastNullspaces_affB.begin(), lastNullspaces_affB.end());*/
 
-		// make Nullspaces matrix
 		MatXX N(ns[0].rows(), ns.size());
-		for (unsigned int i = 0; i < ns.size(); i++)
-			N.col(i) = ns[i].normalized();
+		for (unsigned int it = 0; it < ns.size(); ++it)
+			N.col(it) = ns[it].normalized();
 
-		// compute Npi := N * (N' * N)^-1 = pseudo inverse of N.
+		// 2、求解零空间的伪逆，使用SVD方法直接求解，也可以使用Npi := N * (N' * N)^-1，但是N' * N不一定可逆
 		Eigen::JacobiSVD<MatXX> svdNN(N, Eigen::ComputeThinU | Eigen::ComputeThinV);
 
 		VecX SNN = svdNN.singularValues();
 		double minSv = 1e10, maxSv = 0;
-		for (int i = 0; i < SNN.size(); i++)
+		for (int it = 0; it < SNN.size(); ++it)
 		{
-			if (SNN[i] < minSv) minSv = SNN[i];
-			if (SNN[i] > maxSv) maxSv = SNN[i];
+			if (SNN[it] < minSv) minSv = SNN[it];
+			if (SNN[it] > maxSv) maxSv = SNN[it];
 		}
-		for (int i = 0; i < SNN.size(); i++)
+		for (int it = 0; it < SNN.size(); ++it)
 		{
-			if (SNN[i] > setting_solverModeDelta*maxSv) SNN[i] = 1.0 / SNN[i]; else SNN[i] = 0;
+			if (SNN[it] <= setting_solverModeDelta * maxSv) SNN[it] = 0;
+			else SNN[it] = 1.0 / SNN[it];
 		}
 
 		MatXX Npi = svdNN.matrixU() * SNN.asDiagonal() * svdNN.matrixV().transpose(); 	// [dim] x 9.
 		MatXX NNpiT = N * Npi.transpose(); 	// [dim] x [dim].
 		MatXX NNpiTS = 0.5*(NNpiT + NNpiT.transpose());	// = N * (N' * N)^-1 * N'.
 
+		// 3、将信息量向零空间投影，并减掉投影在零空间的信息量
 		if (b != 0) *b -= NNpiTS * *b;
 		if (H != 0) *H -= NNpiTS * *H * NNpiTS;
-
-		//	std::cout << std::setprecision(16) << "Orth SV: " << SNN.reverse().transpose() << "\n";
-
-		//	VecX eigenvaluesPost = H.eigenvalues().real();
-		//	std::sort(eigenvaluesPost.data(), eigenvaluesPost.data()+eigenvaluesPost.size());
-		//	std::cout << "EigPost:: " << eigenvaluesPost.transpose() << "\n";
 	}
 
 	// iteration：优化迭代次数
@@ -1772,7 +1833,7 @@ namespace dso
 	}
 
 	/// <summary>
-	/// 获取视觉部分优化得到的相机内参、相机姿态以及相机光度系数delta
+	/// 获取滑窗关键帧相机内参、相机姿态以及相机光度参数增量
 	/// </summary>
 	/// <returns></returns>
 	VecX EnergyFunctional::getStitchedDeltaF() const
