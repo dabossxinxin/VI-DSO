@@ -847,14 +847,14 @@ namespace dso
 			PointHessian* opt = optimized[k];
 			ImmaturePoint* ph = toOptimize[k];
 
-			if (opt != 0 && opt != (PointHessian*)((long)(-1)))
+			if (opt != NULL && opt != (PointHessian*)((long)(-1)))
 			{
 				opt->host->immaturePoints[ph->idxInImmaturePoints] = NULL;
 				opt->host->pointHessians.emplace_back(opt);
 				ef->insertPoint(opt);
 				for (PointFrameResidual* r : opt->residuals)
 					ef->insertResidual(r);
-				assert(newpoint->efPoint != NULL);
+				assert(opt->efPoint != NULL);
 				delete ph;
 			}
 			else if (opt == (PointHessian*)((long)(-1)) || ph->lastTraceStatus == IPS_OOB)
@@ -864,7 +864,7 @@ namespace dso
 			}
 			else
 			{
-				assert(newpoint == 0 || newpoint == (PointHessian*)((long)(-1)));
+				assert(opt == NULL || opt == (PointHessian*)((long)(-1)));
 			}
 		}
 

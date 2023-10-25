@@ -538,11 +538,11 @@ namespace dso
 	}
 
 	/// <summary>
-	/// 计算滑窗关键帧管理的特征点在优化中的逆深度更新量
+	/// 计算滑窗关键帧管理的特征点在滑窗优化中的逆深度更新量
 	/// </summary>
-	/// <param name="x">滑窗关键帧</param>
-	/// <param name="HCalib"></param>
-	/// <param name="MT"></param>
+	/// <param name="x">滑窗关键帧内参、位姿以及光度参数更新量</param>
+	/// <param name="HCalib">相机内参信息</param>
+	/// <param name="MT">是否多线程操作</param>
 	void EnergyFunctional::resubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT)
 	{
 		assert(x.size() == CPARS + nFrames * 8);
@@ -733,12 +733,18 @@ namespace dso
 		return E + red->stats[0];
 	}
 
+	/// <summary>
+	/// 向滑窗优化中添加优化残差：主要是将优化残差加入到特征管理的观测残差序列中
+	/// </summary>
+	/// <param name="r">特征在关键帧上的观测残差</param>
+	/// <returns>滑窗优化中观测残差指针</returns>
 	EFResidual* EnergyFunctional::insertResidual(PointFrameResidual* r)
 	{
 		EFResidual* efr = new EFResidual(r, r->point->efPoint, r->host->efFrame, r->target->efFrame);
 		efr->idxInAll = r->point->efPoint->residualsAll.size();
-		r->point->efPoint->residualsAll.push_back(efr);
-		if (efr->data->stereoResidualFlag == false)
+		r->point->efPoint->residualsAll.emplace_back(efr);
+
+		if (!efr->data->stereoResidualFlag)
 			connectivityMap[(((uint64_t)efr->host->frameID) << 32) + ((uint64_t)efr->target->frameID)][0]++;
 
 		nResiduals++;
@@ -747,21 +753,28 @@ namespace dso
 		return efr;
 	}
 
+	
+	/// <summary>
+	/// 向滑窗优化中添加关键帧优化量
+	/// </summary>
+	/// <param name="fh">待添加进入滑窗优化的关键帧</param>
+	/// <param name="Hcalib">系统相机内参信息</param>
+	/// <returns>待添加进入滑窗优化的关键帧指针</returns>
 	EFFrame* EnergyFunctional::insertFrame(FrameHessian* fh, CalibHessian* Hcalib)
 	{
+		// 1、向滑窗关键帧中添加关键帧
 		EFFrame* eff = new EFFrame(fh);
 		eff->idx = frames.size();
-		frames.push_back(eff);
+		frames.emplace_back(eff);
 
 		nFrames++;
 		fh->efFrame = eff;
 
-		//stereo
 		EFFrame* effRight = new EFFrame(fh->frameRight);
 		effRight->idx = frames.size() + 10000;
-		// 	eff_right->idx = frames.size();
 		fh->frameRight->efFrame = effRight;
-
+		
+		// 2、重新resize视觉舒尔补信息矩阵的维度
 		assert(HM.cols() == 8 * nFrames + CPARS - 8);
 		bM.conservativeResize(8 * nFrames + CPARS);
 		HM.conservativeResize(8 * nFrames + CPARS, 8 * nFrames + CPARS);
@@ -769,6 +782,7 @@ namespace dso
 		HM.rightCols<8>().setZero();
 		HM.bottomRows<8>().setZero();
 
+		// 3、重新resize惯导舒尔补信息矩阵的维度
 		bM_imu.conservativeResize(17 * nFrames + CPARS + 7);
 		HM_imu.conservativeResize(17 * nFrames + CPARS + 7, 17 * nFrames + CPARS + 7);
 		bM_imu.tail<17>().setZero();
@@ -791,9 +805,11 @@ namespace dso
 		EFAdjointsValid = false;
 		EFDeltaValid = false;
 
+		// 4、滑窗中添加新的关键帧后，重新计算关键帧之间相对位姿和光度与绝对位姿和光度的雅可比
 		setAdjointsF(Hcalib);
 		makeIDX();
 
+		// 5、滑窗关键帧中有新的关键帧后，需要调整关键帧之间的共视关系 TODO
 		for (EFFrame* fh2 : frames)
 		{
 			connectivityMap[(((uint64_t)eff->frameID) << 32) + ((uint64_t)fh2->frameID)] = Eigen::Vector2i(0, 0);
@@ -804,11 +820,17 @@ namespace dso
 		return eff;
 	}
 
+	
+	/// <summary>
+	/// 向滑窗优化中添加特征优化量
+	/// </summary>
+	/// <param name="ph">待添加进入滑窗优化的特征</param>
+	/// <returns>待添加进入滑窗优化的特征</returns>
 	EFPoint* EnergyFunctional::insertPoint(PointHessian* ph)
 	{
 		EFPoint* efp = new EFPoint(ph, ph->host->efFrame);
 		efp->idxInPoints = ph->host->efFrame->points.size();
-		ph->host->efFrame->points.push_back(efp);
+		ph->host->efFrame->points.emplace_back(efp);
 
 		nPoints++;
 		ph->efPoint = efp;
@@ -1807,6 +1829,9 @@ namespace dso
 		currentLambda = 0;
 	}
 
+	/// <summary>
+	/// 对滑窗优化问题中的特征、关键帧以及残差进行编号排序
+	/// </summary>
 	void EnergyFunctional::makeIDX()
 	{
 		for (unsigned int idx = 0; idx < frames.size(); ++idx)
