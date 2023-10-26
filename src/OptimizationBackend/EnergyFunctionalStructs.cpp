@@ -69,7 +69,7 @@ namespace dso
 
 	void EFPoint::takeData()
 	{
-		priorF = data->hasDepthPrior ? setting_idepthFixPrior * SCALE_IDEPTH*SCALE_IDEPTH : 0;
+		priorF = data->hasDepthPrior ? setting_idepthFixPrior * SCALE_IDEPTH * SCALE_IDEPTH : 0;
 		if (setting_solverMode & SOLVER_REMOVE_POSEPRIOR) priorF = 0;
 
 		deltaF = data->idepth - data->idepth_zero;
@@ -77,7 +77,7 @@ namespace dso
 
 	void EFResidual::fixLinearizationF(EnergyFunctional* ef)
 	{
-		Vec8f dp = ef->adHTdeltaF[hostIDX + ef->nFrames*targetIDX];
+		Vec8f dp = ef->adHTdeltaF[hostIDX + ef->nFrames * targetIDX];
 
 		// compute Jp*delta
 		__m128 Jp_delta_x = _mm_set1_ps(J->Jpdxi[0].dot(dp.head<6>())

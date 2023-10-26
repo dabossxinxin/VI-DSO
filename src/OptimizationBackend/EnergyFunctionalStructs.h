@@ -66,14 +66,15 @@ namespace dso
 		void fixLinearizationF(EnergyFunctional* ef);
 
 		// structural pointers
-		PointFrameResidual* data;
-		int hostIDX, targetIDX;
-		EFPoint* point;
-		EFFrame* host;
-		EFFrame* target;
-		int idxInAll;
+		PointFrameResidual* data;		// 当前残差对应的观测特征在前端跟踪中的表示
+		int hostIDX;					// 当前残差对应观测特征的主帧在滑窗关键帧序列中的ID
+		int targetIDX;					// 当前残差对应观测特征的目标帧在滑窗关键帧序列中的ID
+		EFPoint* point;					// 当前残差对应的观测特征在滑窗优化中的表示
+		EFFrame* host;					// 当前残差对应观测特征主帧在滑窗优化中的表示
+		EFFrame* target;				// 当前残差对应观测特征目标帧在滑窗优化中的表示
+		int idxInAll;					// 观测残差在特征残差序列中的序号
 
-		RawResidualJacobian* J;
+		RawResidualJacobian* J;			// 当前观测残差对内参、位姿、光度参数以及逆深度的雅可比
 
 		// 	VecNRf res_toZeroF;
 		// 	Vec8f JpJdF=Vec8f::Zero();
@@ -101,21 +102,19 @@ namespace dso
 		}
 		void takeData();
 
-		PointHessian* data;
+		PointHessian* data;				// 特征在前端中的表示形式
 
-		float priorF;
-		float deltaF;
+		float priorF;					// 特征先验信息
+		float deltaF;					// 特征在滑窗优化中的优化增量
+			
+		int idxInPoints;				// 特征在对应主帧管理的特征序列中的序号
+		EFFrame* host;					// 特征对应的主帧
 
-		// constant info (never changes in-between).
-		int idxInPoints;
-		EFFrame* host;
-
-		// contains all residuals.
-		std::vector<EFResidual*> residualsAll;
+		std::vector<EFResidual*> residualsAll;	// 特征管理的观测残差序列
 
 		float bdSumF;
 		float HdiF = 1e-3;		// TODO
-		float Hdd_accLF;		// 特征线性化状态下的你深度Hessian
+		float Hdd_accLF;		// 特征线性化状态下的逆深度Hessian
 		VecCf Hcd_accLF;		// 特征线性化状态下的逆深度&相机内参Hessian
 		float bd_accLF;			// 特征线性化状态下的逆深度b
 		float Hdd_accAF;		// 特征激活状态下的逆深度Hessian
@@ -125,6 +124,9 @@ namespace dso
 		EFPointStatus stateFlag;
 	};
 
+	/// <summary>
+	/// 后端中管理的关键帧数据形式
+	/// </summary>
 	class EFFrame
 	{
 	public:
@@ -139,11 +141,11 @@ namespace dso
 		Vec8 delta_prior;		// = state-state_prior (E_prior = (delta_prior)' * diag(prior) * (delta_prior)
 		Vec8 delta;				// state - state_zero.
 
-		std::vector<EFPoint*> points;
-		FrameHessian* data;
-		int idx;	// idx in frames.
+		std::vector<EFPoint*> points;	// 关键帧管理的特征序列
+		FrameHessian* data;				// 关键帧在前端中的表示
 
-		int frameID;
+		int idx;						// 关键帧在滑窗关键帧中的序号
+		int frameID;					// 关键帧在全局中的帧序号
 		bool m_flag = false;
 	};
 }

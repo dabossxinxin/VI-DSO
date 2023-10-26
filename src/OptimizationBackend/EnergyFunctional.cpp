@@ -538,11 +538,11 @@ namespace dso
 	}
 
 	/// <summary>
-	/// 计算滑窗关键帧管理的特征点在滑窗优化中的逆深度更新量
+	/// 计算滑窗关键帧管理的特征点在优化中的逆深度更新量
 	/// </summary>
-	/// <param name="x">滑窗关键帧内参、位姿以及光度参数更新量</param>
-	/// <param name="HCalib">相机内参信息</param>
-	/// <param name="MT">是否多线程操作</param>
+	/// <param name="x">滑窗关键帧</param>
+	/// <param name="HCalib"></param>
+	/// <param name="MT"></param>
 	void EnergyFunctional::resubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT)
 	{
 		assert(x.size() == CPARS + nFrames * 8);
@@ -734,17 +734,17 @@ namespace dso
 	}
 
 	/// <summary>
-	/// 向滑窗优化中添加优化残差：主要是将优化残差加入到特征管理的观测残差序列中
+	/// 向滑窗优化函数中添加观测残差
 	/// </summary>
-	/// <param name="r">特征在关键帧上的观测残差</param>
-	/// <returns>滑窗优化中观测残差指针</returns>
+	/// <param name="r">观测残差在前端中的表示</param>
+	/// <returns>观测残差在后端中的表示</returns>
 	EFResidual* EnergyFunctional::insertResidual(PointFrameResidual* r)
 	{
 		EFResidual* efr = new EFResidual(r, r->point->efPoint, r->host->efFrame, r->target->efFrame);
 		efr->idxInAll = r->point->efPoint->residualsAll.size();
 		r->point->efPoint->residualsAll.emplace_back(efr);
 
-		if (!efr->data->stereoResidualFlag)
+		if (efr->data->stereoResidualFlag == false)
 			connectivityMap[(((uint64_t)efr->host->frameID) << 32) + ((uint64_t)efr->target->frameID)][0]++;
 
 		nResiduals++;
@@ -753,16 +753,15 @@ namespace dso
 		return efr;
 	}
 
-	
 	/// <summary>
-	/// 向滑窗优化中添加关键帧优化量
+	/// 向滑窗优化函数中添加关键帧优化参数
 	/// </summary>
-	/// <param name="fh">待添加进入滑窗优化的关键帧</param>
-	/// <param name="Hcalib">系统相机内参信息</param>
-	/// <returns>待添加进入滑窗优化的关键帧指针</returns>
+	/// <param name="fh">关键帧在前端中的表示</param>
+	/// <param name="Hcalib">相机内参信息</param>
+	/// <returns>关键帧在后端中的表示</returns>
 	EFFrame* EnergyFunctional::insertFrame(FrameHessian* fh, CalibHessian* Hcalib)
 	{
-		// 1、向滑窗关键帧中添加关键帧
+		// 1、添加关键帧到滑窗优化中
 		EFFrame* eff = new EFFrame(fh);
 		eff->idx = frames.size();
 		frames.emplace_back(eff);
@@ -773,8 +772,8 @@ namespace dso
 		EFFrame* effRight = new EFFrame(fh->frameRight);
 		effRight->idx = frames.size() + 10000;
 		fh->frameRight->efFrame = effRight;
-		
-		// 2、重新resize视觉舒尔补信息矩阵的维度
+
+		// 2、新帧进来后，扩展视觉舒尔补信息矩阵维度
 		assert(HM.cols() == 8 * nFrames + CPARS - 8);
 		bM.conservativeResize(8 * nFrames + CPARS);
 		HM.conservativeResize(8 * nFrames + CPARS, 8 * nFrames + CPARS);
@@ -782,7 +781,7 @@ namespace dso
 		HM.rightCols<8>().setZero();
 		HM.bottomRows<8>().setZero();
 
-		// 3、重新resize惯导舒尔补信息矩阵的维度
+		// 3、新帧进来后，扩展惯导舒尔补信息矩阵维度
 		bM_imu.conservativeResize(17 * nFrames + CPARS + 7);
 		HM_imu.conservativeResize(17 * nFrames + CPARS + 7, 17 * nFrames + CPARS + 7);
 		bM_imu.tail<17>().setZero();
@@ -805,11 +804,11 @@ namespace dso
 		EFAdjointsValid = false;
 		EFDeltaValid = false;
 
-		// 4、滑窗中添加新的关键帧后，重新计算关键帧之间相对位姿和光度与绝对位姿和光度的雅可比
+		// 4、重新计算滑窗关键帧之间相对位姿对绝对位姿的导数
 		setAdjointsF(Hcalib);
 		makeIDX();
 
-		// 5、滑窗关键帧中有新的关键帧后，需要调整关键帧之间的共视关系 TODO
+		// 5、TODO：更新滑窗关键帧之间的共视关系
 		for (EFFrame* fh2 : frames)
 		{
 			connectivityMap[(((uint64_t)eff->frameID) << 32) + ((uint64_t)fh2->frameID)] = Eigen::Vector2i(0, 0);
@@ -820,12 +819,11 @@ namespace dso
 		return eff;
 	}
 
-	
 	/// <summary>
-	/// 向滑窗优化中添加特征优化量
+	/// 向滑窗优化函数中添加特征优化参数
 	/// </summary>
-	/// <param name="ph">待添加进入滑窗优化的特征</param>
-	/// <returns>待添加进入滑窗优化的特征</returns>
+	/// <param name="ph">特征在前端中的表示</param>
+	/// <returns>特征在后端中的表示</returns>
 	EFPoint* EnergyFunctional::insertPoint(PointHessian* ph)
 	{
 		EFPoint* efp = new EFPoint(ph, ph->host->efFrame);
@@ -840,28 +838,10 @@ namespace dso
 		return efp;
 	}
 
-	void EnergyFunctional::dropResidual(EFResidual* r)
-	{
-		EFPoint* p = r->point;
-		assert(r == p->residualsAll[r->idxInAll]);
-
-		p->residualsAll[r->idxInAll] = p->residualsAll.back();
-		p->residualsAll[r->idxInAll]->idxInAll = r->idxInAll;
-		p->residualsAll.pop_back();
-
-		if (r->isActive())
-			r->host->data->shell->statistics_goodResOnThis++;
-		else
-			r->host->data->shell->statistics_outlierResOnThis++;
-
-		if (!r->data->stereoResidualFlag)
-			connectivityMap[(((uint64_t)r->host->frameID) << 32) + ((uint64_t)r->target->frameID)][0]--;
-
-		nResiduals--;
-		r->data->efResidual = NULL;
-		delete r; r = NULL;
-	}
-
+	/// <summary>
+	/// 边缘化惯导信息 TODO
+	/// </summary>
+	/// <param name="fh"></param>
 	void EnergyFunctional::marginalizeFrame_imu(EFFrame* fh)
 	{
 		int ndim = nFrames * 17 + CPARS + 7 - 17;	// 新的惯导Hessian矩阵维度
@@ -906,17 +886,11 @@ namespace dso
 			SE3 worldToCam_i = Framei->PRE_worldToCam;
 			SE3 worldToCam_j = Framej->PRE_worldToCam;
 
-			for (int idx = 0; idx < imu_time_stamp.size(); ++idx)
-			{
-				if (imu_time_stamp[idx] > time_start ||
-					std::fabs(time_start - imu_time_stamp[idx]) < 0.001)
-				{
-					imuStartIdx = idx;
-					break;
-				}
-			}
+			imuStartIdx = -1;
+			imuStartIdx = findNearestIdx(imu_time_stamp, time_start);
+			assert(imuStartIdx != -1);
 
-			while (1) 
+			while (true) 
 			{
 				double delta_t;
 				if (imu_time_stamp[imuStartIdx + 1] < time_end)
@@ -1361,6 +1335,10 @@ namespace dso
 		}
 	}
 
+	/// <summary>
+	/// 滑窗优化中边缘化前端中标记为边缘化的关键帧
+	/// </summary>
+	/// <param name="fh">待边缘化的帧在后端中的表示</param>
 	void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 	{
 		assert(EFDeltaValid);
@@ -1369,19 +1347,21 @@ namespace dso
 
 		assert((int)fh->points.size() == 0);
 
+		// 1、惯导信息边缘化
 		if (imu_use_flag)
 			marginalizeFrame_imu(fh);
 
-		int ndim = nFrames * 8 + CPARS - 8;// new dimension
-		int odim = nFrames * 8 + CPARS;// old dimension
+		int ndim = nFrames * 8 + CPARS - 8;		// 边缘化后视觉舒尔补信息矩阵维度
+		int odim = nFrames * 8 + CPARS;			// 边缘化前视觉舒尔补信息矩阵维度
 
-		// 若需要marg的帧不是关键帧中最后一帧则需要将这帧数据移到矩阵最后
+		// 若需要marg的帧不是关键帧中最后一帧则需要将这帧数 据移到矩阵最后
 		if ((int)fh->idx != (int)frames.size() - 1)
 		{
 			int io = fh->idx * 8 + CPARS;
 			int ntail = 8 * (nFrames - fh->idx - 1);
 			assert((io + 8 + ntail) == nFrames * 8 + CPARS);
 
+			// bM中将待边缘化的信息放在矩阵尾部8行
 			Vec8 bTmp = bM.segment<8>(io);
 			VecX tailTmp = bM.tail(ntail);
 			bM.segment(io, ntail) = tailTmp;
@@ -1398,7 +1378,7 @@ namespace dso
 			HM.bottomRows(8) = HtmpRow;
 		}
 
-		// marginalize. First add prior here, instead of to active.
+		// 边缘化关键帧之前，边缘化帧的先验信息需要加上去，否则后面这各信息就丢失了
 		HM.bottomRightCorner<8, 8>().diagonal() += fh->prior;
 		bM.tail<8>() += fh->prior.cwiseProduct(fh->delta_prior);
 
@@ -1409,12 +1389,11 @@ namespace dso
 		VecX bMScaled = SVecI.asDiagonal() * bM;
 
 		Mat88 hpi = HMScaled.bottomRightCorner<8, 8>();
-		hpi = 0.5f*(hpi + hpi);
+		hpi = 0.5f * (hpi + hpi);
 		hpi = hpi.inverse();
-		hpi = 0.5f*(hpi + hpi);
+		hpi = 0.5f * (hpi + hpi);
 		if (!std::isfinite(hpi(0, 0))) hpi = Mat88::Zero();
 
-		// 舒尔补求解边缘化后的Hessian以及b
 		MatXX bli = HMScaled.bottomLeftCorner(8, ndim).transpose() * hpi;
 		HMScaled.topLeftCorner(ndim, ndim).noalias() -= bli * HMScaled.bottomLeftCorner(8, ndim);
 		bMScaled.head(ndim).noalias() -= bli * bMScaled.tail<8>();
@@ -1422,29 +1401,30 @@ namespace dso
 		HMScaled = SVec.asDiagonal() * HMScaled * SVec.asDiagonal();
 		bMScaled = SVec.asDiagonal() * bMScaled;
 
-		HM = 0.5*(HMScaled.topLeftCorner(ndim, ndim) + HMScaled.topLeftCorner(ndim, ndim).transpose());
+		HM = 0.5 * (HMScaled.topLeftCorner(ndim, ndim) + HMScaled.topLeftCorner(ndim, ndim).transpose());
 		bM = bMScaled.head(ndim);
-		
-		// Hessian矩阵以及b矩阵中的信息去除后，去掉对应的关键帧信息
-		for (unsigned int i = fh->idx; i + 1 < frames.size(); i++)
+
+		// 去除滑窗关键帧序列中的待边缘化的关键帧
+		for (unsigned int it = fh->idx; it + 1 < frames.size(); it++)
 		{
-			frames[i] = frames[i + 1];
-			frames[i]->idx = i;
+			frames[it] = frames[it + 1];
+			frames[it]->idx = it;
 		}
 
 		nFrames--;
 		frames.pop_back();
-		fh->data->efFrame = 0;
+		fh->data->efFrame = NULL;
 
 		EFIndicesValid = false;
 		EFAdjointsValid = false;
 		EFDeltaValid = false;
 
 		makeIDX();
-		delete fh; fh = NULL;
+		freePointer(fh);
 	}
 
 	/// <summary>
+	/// 滑窗优化中边缘化标记为边缘化状态的特征；
 	/// 边缘化关键帧时，关键帧中包含很多路标点信息，若直接丢弃则优化问题中
 	/// 会损失很多信息，此时的做法是将有效的路标点收集起来进行边缘化求解Hessian
 	/// </summary>
@@ -1459,24 +1439,23 @@ namespace dso
 		// 1、收集滑窗关键帧中标记为PS_MARGINALIZE且有效残差数量大于0的特征
 		for (EFFrame* f : frames)
 		{
-			for (int i = 0; i < (int)f->points.size(); ++i)
+			for (int it = 0; it < (int)f->points.size(); ++it)
 			{
-				EFPoint* p = f->points[i];
+				EFPoint* p = f->points[it];
 				if (p->stateFlag == EFPointStatus::PS_MARGINALIZE)
 				{
 					p->priorF *= setting_idepthFixPriorMargFac;
 					for (EFResidual* r : p->residualsAll)
-						if (r->isActive())
-							if (!r->data->stereoResidualFlag)
-								connectivityMap[(((uint64_t)r->host->frameID) << 32) + ((uint64_t)r->target->frameID)][1]++;
+						if (r->isActive() && !r->data->stereoResidualFlag)
+							connectivityMap[(((uint64_t)r->host->frameID) << 32) + ((uint64_t)r->target->frameID)][1]++;
 
 					int ngoodres = 0;
 					for (EFResidual* r : p->residualsAll)
 						if (r->isActive() && !r->data->stereoResidualFlag) ngoodres++;
 					if (ngoodres > 0)
-						allPointsToMarg.emplace_back(p);
+						allPointsToMarg.emplace_back(p);	// 收集可被观测并标记为边缘化点的特征
 					else
-						removePoint(p);
+						removePoint(p);						// 不可被观测的特征直接在滑窗优化中移除
 				}
 			}
 		}
@@ -1523,7 +1502,33 @@ namespace dso
 	}
 
 	/// <summary>
-	/// 删除能量函数中状态为PS_DROP的特征
+	/// 删除滑窗优化中的观测残差：找到残差对应的特征，在特征管理的残差序列中删除该残差
+	/// </summary>
+	/// <param name="r">观测残差在滑窗优化中的表示</param>
+	void EnergyFunctional::dropResidual(EFResidual* r)
+	{
+		EFPoint* p = r->point;
+		assert(r == p->residualsAll[r->idxInAll]);
+
+		p->residualsAll[r->idxInAll] = p->residualsAll.back();
+		p->residualsAll[r->idxInAll]->idxInAll = r->idxInAll;
+		p->residualsAll.pop_back();
+
+		if (r->isActive())
+			r->host->data->shell->statistics_goodResOnThis++;
+		else
+			r->host->data->shell->statistics_outlierResOnThis++;
+
+		if (!r->data->stereoResidualFlag)
+			connectivityMap[(((uint64_t)r->host->frameID) << 32) + ((uint64_t)r->target->frameID)][0]--;
+
+		nResiduals--;
+		r->data->efResidual = NULL;
+		freePointer(r);
+	}
+
+	/// <summary>
+	/// 删除滑窗优化中状态为PS_DROP的特征
 	/// </summary>
 	void EnergyFunctional::dropPointsF()
 	{
@@ -1544,24 +1549,27 @@ namespace dso
 		makeIDX();
 	}
 
+	/// <summary>
+	/// 删除滑窗优化中的指定特征
+	/// </summary>
+	/// <param name="p">特征在后端中的表示形式</param>
 	void EnergyFunctional::removePoint(EFPoint* p)
 	{
-		// 删除由该点构造的所有残差
+		// 1、删除滑窗优化中该特征中管理的所有观测残差
 		for (EFResidual* r : p->residualsAll)
 			dropResidual(r);
 
-		// 在该点的host帧中删除该点
+		// 2、在该特征对应的主帧管理的特征中删除该特征
 		EFFrame* h = p->host;
 		h->points[p->idxInPoints] = h->points.back();
 		h->points[p->idxInPoints]->idxInPoints = p->idxInPoints;
 		h->points.pop_back();
 
 		nPoints--;
-		p->data->efPoint = 0;
+		p->data->efPoint = NULL;
 
 		EFIndicesValid = false;
-
-		delete p; p = NULL;
+		freePointer(p);
 	}
 
 	/// <summary>
@@ -1605,13 +1613,16 @@ namespace dso
 		MatXX NNpiTS = 0.5*(NNpiT + NNpiT.transpose());	// = N * (N' * N)^-1 * N'.
 
 		// 3、将信息量向零空间投影，并减掉投影在零空间的信息量
-		if (b != 0) *b -= NNpiTS * *b;
-		if (H != 0) *H -= NNpiTS * *H * NNpiTS;
+		if (b != NULL) *b -= NNpiTS * *b;
+		if (H != NULL) *H -= NNpiTS * *H * NNpiTS;
 	}
-
-	// iteration：优化迭代次数
-	// lambda：优化迭代中的控制迭代收敛速度的因子
-	// HCalib：相机内参数信息
+	
+	/// <summary>
+	/// 滑窗优化执行函数，求解滑窗关键帧优化后状态量
+	/// </summary>
+	/// <param name="iteration">优化迭代次数</param>
+	/// <param name="lambda">优化阻尼因子</param>
+	/// <param name="HCalib">相机内参信息</param>
 	void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* HCalib)
 	{
 		if (setting_solverMode & SOLVER_USE_GN) lambda = 0;
@@ -1624,18 +1635,18 @@ namespace dso
 		MatXX HL_top, HA_top, H_sc, H_imu, HFinal_top;
 		VecX  bL_top, bA_top, b_sc, b_imu, bFinal_top;
 
-		calcIMUHessian(H_imu, b_imu);
+		MatXX H_VisualAndImu = MatXX::Zero(CPARS + 7 + 17 * nFrames, CPARS + 7 + 17 * nFrames);
+		VecX b_VisualAndImu = VecX::Zero(CPARS + 7 + 17 * nFrames);
 
-		//std::cout << "Himu: " << std::endl << H_imu << std::endl;
-		//std::cout << "bimu: " << std::endl << b_imu << std::endl;
+		calcIMUHessian(H_imu, b_imu);
 
 		accumulateAF_MT(HA_top, bA_top, multiThreading);
 		accumulateLF_MT(HL_top, bL_top, multiThreading);
 		accumulateSCF_MT(H_sc, b_sc, multiThreading);
 
+		// 边缘化信息bM中添加最新状态更新量的影响
 		VecX StitchedDeltaVisual = getStitchedDeltaF();
 		VecX StitchedDeltaIMU = VecX::Zero(CPARS + 7 + nFrames * 17);
-		// 	StitchedDelta2.block(0,0,CPARS,1) = StitchedDelta.block(0,0,CPARS,1);
 		for (int idx = 0; idx < nFrames; ++idx)
 		{
 			if (frames[idx]->m_flag)
@@ -1664,92 +1675,97 @@ namespace dso
 			lastHS = HFinal_top;
 			lastbS = bFinal_top;
 
-			for (int idx = 0; idx < 8 * nFrames + CPARS; idx++)
+			for (int idx = 0; idx < 8 * nFrames + CPARS; ++idx)
 				HFinal_top(idx, idx) *= (1 + lambda);
 		}
 		else
 		{
-			HFinal_top = HL_top + HM + HA_top;
+			HFinal_top = HL_top + HM + HA_top - H_sc;
 			bFinal_top = bL_top + bM_top + bA_top - b_sc;
 
-			lastHS = HFinal_top - H_sc;
+			lastHS = HFinal_top;
 			lastbS = bFinal_top;
 
 			for (int idx = 0; idx < 8 * nFrames + CPARS; idx++)
 				HFinal_top(idx, idx) *= (1 + lambda);
-			HFinal_top -= H_sc * (1.0f / (1 + lambda));
 		}
 
 		H_imu(6, 6) += setting_initialScaleHessian;
 		H_imu.block(3, 3, 3, 3) += setting_initialIMUHessian * Mat33::Identity();
-		
+
 		for (int idx = 0; idx < nFrames; ++idx)
 		{
 			H_imu.block(7 + 15 * idx + 9, 7 + 15 * idx + 9, 3, 3) += setting_initialbgHessian * Mat33::Identity();
 			H_imu.block(7 + 15 * idx + 12, 7 + 15 * idx + 12, 3, 3) += setting_initialbaHessian * Mat33::Identity();
 		}
-		for (int idx = 0; idx < 7 + 15 * nFrames; ++idx) H_imu(idx, idx) *= (1 + lambda);
+		for (int idx = 0; idx < 7 + 15 * nFrames; ++idx)
+			H_imu(idx, idx) *= (1 + lambda);
 
-		// 构造结合惯导信息以及视觉信息的Hessian以及b且Hessian矩阵的排列顺序如下
-		// 相机内参、世界系与DSO系的变化、帧姿态、光度参数、速度、陀螺仪偏置、加速度计偏置
-		MatXX HFinal_top2 = MatXX::Zero(CPARS + 7 + 17 * nFrames, CPARS + 7 + 17 * nFrames);
-		VecX bFinal_top2 = VecX::Zero(CPARS + 7 + 17 * nFrames);
-		HFinal_top2.block(0, 0, CPARS, CPARS) = HFinal_top.block(0, 0, CPARS, CPARS);
-		HFinal_top2.block(CPARS, CPARS, 7, 7) = H_imu.block(0, 0, 7, 7);
-		bFinal_top2.block(0, 0, CPARS, 1) = bFinal_top.block(0, 0, CPARS, 1);
-		bFinal_top2.block(CPARS, 0, 7, 1) = b_imu.block(0, 0, 7, 1);
+		// 将单独的惯导信息和视觉信息写入同一个信息矩阵中
+		// c:相机内参，t:世界系与DSO系变换，pi:帧位姿和光度，v:帧速度，bg:陀螺仪偏置，ba:加速度偏置
+		H_VisualAndImu.block(0, 0, CPARS, CPARS) = HFinal_top.block(0, 0, CPARS, CPARS);	// Hcc
+		H_VisualAndImu.block(CPARS, CPARS, 7, 7) = H_imu.block(0, 0, 7, 7);					// Htt
+		b_VisualAndImu.block(0, 0, CPARS, 1) = bFinal_top.block(0, 0, CPARS, 1);			// bc
+		b_VisualAndImu.block(CPARS, 0, 7, 1) = b_imu.block(0, 0, 7, 1);						// bt
 
 		for (int idx = 0; idx < nFrames; ++idx)
 		{
-			// 相机内参与其它关键帧位姿和光度参数的关系
-			HFinal_top2.block(0, CPARS + 7 + idx * 17, CPARS, 8) += HFinal_top.block(0, CPARS + idx * 8, CPARS, 8);
-			HFinal_top2.block(CPARS + 7 + idx * 17, 0, 8, CPARS) += HFinal_top.block(CPARS + idx * 8, 0, 8, CPARS);
+			// Hc_pi和Hpi_c：c为相机内参，pi为帧位姿
+			H_VisualAndImu.block(0, CPARS + 7 + idx * 17, CPARS, 8) += HFinal_top.block(0, CPARS + idx * 8, CPARS, 8);
+			H_VisualAndImu.block(CPARS + 7 + idx * 17, 0, 8, CPARS) += HFinal_top.block(CPARS + idx * 8, 0, 8, CPARS);
 
-			// Twd与IMU的P、V、Q、Bias之间的关系
-			HFinal_top2.block(CPARS, CPARS + 7 + idx * 17, 7, 6) += H_imu.block(0, 7 + idx * 15, 7, 6);
-			HFinal_top2.block(CPARS + 7 + idx * 17, CPARS, 6, 7) += H_imu.block(7 + idx * 15, 0, 6, 7);
-			HFinal_top2.block(CPARS, CPARS + 7 + idx * 17 + 8, 7, 9) += H_imu.block(0, 7 + idx * 15 + 6, 7, 9);
-			HFinal_top2.block(CPARS + 7 + idx * 17 + 8, CPARS, 9, 7) += H_imu.block(7 + idx * 15 + 6, 0, 9, 7);
+			// Ht_pi和Hpi_t：t为世界系与DSO系变换
+			H_VisualAndImu.block(CPARS, CPARS + 7 + idx * 17, 7, 6) += H_imu.block(0, 7 + idx * 15, 7, 6);
+			H_VisualAndImu.block(CPARS + 7 + idx * 17, CPARS, 6, 7) += H_imu.block(7 + idx * 15, 0, 6, 7);
 
-			// 相机位姿、光度参数
-			HFinal_top2.block(CPARS + 7 + idx * 17, CPARS + 7 + idx * 17, 8, 8) += HFinal_top.block(CPARS + idx * 8, CPARS + idx * 8, 8, 8);
-			HFinal_top2.block(CPARS + 7 + idx * 17, CPARS + 7 + idx * 17, 6, 6) += H_imu.block(7 + idx * 15, 7 + idx * 15, 6, 6);
+			// Ht_v,Ht_bg,Ht_ba 和 Hv_t,Hbg_t,Hba_t
+			H_VisualAndImu.block(CPARS, CPARS + 7 + idx * 17 + 8, 7, 9) += H_imu.block(0, 7 + idx * 15 + 6, 7, 9);
+			H_VisualAndImu.block(CPARS + 7 + idx * 17 + 8, CPARS, 9, 7) += H_imu.block(7 + idx * 15 + 6, 0, 9, 7);
 
-			// 速度、加速度偏置、陀螺仪偏置
-			HFinal_top2.block(CPARS + 7 + idx * 17 + 8, CPARS + 7 + idx * 17 + 8, 9, 9) += H_imu.block(7 + idx * 15 + 6, 7 + idx * 15 + 6, 9, 9);
-			HFinal_top2.block(CPARS + 7 + idx * 17 + 8, CPARS + 7 + idx * 17, 9, 6) += H_imu.block(7 + idx * 15 + 6, 7 + idx * 15, 9, 6);
-			HFinal_top2.block(CPARS + 7 + idx * 17, CPARS + 7 + idx * 17 + 8, 6, 9) += H_imu.block(7 + idx * 15, 7 + idx * 15 + 6, 6, 9);
+			// Hpi_pi，视觉和惯导信息中都有这条信息
+			H_VisualAndImu.block(CPARS + 7 + idx * 17, CPARS + 7 + idx * 17, 8, 8) += HFinal_top.block(CPARS + idx * 8, CPARS + idx * 8, 8, 8);
+			H_VisualAndImu.block(CPARS + 7 + idx * 17, CPARS + 7 + idx * 17, 6, 6) += H_imu.block(7 + idx * 15, 7 + idx * 15, 6, 6);
 
-			for (int j = idx + 1; j < nFrames; ++j) 
+			// Hs_s、Hs_pi、Hpi_s，s为v、bg、ba三者统称，这里的pi去除了光度参数
+			H_VisualAndImu.block(CPARS + 7 + idx * 17 + 8, CPARS + 7 + idx * 17 + 8, 9, 9) += H_imu.block(7 + idx * 15 + 6, 7 + idx * 15 + 6, 9, 9);
+			H_VisualAndImu.block(CPARS + 7 + idx * 17 + 8, CPARS + 7 + idx * 17, 9, 6) += H_imu.block(7 + idx * 15 + 6, 7 + idx * 15, 9, 6);
+			H_VisualAndImu.block(CPARS + 7 + idx * 17, CPARS + 7 + idx * 17 + 8, 6, 9) += H_imu.block(7 + idx * 15, 7 + idx * 15 + 6, 6, 9);
+
+			// pi、v、ba、bg每一帧关键帧都有
+			for (int j = idx + 1; j < nFrames; ++j)
 			{
-				//pose a b
-				HFinal_top2.block(CPARS + 7 + idx * 17, CPARS + 7 + j * 17, 8, 8) += HFinal_top.block(CPARS + idx * 8, CPARS + j * 8, 8, 8);
-				HFinal_top2.block(CPARS + 7 + j * 17, CPARS + 7 + idx * 17, 8, 8) += HFinal_top.block(CPARS + j * 8, CPARS + idx * 8, 8, 8);
-				//pose
-				HFinal_top2.block(CPARS + 7 + idx * 17, CPARS + 7 + j * 17, 6, 6) += H_imu.block(7 + idx * 15, 7 + j * 15, 6, 6);
-				HFinal_top2.block(CPARS + 7 + j * 17, CPARS + 7 + idx * 17, 6, 6) += H_imu.block(7 + j * 15, 7 + idx * 15, 6, 6);
-				//v bg ba
-				HFinal_top2.block(CPARS + 7 + idx * 17 + 8, CPARS + 7 + j * 17 + 8, 9, 9) += H_imu.block(7 + idx * 15 + 6, 7 + j * 15 + 6, 9, 9);
-				HFinal_top2.block(CPARS + 7 + j * 17 + 8, CPARS + 7 + idx * 17 + 8, 9, 9) += H_imu.block(7 + j * 15 + 6, 7 + idx * 15 + 6, 9, 9);
-				//v bg ba,pose
-				HFinal_top2.block(CPARS + 7 + idx * 17 + 8, CPARS + 7 + j * 17, 9, 6) += H_imu.block(7 + idx * 15 + 6, 7 + j * 15, 9, 6);
-				HFinal_top2.block(CPARS + 7 + j * 17, CPARS + 7 + idx * 17 + 8, 6, 9) += H_imu.block(7 + j * 15, 7 + idx * 15 + 6, 6, 9);
-				//pose,v bg ba
-				HFinal_top2.block(CPARS + 7 + idx * 17, CPARS + 7 + j * 17 + 8, 6, 9) += H_imu.block(7 + idx * 15, 7 + j * 15 + 6, 6, 9);
-				HFinal_top2.block(CPARS + 7 + j * 17 + 8, CPARS + 7 + idx * 17, 9, 6) += H_imu.block(7 + j * 15 + 6, 7 + idx * 15, 9, 6);
+				// Hpi_pj 和 Hpj_pi，pi和pj表示不同关键帧位姿，包含光度参数
+				H_VisualAndImu.block(CPARS + 7 + idx * 17, CPARS + 7 + j * 17, 8, 8) += HFinal_top.block(CPARS + idx * 8, CPARS + j * 8, 8, 8);
+				H_VisualAndImu.block(CPARS + 7 + j * 17, CPARS + 7 + idx * 17, 8, 8) += HFinal_top.block(CPARS + j * 8, CPARS + idx * 8, 8, 8);
+
+				// Hpi_pj 和 Hpj_pi，pi和pj表示不同关键帧位姿，不包含光度参数
+				H_VisualAndImu.block(CPARS + 7 + idx * 17, CPARS + 7 + j * 17, 6, 6) += H_imu.block(7 + idx * 15, 7 + j * 15, 6, 6);
+				H_VisualAndImu.block(CPARS + 7 + j * 17, CPARS + 7 + idx * 17, 6, 6) += H_imu.block(7 + j * 15, 7 + idx * 15, 6, 6);
+
+				// Hsi_sj 和 Hsj_si，s为v、bg、ba三者统称，i和j表示不同关键帧
+				H_VisualAndImu.block(CPARS + 7 + idx * 17 + 8, CPARS + 7 + j * 17 + 8, 9, 9) += H_imu.block(7 + idx * 15 + 6, 7 + j * 15 + 6, 9, 9);
+				H_VisualAndImu.block(CPARS + 7 + j * 17 + 8, CPARS + 7 + idx * 17 + 8, 9, 9) += H_imu.block(7 + j * 15 + 6, 7 + idx * 15 + 6, 9, 9);
+
+				// Hsi_pj，si为第i帧状态，pj为第j帧状态
+				H_VisualAndImu.block(CPARS + 7 + idx * 17 + 8, CPARS + 7 + j * 17, 9, 6) += H_imu.block(7 + idx * 15 + 6, 7 + j * 15, 9, 6);
+				H_VisualAndImu.block(CPARS + 7 + j * 17 + 8, CPARS + 7 + idx * 17, 9, 6) += H_imu.block(7 + j * 15 + 6, 7 + idx * 15, 9, 6);
+
+				// Hpi_sj。pi为第i帧状态，sj为第j帧状态
+				H_VisualAndImu.block(CPARS + 7 + idx * 17, CPARS + 7 + j * 17 + 8, 6, 9) += H_imu.block(7 + idx * 15, 7 + j * 15 + 6, 6, 9);
+				H_VisualAndImu.block(CPARS + 7 + j * 17, CPARS + 7 + idx * 17 + 8, 6, 9) += H_imu.block(7 + j * 15, 7 + idx * 15 + 6, 6, 9);
 			}
 
-			bFinal_top2.block(CPARS + 7 + 17 * idx, 0, 8, 1) += bFinal_top.block(CPARS + 8 * idx, 0, 8, 1);
-			bFinal_top2.block(CPARS + 7 + 17 * idx, 0, 6, 1) += b_imu.block(7 + 15 * idx, 0, 6, 1);
-			bFinal_top2.block(CPARS + 7 + 17 * idx + 8, 0, 9, 1) += b_imu.block(7 + 15 * idx + 6, 0, 9, 1);
+			// bpi、bs，s 为v、bg、ba三者统称
+			b_VisualAndImu.block(CPARS + 7 + 17 * idx, 0, 8, 1) += bFinal_top.block(CPARS + 8 * idx, 0, 8, 1);
+			b_VisualAndImu.block(CPARS + 7 + 17 * idx, 0, 6, 1) += b_imu.block(7 + 15 * idx, 0, 6, 1);
+			b_VisualAndImu.block(CPARS + 7 + 17 * idx + 8, 0, 9, 1) += b_imu.block(7 + 15 * idx + 6, 0, 9, 1);
 		}
 
-		HFinal_top2 += (HM_imu + HM_bias);
-		// 	bFinal_top2 += (bM_imu + bM_bias);
-		bFinal_top2 += (bM_top_imu + bM_bias);
-		VecX x = VecX::Zero(CPARS + 8 * nFrames);
-		VecX x2 = VecX::Zero(CPARS + 7 + 17 * nFrames);
-		VecX x3 = VecX::Zero(CPARS + 7 + 17 * nFrames);
+		H_VisualAndImu += (HM_imu + HM_bias);
+		b_VisualAndImu += (bM_top_imu + bM_bias);
+
+		VecX x_visual = VecX::Zero(CPARS + 8 * nFrames);
+		VecX x_visualAndImu = VecX::Zero(CPARS + 7 + 17 * nFrames);
 
 		if (setting_solverMode & SOLVER_SVD)
 		{
@@ -1760,29 +1776,31 @@ namespace dso
 
 			VecX S = svd.singularValues();
 			double minSv = 1e10, maxSv = 0;
-			for (int i = 0; i < S.size(); i++)
+			for (int it = 0; it < S.size(); ++it)
 			{
-				if (S[i] < minSv) minSv = S[i];
-				if (S[i] > maxSv) maxSv = S[i];
+				if (S[it] < minSv) minSv = S[it];
+				if (S[it] > maxSv) maxSv = S[it];
 			}
 
-			VecX Ub = svd.matrixU().transpose()*bFinalScaled;
+			VecX Ub = svd.matrixU().transpose() * bFinalScaled;
 			int setZero = 0;
-			for (int i = 0; i < Ub.size(); i++)
+			for (int it = 0; it < Ub.size(); ++it)
 			{
-				if (S[i] < setting_solverModeDelta*maxSv)
+				if (S[it] < setting_solverModeDelta * maxSv)
 				{
-					Ub[i] = 0; setZero++;
+					Ub[it] = 0;
+					setZero++;
 				}
 
-				if ((setting_solverMode & SOLVER_SVD_CUT7) && (i >= Ub.size() - 7))
+				if ((setting_solverMode & SOLVER_SVD_CUT7) && (it >= Ub.size() - 7))
 				{
-					Ub[i] = 0; setZero++;
+					Ub[it] = 0;
+					setZero++;
 				}
-
-				else Ub[i] /= S[i];
+				else
+					Ub[it] /= S[it];
 			}
-			x = SVecI.asDiagonal() * svd.matrixV() * Ub;
+			x_visual = SVecI.asDiagonal() * svd.matrixV() * Ub;
 		}
 		else
 		{
@@ -1790,47 +1808,38 @@ namespace dso
 			{
 				VecX SVecI = (HFinal_top.diagonal() + VecX::Constant(HFinal_top.cols(), 10)).cwiseSqrt().cwiseInverse();
 				MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_top * SVecI.asDiagonal();
-				x = SVecI.asDiagonal() * HFinalScaled.ldlt().solve(SVecI.asDiagonal() * bFinal_top);//  SVec.asDiagonal() * svd.matrixV() * Ub;
+				x_visual = SVecI.asDiagonal() * HFinalScaled.ldlt().solve(SVecI.asDiagonal() * bFinal_top);
 			}
 			else
 			{
-				//std::cout << "Himu: " << H_imu << std::endl;
-				//std::cout << "HFinal_top: " << HFinal_top << std::endl;
-				//std::cout << "HFinal_top2: " << HFinal_top2 << std::endl;
-				//std::cout << "bFinal_top2: " << bFinal_top2 << std::endl;
+				VecX SVecI = (H_VisualAndImu.diagonal() + VecX::Constant(H_VisualAndImu.cols(), 10)).cwiseSqrt().cwiseInverse();
+				MatXX HFinalScaled = SVecI.asDiagonal() * H_VisualAndImu * SVecI.asDiagonal();
+				x_visualAndImu = SVecI.asDiagonal() * HFinalScaled.ldlt().solve(SVecI.asDiagonal() * b_VisualAndImu);
 
-				VecX SVecI = (HFinal_top2.diagonal() + VecX::Constant(HFinal_top2.cols(), 10)).cwiseSqrt().cwiseInverse();
-				MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_top2 * SVecI.asDiagonal();
-				x2 = SVecI.asDiagonal() * HFinalScaled.ldlt().solve(SVecI.asDiagonal() * bFinal_top2);//  SVec.asDiagonal() * svd.matrixV() * Ub;
-
-				//std::cout << "SVecI: " << SVecI << std::endl;
-				//std::cout << "HFinal_top: " << HFinal_top2 << std::endl;
-				//std::cout << "bFinal_top: " << bFinal_top2 << std::endl;
-
-				x.block(0, 0, CPARS, 1) = x2.block(0, 0, CPARS, 1);
-				for (int i = 0; i < nFrames; ++i)
+				x_visual.block(0, 0, CPARS, 1) = x_visualAndImu.block(0, 0, CPARS, 1);
+				for (int it = 0; it < nFrames; ++it)
 				{
-					x.block(CPARS + i * 8, 0, 8, 1) = x2.block(CPARS + 7 + 17 * i, 0, 8, 1);
-					frames[i]->data->step_imu = -x2.block(CPARS + 7 + 17 * i + 8, 0, 9, 1);
+					x_visual.block(CPARS + it * 8, 0, 8, 1) = x_visualAndImu.block(CPARS + 7 + 17 * it, 0, 8, 1);
+					frames[it]->data->step_imu = -x_visualAndImu.block(CPARS + 7 + 17 * it + 8, 0, 9, 1);
 				}
-				step_twd = -x2.block(CPARS, 0, 7, 1);
+				step_twd = -x_visualAndImu.block(CPARS, 0, 7, 1);
 			}
 		}
 
 		if ((setting_solverMode & SOLVER_ORTHOGONALIZE_X) || (iteration >= 2 && (setting_solverMode & SOLVER_ORTHOGONALIZE_X_LATER)))
 		{
-			VecX xOld = x;
-			orthogonalize(&x, 0);
+			VecX xOld = x_visual;
+			orthogonalize(&x_visual, 0);
 		}
 
-		lastX = x;
+		lastX = x_visual;
 		currentLambda = lambda;
-		resubstituteF_MT(x, HCalib, multiThreading);
+		resubstituteF_MT(x_visual, HCalib, multiThreading);
 		currentLambda = 0;
 	}
 
 	/// <summary>
-	/// 对滑窗优化问题中的特征、关键帧以及残差进行编号排序
+	/// 滑窗中关键帧或特征点或残差有变动时，需要重新编号
 	/// </summary>
 	void EnergyFunctional::makeIDX()
 	{
@@ -1860,7 +1869,7 @@ namespace dso
 	/// <summary>
 	/// 获取滑窗关键帧相机内参、相机姿态以及相机光度参数增量
 	/// </summary>
-	/// <returns></returns>
+	/// <returns>滑窗关键帧内参、位姿以及光度参数增量</returns>
 	VecX EnergyFunctional::getStitchedDeltaF() const
 	{
 		VecX d = VecX(CPARS + nFrames * 8);

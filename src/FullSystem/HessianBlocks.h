@@ -387,7 +387,7 @@ namespace dso
 	{
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 		static int instanceCounter;
-		EFPoint* efPoint;						// 当前特征在滑窗优化中的表示形式
+		EFPoint* efPoint;
 
 		// static values
 		float color[MAX_RES_PER_POINT];			// colors in host frame

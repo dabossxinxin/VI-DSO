@@ -63,11 +63,11 @@ namespace dso
 		bool stereoResidualFlag = false;	// 当前残差是否为双目残差的标志位
 		static int instanceCounter;			// 残差数量计数的静态成员变量
 
-		ResState state_state;				// TODO：当前残差的状态
-		double state_energy;				// TODO：当前光度残差能量值
-		ResState state_NewState;			// TODO：当前残差最新状态
-		double state_NewEnergy;				// TODO：当前光度残差最新能量值
-		double state_NewEnergyWithOutlier;	// TODO：当前残差包含外点时的最新能量值
+		ResState state_state;				// TODO:当前残差的状态
+		double state_energy;
+		ResState state_NewState;
+		double state_NewEnergy;
+		double state_NewEnergyWithOutlier;
 
 		PointHessian* point;				// 构造当前残差的地图点
 		FrameHessian* host;					// 构建当前残差地图点的主帧

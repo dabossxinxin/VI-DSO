@@ -21,10 +21,6 @@
 * along with DSO. If not, see <http://www.gnu.org/licenses/>.
 */
 
-
-
-
- 
 #include <stdio.h>
 #include <algorithm>
 #include <cmath>
@@ -88,7 +84,7 @@ namespace dso
 
 	void FullSystem::applyRes_Reductor(bool copyJacobians, int min, int max, Vec10* stats, int tid)
 	{
-		for (int k = min; k < max; k++)
+		for (int k = min; k < max; ++k)
 			activeResiduals[k]->applyRes(true);
 	}
 
@@ -237,10 +233,10 @@ namespace dso
 		{
 			Hcalib.setValue(Hcalib.value_backup + stepfacC * Hcalib.step);
 			T_WD_change = Sim3::exp(Vec7::Zero());
-			if (imu_use_flag) 
+			if (imu_use_flag)
 			{
 				state_twd += stepfacC * step_twd;
-				if (std::exp(state_twd[6]) < 0.1 || std::exp(state_twd[6]) > 10) 
+				if (std::exp(state_twd[6]) < 0.1 || std::exp(state_twd[6]) > 10)
 				{
 					initFailed = true;
 					first_track_flag = false;
@@ -273,7 +269,7 @@ namespace dso
 				sumT += fh->step.segment<3>(0).squaredNorm();
 				sumR += fh->step.segment<3>(3).squaredNorm();
 
-				if (imu_use_flag) 
+				if (imu_use_flag)
 				{
 					fh->velocity += stepfacC * fh->step_imu.block(0, 0, 3, 1);
 					fh->delta_bias_g += stepfacC * fh->step_imu.block(3, 0, 3, 1);
@@ -405,10 +401,8 @@ namespace dso
 			res[0], sqrtf((float)(res[0] / (patternNum * ef->resInA))), ef->resInA, ef->resInM, a, b);
 	}
 
-
 	float FullSystem::optimize(int mnumOptIts)
 	{
-
 		if (frameHessians.size() < 2) return 0;
 		if (frameHessians.size() < 3) mnumOptIts = 20;
 		if (frameHessians.size() < 4) mnumOptIts = 15;
@@ -596,10 +590,10 @@ namespace dso
 
 	double FullSystem::calcLEnergy()
 	{
-		if (setting_forceAceptStep) return 0;
+		if (setting_forceAceptStep)
+			return 0;
 
-		double Ef = ef->calcLEnergyF_MT();
-		return Ef;
+		return ef->calcLEnergyF_MT();
 	}
 
 	/// <summary>

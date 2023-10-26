@@ -112,7 +112,7 @@ namespace dso
 		MatXX lastHS;
 		VecX lastbS;
 		VecX lastX;
-		std::vector<VecX> lastNullspaces_forLogging;
+		std::vector<VecX> lastNullspaces_forLogging;		// 上一优化迭代步骤的零空间
 		std::vector<VecX> lastNullspaces_pose;
 		std::vector<VecX> lastNullspaces_scale;
 		std::vector<VecX> lastNullspaces_affA;
@@ -155,7 +155,7 @@ namespace dso
 		VecCf cPriorF;			// 相机内参参数先验值 [float]
 		
 		AccumulatedTopHessianSSE* accSSE_top_L;		// 计算滑窗中激活特征的Heesian信息
-		AccumulatedTopHessianSSE* accSSE_top_A;		// 计算滑窗中线性化特征的Hessian信息
+		AccumulatedTopHessianSSE* accSSE_top_A;		// 计算滑窗中特征的除逆深度外的Hessian信息
 		AccumulatedSCHessianSSE* accSSE_bot;		// 计算滑窗中边缘化特征的舒尔补信息
 
 		std::vector<EFPoint*> allPoints;			// 参与优化计算的所有特征
