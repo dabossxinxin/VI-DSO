@@ -42,26 +42,33 @@
 #include "OptimizationBackend/EnergyFunctionalStructs.h"
 
 namespace dso
-{
+{	
+	/// <summary>
+	/// Linearizes all reductor.
+	/// </summary>
+	/// <param name="fixLinearization">if set to <c>true</c> [fix linearization].</param>
+	/// <param name="toRemove">To remove.</param>
+	/// <param name="min">The minimum.</param>
+	/// <param name="max">The maximum.</param>
+	/// <param name="stats">The stats.</param>
+	/// <param name="tid">The tid.</param>
 	void FullSystem::linearizeAll_Reductor(bool fixLinearization, std::vector<PointFrameResidual*>* toRemove, int min, int max, Vec10* stats, int tid)
 	{
-		for (int k = min; k < max; k++)
+		for (int k = min; k < max; ++k)
 		{
-			PointFrameResidual* r = activeResiduals[k];
-			if (r->stereoResidualFlag == true) {
+			auto r = activeResiduals[k];
+			if (r->stereoResidualFlag)
 				(*stats)[0] += r->linearizeStereo(&Hcalib);
-			}
-			else {
+			else
 				(*stats)[0] += r->linearize(&Hcalib);
-			}
-			// 		(*stats)[0] += r->linearize(&Hcalib);
+
 			if (fixLinearization)
 			{
 				r->applyRes(true);
 
 				if (r->efResidual->isActive())
 				{
-					if (r->isNew && r->stereoResidualFlag == false)
+					if (r->isNew && !r->stereoResidualFlag)
 					{
 						PointHessian* p = r->point;
 						Vec3f ptp_inf = r->host->targetPrecalc[r->target->idx].PRE_KRKiTll * Vec3f(p->u, p->v, 1);	// projected point assuming infinite depth.
@@ -76,7 +83,7 @@ namespace dso
 				}
 				else
 				{
-					toRemove[tid].push_back(activeResiduals[k]);
+					toRemove[tid].emplace_back(activeResiduals[k]);
 				}
 			}
 		}

@@ -90,8 +90,8 @@ namespace dso
 		int nFrames;						// 参与滑窗优化的关键帧数量
 		int nResiduals;						// 参与滑窗优化的光度残差数量
 
-		MatXX HM;							// 视觉部分边缘化的H
-		VecX bM;							// 视觉部分边缘化的b
+		MatXX HM_visual;					// 视觉部分边缘化的H
+		VecX bM_visual;						// 视觉部分边缘化的b
 		    
 		MatXX HM_imu;						// 惯导部分边缘化的H
 		VecX bM_imu;						// 惯导部分边缘化的b
@@ -108,24 +108,26 @@ namespace dso
 		double d_half = sqrt(1.1);
 		bool side_last = true;		//for dynamic margin: true: upper s_middle false: below s_middle
 
-		int resInA, resInL, resInM;
-		MatXX lastHS;
-		VecX lastbS;
-		VecX lastX;
-		std::vector<VecX> lastNullspaces_forLogging;		// 上一优化迭代步骤的零空间
-		std::vector<VecX> lastNullspaces_pose;
-		std::vector<VecX> lastNullspaces_scale;
-		std::vector<VecX> lastNullspaces_affA;
-		std::vector<VecX> lastNullspaces_affB;
+		int resInA;
+		int resInL;
+		int resInM;
+		MatXX lastHS;				// 上一步优化迭代视觉Hessian
+		VecX lastbS;				// 上一步优化迭代视觉b
+		VecX lastX;					// 上一步优化迭代滑窗关键帧内参、位姿以及光度增量
 
-		//ThreadPool* threadPool;
-		IndexThreadReduce<Vec10>* red;
+		std::vector<VecX> lastNullspaces_forLogging;		// 上一优化迭代步骤的零空间
+		std::vector<VecX> lastNullspaces_pose;				// 上一优化迭代步骤的位姿零空间
+		std::vector<VecX> lastNullspaces_scale;				// 上一优化迭代步骤的尺度零空间
+		std::vector<VecX> lastNullspaces_affA;				// 上一优化迭代步骤的光度参数a零空间
+		std::vector<VecX> lastNullspaces_affB;				// 上一优化迭代步骤的光度参数b零空间
+
+		IndexThreadReduce<Vec10>* red;						// 滑窗优化类内部使用的多线程工具handle
 
 		std::map<uint64_t,
 			Eigen::Vector2i,
 			std::less<uint64_t>,
 			Eigen::aligned_allocator<std::pair<const uint64_t, Eigen::Vector2i>>
-		> connectivityMap;
+		> connectivityMap;									// TODO：维护滑窗关键帧之间的共视关系
 	private:
 
 		VecX getStitchedDeltaF() const;
@@ -161,6 +163,6 @@ namespace dso
 		std::vector<EFPoint*> allPoints;			// 参与优化计算的所有特征
 		std::vector<EFPoint*> allPointsToMarg;		// 参与优化计算的所有边缘化特征
 
-		float currentLambda;
+		float currentLambda;						// 当前滑窗优化迭代步骤的阻尼因子
 	};
 }

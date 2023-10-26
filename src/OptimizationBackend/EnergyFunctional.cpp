@@ -363,8 +363,8 @@ namespace dso
 
 		nFrames = nResiduals = nPoints = 0;
 
-		HM = MatXX::Zero(CPARS, CPARS);
-		bM = VecX::Zero(CPARS);
+		HM_visual = MatXX::Zero(CPARS, CPARS);
+		bM_visual = VecX::Zero(CPARS);
 
 		HM_imu = MatXX::Zero(CPARS + 7, CPARS + 7);
 		bM_imu = VecX::Zero(CPARS + 7);
@@ -629,7 +629,7 @@ namespace dso
 	}
 
 	/// <summary>
-	/// TODO：计算边缘化能量值
+	/// TODO：计算视觉边缘化能量值
 	/// </summary>
 	/// <returns></returns>
 	double EnergyFunctional::calcMEnergyF()
@@ -639,7 +639,7 @@ namespace dso
 		assert(EFIndicesValid);
 
 		VecX delta = getStitchedDeltaF();
-		return delta.dot(2 * bM + HM * delta);
+		return delta.dot(2 * bM_visual + HM_visual * delta);
 	}
 
 	/// <summary>
@@ -774,12 +774,12 @@ namespace dso
 		fh->frameRight->efFrame = effRight;
 
 		// 2、新帧进来后，扩展视觉舒尔补信息矩阵维度
-		assert(HM.cols() == 8 * nFrames + CPARS - 8);
-		bM.conservativeResize(8 * nFrames + CPARS);
-		HM.conservativeResize(8 * nFrames + CPARS, 8 * nFrames + CPARS);
-		bM.tail<8>().setZero();
-		HM.rightCols<8>().setZero();
-		HM.bottomRows<8>().setZero();
+		assert(HM_visual.cols() == 8 * nFrames + CPARS - 8);
+		bM_visual.conservativeResize(8 * nFrames + CPARS);
+		HM_visual.conservativeResize(8 * nFrames + CPARS, 8 * nFrames + CPARS);
+		bM_visual.tail<8>().setZero();
+		HM_visual.rightCols<8>().setZero();
+		HM_visual.bottomRows<8>().setZero();
 
 		// 3、新帧进来后，扩展惯导舒尔补信息矩阵维度
 		bM_imu.conservativeResize(17 * nFrames + CPARS + 7);
@@ -1351,6 +1351,7 @@ namespace dso
 		if (imu_use_flag)
 			marginalizeFrame_imu(fh);
 
+		// 2、视觉信息边缘化
 		int ndim = nFrames * 8 + CPARS - 8;		// 边缘化后视觉舒尔补信息矩阵维度
 		int odim = nFrames * 8 + CPARS;			// 边缘化前视觉舒尔补信息矩阵维度
 
@@ -1362,31 +1363,31 @@ namespace dso
 			assert((io + 8 + ntail) == nFrames * 8 + CPARS);
 
 			// bM中将待边缘化的信息放在矩阵尾部8行
-			Vec8 bTmp = bM.segment<8>(io);
-			VecX tailTmp = bM.tail(ntail);
-			bM.segment(io, ntail) = tailTmp;
-			bM.tail<8>() = bTmp;
+			Vec8 bTmp = bM_visual.segment<8>(io);
+			VecX tailTmp = bM_visual.tail(ntail);
+			bM_visual.segment(io, ntail) = tailTmp;
+			bM_visual.tail<8>() = bTmp;
 
-			MatXX HtmpCol = HM.block(0, io, odim, 8);
-			MatXX rightColsTmp = HM.rightCols(ntail);
-			HM.block(0, io, odim, ntail) = rightColsTmp;
-			HM.rightCols(8) = HtmpCol;
+			MatXX HtmpCol = HM_visual.block(0, io, odim, 8);
+			MatXX rightColsTmp = HM_visual.rightCols(ntail);
+			HM_visual.block(0, io, odim, ntail) = rightColsTmp;
+			HM_visual.rightCols(8) = HtmpCol;
 
-			MatXX HtmpRow = HM.block(io, 0, 8, odim);
-			MatXX botRowsTmp = HM.bottomRows(ntail);
-			HM.block(io, 0, ntail, odim) = botRowsTmp;
-			HM.bottomRows(8) = HtmpRow;
+			MatXX HtmpRow = HM_visual.block(io, 0, 8, odim);
+			MatXX botRowsTmp = HM_visual.bottomRows(ntail);
+			HM_visual.block(io, 0, ntail, odim) = botRowsTmp;
+			HM_visual.bottomRows(8) = HtmpRow;
 		}
 
 		// 边缘化关键帧之前，边缘化帧的先验信息需要加上去，否则后面这各信息就丢失了
-		HM.bottomRightCorner<8, 8>().diagonal() += fh->prior;
-		bM.tail<8>() += fh->prior.cwiseProduct(fh->delta_prior);
+		HM_visual.bottomRightCorner<8, 8>().diagonal() += fh->prior;
+		bM_visual.tail<8>() += fh->prior.cwiseProduct(fh->delta_prior);
 
-		VecX SVec = (HM.diagonal().cwiseAbs() + VecX::Constant(HM.cols(), 10)).cwiseSqrt();
+		VecX SVec = (HM_visual.diagonal().cwiseAbs() + VecX::Constant(HM_visual.cols(), 10)).cwiseSqrt();
 		VecX SVecI = SVec.cwiseInverse();
 
-		MatXX HMScaled = SVecI.asDiagonal() * HM * SVecI.asDiagonal();
-		VecX bMScaled = SVecI.asDiagonal() * bM;
+		MatXX HMScaled = SVecI.asDiagonal() * HM_visual * SVecI.asDiagonal();
+		VecX bMScaled = SVecI.asDiagonal() * bM_visual;
 
 		Mat88 hpi = HMScaled.bottomRightCorner<8, 8>();
 		hpi = 0.5f * (hpi + hpi);
@@ -1401,8 +1402,8 @@ namespace dso
 		HMScaled = SVec.asDiagonal() * HMScaled * SVec.asDiagonal();
 		bMScaled = SVec.asDiagonal() * bMScaled;
 
-		HM = 0.5 * (HMScaled.topLeftCorner(ndim, ndim) + HMScaled.topLeftCorner(ndim, ndim).transpose());
-		bM = bMScaled.head(ndim);
+		HM_visual = 0.5 * (HMScaled.topLeftCorner(ndim, ndim) + HMScaled.topLeftCorner(ndim, ndim).transpose());
+		bM_visual = bMScaled.head(ndim);
 
 		// 去除滑窗关键帧序列中的待边缘化的关键帧
 		for (unsigned int it = fh->idx; it + 1 < frames.size(); it++)
@@ -1491,11 +1492,11 @@ namespace dso
 				orthogonalize(&b, &H);
 		}
 
-		HM += setting_margWeightFac * H;
-		bM += setting_margWeightFac * b;
+		HM_visual += setting_margWeightFac * H;
+		bM_visual += setting_margWeightFac * b;
 
 		if (setting_solverMode & SOLVER_ORTHOGONALIZE_FULL)
-			orthogonalize(&bM, &HM);
+			orthogonalize(&bM_visual, &HM_visual);
 
 		EFIndicesValid = false;
 		makeIDX();
@@ -1632,17 +1633,19 @@ namespace dso
 		assert(EFAdjointsValid);
 		assert(EFIndicesValid);
 
-		MatXX HL_top, HA_top, H_sc, H_imu, HFinal_top;
-		VecX  bL_top, bA_top, b_sc, b_imu, bFinal_top;
+		MatXX HL_visual, HA_visual, Hsc_visual, HFinal_visual;
+		VecX  bL_visual, bA_visual, bsc_visual, bFinal_visual;
 
 		MatXX H_VisualAndImu = MatXX::Zero(CPARS + 7 + 17 * nFrames, CPARS + 7 + 17 * nFrames);
 		VecX b_VisualAndImu = VecX::Zero(CPARS + 7 + 17 * nFrames);
 
+		MatXX H_imu;
+		VecX b_imu;
 		calcIMUHessian(H_imu, b_imu);
 
-		accumulateAF_MT(HA_top, bA_top, multiThreading);
-		accumulateLF_MT(HL_top, bL_top, multiThreading);
-		accumulateSCF_MT(H_sc, b_sc, multiThreading);
+		accumulateAF_MT(HA_visual, bA_visual, multiThreading);
+		accumulateLF_MT(HL_visual, bL_visual, multiThreading);
+		accumulateSCF_MT(Hsc_visual, bsc_visual, multiThreading);
 
 		// 边缘化信息bM中添加最新状态更新量的影响
 		VecX StitchedDeltaVisual = getStitchedDeltaF();
@@ -1654,8 +1657,8 @@ namespace dso
 		}
 		StitchedDeltaIMU.block(CPARS, 0, 7, 1) = state_twd;
 
-		VecX bM_top = (bM + HM * StitchedDeltaVisual);
-		VecX bM_top_imu = (bM_imu + HM_imu * StitchedDeltaIMU);
+		VecX bM_deltaVisual = (bM_visual + HM_visual * StitchedDeltaVisual);
+		VecX bM_deltaImu = (bM_imu + HM_imu * StitchedDeltaIMU);
 
 		if (setting_solverMode & SOLVER_ORTHOGONALIZE_SYSTEM)
 		{
@@ -1663,31 +1666,31 @@ namespace dso
 			for (EFFrame* f : frames)
 				if (f->frameID == 0) haveFirstFrame = true;
 
-			MatXX HT_act = HL_top + HA_top - H_sc;
-			VecX bT_act = bL_top + bA_top - b_sc;
+			MatXX HT_act = HL_visual + HA_visual - Hsc_visual;
+			VecX bT_act = bL_visual + bA_visual - bsc_visual;
 
 			if (!haveFirstFrame)
 				orthogonalize(&bT_act, &HT_act);
 
-			HFinal_top = HT_act + HM;
-			bFinal_top = bT_act + bM_top;
+			HFinal_visual = HT_act + HM_visual;
+			bFinal_visual = bT_act + bM_deltaVisual;
 
-			lastHS = HFinal_top;
-			lastbS = bFinal_top;
+			lastHS = HFinal_visual;
+			lastbS = bFinal_visual;
 
 			for (int idx = 0; idx < 8 * nFrames + CPARS; ++idx)
-				HFinal_top(idx, idx) *= (1 + lambda);
+				HFinal_visual(idx, idx) *= (1 + lambda);
 		}
 		else
 		{
-			HFinal_top = HL_top + HM + HA_top - H_sc;
-			bFinal_top = bL_top + bM_top + bA_top - b_sc;
+			HFinal_visual = HL_visual + HA_visual + HM_visual - Hsc_visual;
+			bFinal_visual = bL_visual + bA_visual + bM_deltaVisual - bsc_visual;
 
-			lastHS = HFinal_top;
-			lastbS = bFinal_top;
+			lastHS = HFinal_visual;
+			lastbS = bFinal_visual;
 
 			for (int idx = 0; idx < 8 * nFrames + CPARS; idx++)
-				HFinal_top(idx, idx) *= (1 + lambda);
+				HFinal_visual(idx, idx) *= (1 + lambda);
 		}
 
 		H_imu(6, 6) += setting_initialScaleHessian;
@@ -1703,16 +1706,16 @@ namespace dso
 
 		// 将单独的惯导信息和视觉信息写入同一个信息矩阵中
 		// c:相机内参，t:世界系与DSO系变换，pi:帧位姿和光度，v:帧速度，bg:陀螺仪偏置，ba:加速度偏置
-		H_VisualAndImu.block(0, 0, CPARS, CPARS) = HFinal_top.block(0, 0, CPARS, CPARS);	// Hcc
+		H_VisualAndImu.block(0, 0, CPARS, CPARS) = HFinal_visual.block(0, 0, CPARS, CPARS);	// Hcc
 		H_VisualAndImu.block(CPARS, CPARS, 7, 7) = H_imu.block(0, 0, 7, 7);					// Htt
-		b_VisualAndImu.block(0, 0, CPARS, 1) = bFinal_top.block(0, 0, CPARS, 1);			// bc
+		b_VisualAndImu.block(0, 0, CPARS, 1) = bFinal_visual.block(0, 0, CPARS, 1);			// bc
 		b_VisualAndImu.block(CPARS, 0, 7, 1) = b_imu.block(0, 0, 7, 1);						// bt
 
 		for (int idx = 0; idx < nFrames; ++idx)
 		{
 			// Hc_pi和Hpi_c：c为相机内参，pi为帧位姿
-			H_VisualAndImu.block(0, CPARS + 7 + idx * 17, CPARS, 8) += HFinal_top.block(0, CPARS + idx * 8, CPARS, 8);
-			H_VisualAndImu.block(CPARS + 7 + idx * 17, 0, 8, CPARS) += HFinal_top.block(CPARS + idx * 8, 0, 8, CPARS);
+			H_VisualAndImu.block(0, CPARS + 7 + idx * 17, CPARS, 8) += HFinal_visual.block(0, CPARS + idx * 8, CPARS, 8);
+			H_VisualAndImu.block(CPARS + 7 + idx * 17, 0, 8, CPARS) += HFinal_visual.block(CPARS + idx * 8, 0, 8, CPARS);
 
 			// Ht_pi和Hpi_t：t为世界系与DSO系变换
 			H_VisualAndImu.block(CPARS, CPARS + 7 + idx * 17, 7, 6) += H_imu.block(0, 7 + idx * 15, 7, 6);
@@ -1723,7 +1726,7 @@ namespace dso
 			H_VisualAndImu.block(CPARS + 7 + idx * 17 + 8, CPARS, 9, 7) += H_imu.block(7 + idx * 15 + 6, 0, 9, 7);
 
 			// Hpi_pi，视觉和惯导信息中都有这条信息
-			H_VisualAndImu.block(CPARS + 7 + idx * 17, CPARS + 7 + idx * 17, 8, 8) += HFinal_top.block(CPARS + idx * 8, CPARS + idx * 8, 8, 8);
+			H_VisualAndImu.block(CPARS + 7 + idx * 17, CPARS + 7 + idx * 17, 8, 8) += HFinal_visual.block(CPARS + idx * 8, CPARS + idx * 8, 8, 8);
 			H_VisualAndImu.block(CPARS + 7 + idx * 17, CPARS + 7 + idx * 17, 6, 6) += H_imu.block(7 + idx * 15, 7 + idx * 15, 6, 6);
 
 			// Hs_s、Hs_pi、Hpi_s，s为v、bg、ba三者统称，这里的pi去除了光度参数
@@ -1735,8 +1738,8 @@ namespace dso
 			for (int j = idx + 1; j < nFrames; ++j)
 			{
 				// Hpi_pj 和 Hpj_pi，pi和pj表示不同关键帧位姿，包含光度参数
-				H_VisualAndImu.block(CPARS + 7 + idx * 17, CPARS + 7 + j * 17, 8, 8) += HFinal_top.block(CPARS + idx * 8, CPARS + j * 8, 8, 8);
-				H_VisualAndImu.block(CPARS + 7 + j * 17, CPARS + 7 + idx * 17, 8, 8) += HFinal_top.block(CPARS + j * 8, CPARS + idx * 8, 8, 8);
+				H_VisualAndImu.block(CPARS + 7 + idx * 17, CPARS + 7 + j * 17, 8, 8) += HFinal_visual.block(CPARS + idx * 8, CPARS + j * 8, 8, 8);
+				H_VisualAndImu.block(CPARS + 7 + j * 17, CPARS + 7 + idx * 17, 8, 8) += HFinal_visual.block(CPARS + j * 8, CPARS + idx * 8, 8, 8);
 
 				// Hpi_pj 和 Hpj_pi，pi和pj表示不同关键帧位姿，不包含光度参数
 				H_VisualAndImu.block(CPARS + 7 + idx * 17, CPARS + 7 + j * 17, 6, 6) += H_imu.block(7 + idx * 15, 7 + j * 15, 6, 6);
@@ -1756,22 +1759,22 @@ namespace dso
 			}
 
 			// bpi、bs，s 为v、bg、ba三者统称
-			b_VisualAndImu.block(CPARS + 7 + 17 * idx, 0, 8, 1) += bFinal_top.block(CPARS + 8 * idx, 0, 8, 1);
+			b_VisualAndImu.block(CPARS + 7 + 17 * idx, 0, 8, 1) += bFinal_visual.block(CPARS + 8 * idx, 0, 8, 1);
 			b_VisualAndImu.block(CPARS + 7 + 17 * idx, 0, 6, 1) += b_imu.block(7 + 15 * idx, 0, 6, 1);
 			b_VisualAndImu.block(CPARS + 7 + 17 * idx + 8, 0, 9, 1) += b_imu.block(7 + 15 * idx + 6, 0, 9, 1);
 		}
 
 		H_VisualAndImu += (HM_imu + HM_bias);
-		b_VisualAndImu += (bM_top_imu + bM_bias);
+		b_VisualAndImu += (bM_deltaImu + bM_bias);
 
 		VecX x_visual = VecX::Zero(CPARS + 8 * nFrames);
 		VecX x_visualAndImu = VecX::Zero(CPARS + 7 + 17 * nFrames);
 
 		if (setting_solverMode & SOLVER_SVD)
 		{
-			VecX SVecI = HFinal_top.diagonal().cwiseSqrt().cwiseInverse();
-			MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_top * SVecI.asDiagonal();
-			VecX bFinalScaled = SVecI.asDiagonal() * bFinal_top;
+			VecX SVecI = HFinal_visual.diagonal().cwiseSqrt().cwiseInverse();
+			MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_visual * SVecI.asDiagonal();
+			VecX bFinalScaled = SVecI.asDiagonal() * bFinal_visual;
 			Eigen::JacobiSVD<MatXX> svd(HFinalScaled, Eigen::ComputeThinU | Eigen::ComputeThinV);
 
 			VecX S = svd.singularValues();
@@ -1806,9 +1809,9 @@ namespace dso
 		{
 			if (!imu_use_flag)
 			{
-				VecX SVecI = (HFinal_top.diagonal() + VecX::Constant(HFinal_top.cols(), 10)).cwiseSqrt().cwiseInverse();
-				MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_top * SVecI.asDiagonal();
-				x_visual = SVecI.asDiagonal() * HFinalScaled.ldlt().solve(SVecI.asDiagonal() * bFinal_top);
+				VecX SVecI = (HFinal_visual.diagonal() + VecX::Constant(HFinal_visual.cols(), 10)).cwiseSqrt().cwiseInverse();
+				MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_visual * SVecI.asDiagonal();
+				x_visual = SVecI.asDiagonal() * HFinalScaled.ldlt().solve(SVecI.asDiagonal() * bFinal_visual);
 			}
 			else
 			{

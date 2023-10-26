@@ -138,7 +138,7 @@ namespace dso
 		SE3 worldToCam_evalPT;
 		Vec10 state_zero;
 		Vec10 state_scaled;
-		Vec10 state;	// [0-5: worldToCam-leftEps. 6-7: a,b]
+		Vec10 state;				// [0-5: worldToCam-leftEps. 6-7: a,b]
 		Vec10 step;
 		Vec10 step_backup;
 		Vec10 state_backup;
@@ -203,7 +203,6 @@ namespace dso
 
 		inline void setEvalPT(const SE3 &worldToCam_evalPT, const Vec10 &state)
 		{
-
 			this->worldToCam_evalPT = worldToCam_evalPT;
 			setState(state);
 			setStateZero(state);
