@@ -32,15 +32,19 @@
 
 namespace dso
 {
+	/// <summary>
+	/// 前端观测残差管理的雅可比数据传递到后端管理的雅可比数据中
+	/// </summary>
 	void EFResidual::takeDataF()
 	{
-		//std::swap<RawResidualJacobian*>(J, data->J);
+		// 将前端观测残差中掌控的雅可比数据(data->J)传递到后端观测残差掌握的雅可比数据中(J)
 		RawResidualJacobian* JTmp = J;
 		J = data->J;
 		data->J = JTmp;
 
 		Vec2f JI_JI_Jd = J->JIdx2 * J->Jpdd;
 
+		// 计算残差关于hostToTarget相对位姿、相对光度参数的导数与残差关于对应特征在主帧逆深度导数的乘积
 		for (int it = 0; it < 6; ++it)
 			JpJdF[it] = J->Jpdxi[0][it] * JI_JI_Jd[0] + J->Jpdxi[1][it] * JI_JI_Jd[1];
 

@@ -846,14 +846,17 @@ namespace dso
 				tmpRes->state_NewState = ResState::OOB; return tmpRes->state_energy;
 			}
 
-
 			Vec3f hitColor = (getInterpolatedElement33(dIl, Ku, Kv, wG[0]));
 
-			if (!std::isfinite((float)hitColor[0])) { tmpRes->state_NewState = ResState::OOB; return tmpRes->state_energy; }
+			if (!std::isfinite((float)hitColor[0])) 
+			{ 
+				tmpRes->state_NewState = ResState::OOB; 
+				return tmpRes->state_energy;
+			}
 			float residual = hitColor[0] - (affLL[0] * color[idx] + affLL[1]);
 
 			float hw = fabsf(residual) < setting_huberTH ? 1 : setting_huberTH / fabsf(residual);
-			energyLeft += weights[idx] * weights[idx] * hw *residual*residual*(2 - hw);
+			energyLeft += weights[idx] * weights[idx] * hw * residual * residual * (2 - hw);
 
 			// depth derivatives.
 			float dxInterp = hitColor[1] * HCalib->fxl();

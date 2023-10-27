@@ -42,6 +42,9 @@ namespace dso
 	class PointFrameResidual;
 	class EnergyFunctional;
 
+	/// <summary>
+	/// 后端中管理的观测残差数据结构
+	/// </summary>
 	class EFResidual
 	{
 	public:

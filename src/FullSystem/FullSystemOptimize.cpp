@@ -70,11 +70,13 @@ namespace dso
 				{
 					if (r->isNew && !r->stereoResidualFlag)
 					{
+						// 计算特征的视差
 						PointHessian* p = r->point;
-						Vec3f ptp_inf = r->host->targetPrecalc[r->target->idx].PRE_KRKiTll * Vec3f(p->u, p->v, 1);	// projected point assuming infinite depth.
-						Vec3f ptp = ptp_inf + r->host->targetPrecalc[r->target->idx].PRE_KtTll * p->idepth_scaled;	// projected point with real depth.
+						Vec3f ptp_inf = r->host->targetPrecalc[r->target->idx].PRE_KRKiTll * Vec3f(p->u, p->v, 1);	// 假设特征无平移时的像素点坐标
+						Vec3f ptp = ptp_inf + r->host->targetPrecalc[r->target->idx].PRE_KtTll * p->idepth_scaled;	// 按照正常平移量投影时的像素点坐标
 						float relBS = 0.01 * ((ptp_inf.head<2>() / ptp_inf[2]) - (ptp.head<2>() / ptp[2])).norm();	// 0.01 = one pixel.
 
+						// 对于相同特征来说，视差越大基线越大，基线越大则深度误差越小
 						if (relBS > p->maxRelBaseline)
 							p->maxRelBaseline = relBS;
 
@@ -134,6 +136,11 @@ namespace dso
 			meanElement, nthElement, sqrtf(newFrame->frameEnergyTH), good, bad);*/
 	}
 
+	/// <summary>
+	/// 
+	/// </summary>
+	/// <param name="fixLinearization"></param>
+	/// <returns></returns>
 	Vec3 FullSystem::linearizeAll(bool fixLinearization)
 	{
 		double lastEnergyP = 0;
@@ -141,7 +148,8 @@ namespace dso
 		double num = 0;
 
 		std::vector<PointFrameResidual*> toRemove[NUM_THREADS];
-		for (int i = 0; i < NUM_THREADS; i++) toRemove[i].clear();
+		for (int it = 0; it < NUM_THREADS; ++it)
+			toRemove[it].clear();
 
 		if (multiThreading)
 		{
@@ -169,9 +177,9 @@ namespace dso
 			}
 
 			int nResRemoved = 0;
-			for (int i = 0; i < NUM_THREADS; i++)
+			for (int it = 0; it < NUM_THREADS; ++it)
 			{
-				for (PointFrameResidual* r : toRemove[i])
+				for (PointFrameResidual* r : toRemove[it])
 				{
 					PointHessian* ph = r->point;
 
@@ -180,7 +188,7 @@ namespace dso
 					else if (ph->lastResiduals[1].first == r)
 						ph->lastResiduals[1].first = 0;
 
-					for (unsigned int k = 0; k < ph->residuals.size(); k++)
+					for (unsigned int k = 0; k < ph->residuals.size(); ++k)
 					{
 						if (ph->residuals[k] == r)
 						{
@@ -192,7 +200,6 @@ namespace dso
 					}
 				}
 			}
-			//printf("FINAL LINEARIZATION: removed %d / %d residuals!\n", nResRemoved, (int)activeResiduals.size());
 		}
 
 		return Vec3(lastEnergyP, lastEnergyR, num);
@@ -391,17 +398,6 @@ namespace dso
 		setPrecalcValues();
 	}
 
-
-	double FullSystem::calcMEnergy()
-	{
-		if (setting_forceAceptStep) return 0;
-		// calculate (x-x0)^T * [2b + H * (x-x0)] for everything saved in L.
-		//ef->makeIDX();
-		//ef->setDeltaF(&Hcalib);
-		return ef->calcMEnergyF();
-	}
-
-
 	void FullSystem::printOptRes(const Vec3& res, double resL, double resM, double resPrior, double LExact, float a, float b)
 	{
 		printf("A(%f)=(AV %.3f). Num: A(%'d) + M(%'d); ab %f %f!\n",
@@ -416,17 +412,19 @@ namespace dso
 
 		//get statistics and active residuals.
 		//LOG(INFO)<<"frameHessians.size(): "<<frameHessians.size();
-		activeResiduals.clear();
 		int numPoints = 0;
 		int numLRes = 0;
-		for (FrameHessian* fh : frameHessians) {
+		activeResiduals.clear();
+		
+		for (FrameHessian* fh : frameHessians) 
+		{
 			for (PointHessian* ph : fh->pointHessians)
 			{
 				for (PointFrameResidual* r : ph->residuals)
 				{
 					if (!r->efResidual->isLinearized)
 					{
-						activeResiduals.push_back(r);
+						activeResiduals.emplace_back(r);
 						r->resetOOB();
 					}
 					else
@@ -584,6 +582,11 @@ namespace dso
 		return sqrtf((float)(lastEnergy[0] / (patternNum * ef->resInA)));
 	}
 
+	/// <summary>
+	/// 滑窗优化中的单次迭代过程
+	/// </summary>
+	/// <param name="iteration">当前迭代次数</param>
+	/// <param name="lambda">当前迭代的阻尼因子</param>
 	void FullSystem::solveSystem(int iteration, double lambda)
 	{
 		ef->lastNullspaces_forLogging = getNullspaces(
@@ -595,6 +598,23 @@ namespace dso
 		ef->solveSystemF(iteration, lambda, &Hcalib);
 	}
 
+	/// <summary>
+	/// 计算优化函数能量值
+	/// </summary>
+	/// <returns>优化函数能量值</returns>
+	double FullSystem::calcMEnergy()
+	{
+		if (setting_forceAceptStep) return 0;
+		// calculate (x-x0)^T * [2b + H * (x-x0)] for everything saved in L.
+		//ef->makeIDX();
+		//ef->setDeltaF(&Hcalib);
+		return ef->calcMEnergyF();
+	}
+
+	/// <summary>
+	/// 计算优化函数能量值
+	/// </summary>
+	/// <returns>优化函数能量值</returns>
 	double FullSystem::calcLEnergy()
 	{
 		if (setting_forceAceptStep)
@@ -604,10 +624,11 @@ namespace dso
 	}
 
 	/// <summary>
-	/// 去除残差数量为0的特征
+	/// 删除系统中不能被观测到的特征
 	/// </summary>
 	void FullSystem::removeOutliers()
 	{
+		// 1、在前端管理的特征中将不被观测到的特征去除并标记该特征为PS_DROP
 		int numPointsDropped = 0;
 		for (FrameHessian* fh : frameHessians)
 		{
@@ -627,9 +648,19 @@ namespace dso
 				}
 			}
 		}
+
+		// 2、在后端管理的特征中将被标记为PS_DROP的特征去除
 		ef->dropPointsF();
 	}
 
+	/// <summary>
+	/// 获取滑窗关键帧参数的零空间
+	/// </summary>
+	/// <param name="nullspaces_pose">位姿参数零空间</param>
+	/// <param name="nullspaces_scale">尺度参数零空间</param>
+	/// <param name="nullspaces_affA">光度参数a零空间</param>
+	/// <param name="nullspaces_affB">光度参数b零空间</param>
+	/// <returns>系统信息矩阵零空间基底</returns>
 	std::vector<VecX> FullSystem::getNullspaces(std::vector<VecX>& nullspaces_pose,
 		std::vector<VecX>& nullspaces_scale, std::vector<VecX>& nullspaces_affA, std::vector<VecX>& nullspaces_affB)
 	{
@@ -640,6 +671,8 @@ namespace dso
 
 		int n = CPARS + frameHessians.size() * 8;
 		std::vector<VecX> nullspaces_x0_pre;
+
+		// 1、获取系统位姿零空间
 		for (int it = 0; it < 6; ++it)
 		{
 			VecX nullspace_x0(n);
@@ -653,6 +686,8 @@ namespace dso
 			nullspaces_x0_pre.emplace_back(nullspace_x0);
 			nullspaces_pose.emplace_back(nullspace_x0);
 		}
+
+		// 2、获取系统光度参数零空间
 		for (int it = 0; it < 2; ++it)
 		{
 			VecX nullspace_x0(n);
@@ -668,6 +703,7 @@ namespace dso
 			if (it == 1) nullspaces_affB.emplace_back(nullspace_x0);
 		}
 
+		// 获取系统尺度零空间
 		VecX nullspace_x0(n);
 		nullspace_x0.setZero();
 		for (FrameHessian* fh : frameHessians)

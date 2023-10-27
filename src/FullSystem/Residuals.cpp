@@ -68,10 +68,19 @@ namespace dso
 		isNew = true;
 	}
 
+	/// <summary>
+	/// 线性化当前残差并判断当前观测残差的状态：即求解当前观测残差相对于各个参数的雅可比；
+	/// ResState::OOB：当观测残差的老状态为OOB时或特征在target帧中的投影越界时标记观测状态为OOB；
+	/// ResState::OUTLIER：当观测残差能量值高于host或target帧能量阈值或在target帧中投影像素点梯度过低时标记为OUTLIER；
+	/// ResState::INNER：当观测残差能量值低于host和target帧能量阈值且在target帧中投影像素点梯度不低于阈值标记为INNER；
+	/// </summary>
+	/// <param name="HCalib">相机内参信息</param>
+	/// <returns>当前观测残差能量值</returns>
 	double PointFrameResidual::linearize(CalibHessian* HCalib)
 	{
 		state_NewEnergyWithOutlier = -1;
 
+		// 1、若观测残差状态标记为超出图像，那么这种残差不参与线性化
 		if (state_state == ResState::OOB)
 		{
 			state_NewState = ResState::OOB;
@@ -92,14 +101,16 @@ namespace dso
 		Vec2f affLL = precalc->PRE_aff_mode;
 		float b0 = precalc->PRE_b0_mode;
 
-		Vec6f d_xi_x, d_xi_y;
-		Vec4f d_C_x, d_C_y;
-		float d_d_x, d_d_y;
+		// 1、计算特征中心点像素坐标相对于位姿、相机内参的雅可比
+		Vec6f d_xi_x, d_xi_y;	// 特征在target上的投影像素点对hostToTarget位姿的雅可比
+		Vec4f d_C_x, d_C_y;		// 特征在target上的投影像素点对相机内参的雅可比
+		float d_d_x, d_d_y;		// 特征在target上的投影像素点对该特征在host帧逆深度的雅可比
 		{
 			float drescale, u, v, new_idepth;
 			float Ku, Kv;
 			Vec3f KliP;
 
+			// TODO 使用线性化点处的位姿投影特征点
 			if (!projectPoint(point->u, point->v, point->idepth_zero_scaled, 0, 0, HCalib,
 				PRE_RTll_0, PRE_tTll_0, drescale, u, v, Ku, Kv, KliP, new_idepth))
 			{
@@ -109,11 +120,9 @@ namespace dso
 
 			centerProjectedTo = Vec3f(Ku, Kv, new_idepth);
 
-			// diff d_idepth
 			d_d_x = drescale * (PRE_tTll_0[0] - PRE_tTll_0[2] * u)*SCALE_IDEPTH*HCalib->fxl();
 			d_d_y = drescale * (PRE_tTll_0[1] - PRE_tTll_0[2] * v)*SCALE_IDEPTH*HCalib->fyl();
 
-			// diff calib
 			d_C_x[2] = drescale * (PRE_RTll_0(2, 0)*u - PRE_RTll_0(0, 0));
 			d_C_x[3] = HCalib->fxl() * drescale*(PRE_RTll_0(2, 1)*u - PRE_RTll_0(0, 1)) * HCalib->fyli();
 			d_C_x[0] = KliP[0] * d_C_x[2];
@@ -165,12 +174,17 @@ namespace dso
 		float JabJab_00 = 0, JabJab_01 = 0, JabJab_11 = 0;
 		float wJI2_sum = 0;
 
-		for (int idx = 0; idx < patternNum; idx++)
+		// 2、计算特征点领域特征光度残差相对于target上像素坐标以及hostToTarget光度参数的导数
+		for (int idx = 0; idx < patternNum; ++idx)
 		{
 			float Ku, Kv;
-			if (!projectPoint(point->u + patternP[idx][0], point->v + patternP[idx][1], point->idepth_scaled, PRE_KRKiTll, PRE_KtTll, Ku, Kv))
+
+			// TODO 使用实际位姿投影特征
+			if (!projectPoint(point->u + patternP[idx][0], point->v + patternP[idx][1], 
+				point->idepth_scaled, PRE_KRKiTll, PRE_KtTll, Ku, Kv))
 			{
-				state_NewState = ResState::OOB; return state_energy;
+				state_NewState = ResState::OOB; 
+				return state_energy;
 			}
 
 			projectedTo[idx][0] = Ku;
@@ -179,10 +193,12 @@ namespace dso
 			Vec3f hitColor = (getInterpolatedElement33(dIl, Ku, Kv, wG[0]));
 			float residual = hitColor[0] - (float)(affLL[0] * color[idx] + affLL[1]);
 
+			// 残差相对于光度参数a21的导数
 			float drdA = (color[idx] - b0);
 			if (!std::isfinite((float)hitColor[0]))
 			{
-				state_NewState = ResState::OOB; return state_energy;
+				state_NewState = ResState::OOB; 
+				return state_energy;
 			}
 
 			float w = sqrtf(setting_outlierTHSumComponent / (setting_outlierTHSumComponent + hitColor.tail<2>().squaredNorm()));
@@ -220,6 +236,7 @@ namespace dso
 
 				wJI2_sum += hw * hw*(hitColor[1] * hitColor[1] + hitColor[2] * hitColor[2]);
 
+				// 如果不优化光度参数a和b，那么直接设置对应的雅可比为0
 				if (setting_affineOptModeA < 0) J->JabF[0][idx] = 0;
 				if (setting_affineOptModeB < 0) J->JabF[1][idx] = 0;
 			}
@@ -240,6 +257,7 @@ namespace dso
 
 		state_NewEnergyWithOutlier = energyLeft;
 
+		// 通过能量值判断当前观测残差是否为内点
 		if (energyLeft > std::max<float>(host->frameEnergyTH, target->frameEnergyTH) || wJI2_sum < 2)
 		{
 			energyLeft = std::max<float>(host->frameEnergyTH, target->frameEnergyTH);
@@ -508,6 +526,11 @@ namespace dso
 		}
 	}
 
+	/// <summary>
+	/// 观测残差状态赋值：state_state = state_stateNew；
+	/// 若copyJacobians为true：那么需要将前端观测雅可比传递给后端观测雅可比；
+	/// </summary>
+	/// <param name="copyJacobians">是否拷贝前端雅可比数据</param>
 	void PointFrameResidual::applyRes(bool copyJacobians)
 	{
 		if (copyJacobians)

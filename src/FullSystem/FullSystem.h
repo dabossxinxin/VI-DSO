@@ -164,57 +164,43 @@ namespace dso
 		void initFirstFrameImu(FrameHessian* fh);
 
 	private:
-
-		CalibHessian Hcalib;
-
-		// opt single point
-		int optimizePoint(PointHessian* point, int minObs, bool flagOOB);
+		// FullSystemOptPoint
 		PointHessian* optimizeImmaturePoint(ImmaturePoint* point, int minObs, ImmaturePointTemporaryResidual* residuals);
 
-		double linAllPointSinle(PointHessian* point, float outlierTHSlack, bool plot);
-
-		// mainPipelineFunctions
+		// FullSystem mainPipelineFunctions
+		void printLogLine();
+		void printEigenValLine();
 		Vec4 trackNewCoarse(FrameHessian* fh);
 		void traceNewCoarse(FrameHessian* fh);
 		void traceNewCoarseNonKey(FrameHessian* fh, FrameHessian* fhRight);
 		void traceNewCoarseKey(FrameHessian* fh, FrameHessian* fhRight);
+		void setPrecalcValues();
 		void activatePointsMT();
 		void flagPointsForRemoval();
 		void makeNewTraces(FrameHessian* newFrame, float* gtDepth);
 		void initializeFromInitializer(FrameHessian* newFrame);
 		void flagFramesForMarginalization(FrameHessian* newFH);
+		void activatePointsMT_Reductor(std::vector<PointHessian*>* optimized,
+			std::vector<ImmaturePoint*>* toOptimize, int min, int max, Vec10* stats, int tid);
 
+		// FullSystemOptimize
 		void removeOutliers();
-
-		// 计算滑窗关键帧之间的相互关系
-		void setPrecalcValues();
-
-		// solce. eventually migrate to ef.
-		void solveSystem(int iteration, double lambda);
-		Vec3 linearizeAll(bool fixLinearization);
-		bool doStepFromBackup(float stepfacC, float stepfacT, float stepfacR, float stepfacA, float stepfacD);
-		void backupState(bool backupLastStep);
 		void loadSateBackup();
 		double calcLEnergy();
 		double calcMEnergy();
+		void setNewFrameEnergyTH();
+		void backupState(bool backupLastStep);
+		Vec3 linearizeAll(bool fixLinearization);
+		void solveSystem(int iteration, double lambda);
+		bool doStepFromBackup(float stepfacC, float stepfacT, float stepfacR, float stepfacA, float stepfacD);
 		void linearizeAll_Reductor(bool fixLinearization, std::vector<PointFrameResidual*>* toRemove, int min, int max, Vec10* stats, int tid);
-		void activatePointsMT_Reductor(std::vector<PointHessian*>* optimized, std::vector<ImmaturePoint*>* toOptimize, int min, int max, Vec10* stats, int tid);
 		void applyRes_Reductor(bool copyJacobians, int min, int max, Vec10* stats, int tid);
-
 		void printOptRes(const Vec3& res, double resL, double resM, double resPrior, double LExact, float a, float b);
-
+		std::vector<VecX> getNullspaces(std::vector<VecX>& nullspaces_pose, std::vector<VecX>& nullspaces_scale,
+			std::vector<VecX>& nullspaces_affA, std::vector<VecX>& nullspaces_affB);
 		void debugPlotTracking();
 
-		std::vector<VecX> getNullspaces(
-			std::vector<VecX>& nullspaces_pose,
-			std::vector<VecX>& nullspaces_scale,
-			std::vector<VecX>& nullspaces_affA,
-			std::vector<VecX>& nullspaces_affB);
-
-		void setNewFrameEnergyTH();
-
-		void printLogLine();
-		void printEigenValLine();
+		CalibHessian Hcalib;
 
 		// 各个模块的log信息
 		std::ofstream* calibLog;
