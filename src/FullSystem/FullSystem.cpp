@@ -1384,7 +1384,7 @@ namespace dso
 	void FullSystem::savetrajectory(const Sophus::Matrix4d& T)
 	{
 		std::ofstream fs;
-		std::string dsoPoseFile = "./data/" + savefile_tail + ".txt";
+		std::string dsoPoseFile = "./data/trajectory.txt";
 		fs.open(dsoPoseFile, std::ios::out | std::ios::app);
 
 		fs << std::fixed << std::setprecision(9)
@@ -1402,7 +1402,7 @@ namespace dso
 	void FullSystem::savetrajectoryTum(const SE3& T, const double time)
 	{
 		std::ofstream fs;
-		std::string dsoPoseFile = "./data/" + savefile_tail + ".txt";
+		std::string dsoPoseFile = "./data/trajectory_tum.txt";
 		fs.open(dsoPoseFile, std::ios::out | std::ios::app);
 
 		Vec3 t = T.translation();
@@ -1418,7 +1418,7 @@ namespace dso
 		assert(idxStart != -1);
 
 		std::ofstream fsGT;
-		std::string gtfile = "./data/" + savefile_tail + "_gt.txt";
+		std::string gtfile = "./data/trajectory_tum_gt.txt";
 		fsGT.open(gtfile, std::ios::out | std::ios::app);
 
 		SE3 gt_C = T_WR_align * input_gtPose[idxStart] * T_BC;
