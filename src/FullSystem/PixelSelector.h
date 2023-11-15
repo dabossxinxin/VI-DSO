@@ -23,6 +23,7 @@
 #pragma once
 
 #include "util/NumType.h"
+#include "IOWrapper/ImageDisplay.h"
 
 namespace dso
 {
@@ -31,9 +32,9 @@ namespace dso
 	template<int pot>
 	inline int gridMaxSelection(Eigen::Vector3f* grads, bool* map_out, int w, int h, float THFac)
 	{
-		memset(map_out, 0, sizeof(bool)*w*h);
-
 		int numGood = 0;
+		memset(map_out, 0, sizeof(bool) * w * h);
+		
 		for (int y = 1; y < h - pot; y += pot)
 		{
 			for (int x = 1; x < w - pot; x += pot)
@@ -44,8 +45,8 @@ namespace dso
 				int bestYXID = -1;
 
 				float bestXX = 0, bestYY = 0, bestXY = 0, bestYX = 0;
-
 				Eigen::Vector3f* grads0 = grads + x + y * w;
+
 				for (int dx = 0; dx < pot; dx++)
 				{
 					for (int dy = 0; dy < pot; dy++)
@@ -57,6 +58,7 @@ namespace dso
 
 						if (sqgd > TH*TH)
 						{
+							// 四类点都可以作为特征被挑选出来
 							float agx = fabs((float)g[1]);
 							if (agx > bestXX) { bestXX = agx; bestXXID = idx; }
 
@@ -79,28 +81,24 @@ namespace dso
 					if (!map0[bestXXID])
 						numGood++;
 					map0[bestXXID] = true;
-
 				}
 				if (bestYYID >= 0)
 				{
 					if (!map0[bestYYID])
 						numGood++;
 					map0[bestYYID] = true;
-
 				}
 				if (bestXYID >= 0)
 				{
 					if (!map0[bestXYID])
 						numGood++;
 					map0[bestXYID] = true;
-
 				}
 				if (bestYXID >= 0)
 				{
 					if (!map0[bestYXID])
 						numGood++;
 					map0[bestYXID] = true;
-
 				}
 			}
 		}
@@ -108,12 +106,11 @@ namespace dso
 		return numGood;
 	}
 
-	//根据像素自身的梯度来选点
 	inline int gridMaxSelection(Eigen::Vector3f* grads, bool* map_out, int w, int h, int pot, float THFac)
 	{
-		memset(map_out, 0, sizeof(bool)*w*h);
-
 		int numGood = 0;
+		memset(map_out, 0, sizeof(bool) * w * h);
+
 		for (int y = 1; y < h - pot; y += pot)
 		{
 			for (int x = 1; x < w - pot; x += pot)
@@ -124,9 +121,10 @@ namespace dso
 				int bestYXID = -1;
 
 				float bestXX = 0, bestYY = 0, bestXY = 0, bestYX = 0;
-
 				Eigen::Vector3f* grads0 = grads + x + y * w;
+
 				for (int dx = 0; dx < pot; dx++)
+				{
 					for (int dy = 0; dy < pot; dy++)
 					{
 						int idx = dx + dy * w;
@@ -134,8 +132,9 @@ namespace dso
 						float sqgd = g.tail<2>().squaredNorm();
 						float TH = THFac * minUseGrad_pixsel * (0.75f);
 
-						if (sqgd > TH*TH)
+						if (sqgd > TH * TH)
 						{
+							// 四类点都可以作为特征挑选出来
 							float agx = fabs((float)g[1]);
 							if (agx > bestXX) { bestXX = agx; bestXXID = idx; }
 
@@ -149,6 +148,7 @@ namespace dso
 							if (gxmy > bestYX) { bestYX = gxmy; bestYXID = idx; }
 						}
 					}
+				}
 
 				bool* map0 = map_out + x + y * w;
 
@@ -157,28 +157,24 @@ namespace dso
 					if (!map0[bestXXID])
 						numGood++;
 					map0[bestXXID] = true;
-
 				}
 				if (bestYYID >= 0)
 				{
 					if (!map0[bestYYID])
 						numGood++;
 					map0[bestYYID] = true;
-
 				}
 				if (bestXYID >= 0)
 				{
 					if (!map0[bestXYID])
 						numGood++;
 					map0[bestXYID] = true;
-
 				}
 				if (bestYXID >= 0)
 				{
 					if (!map0[bestYXID])
 						numGood++;
 					map0[bestYXID] = true;
-
 				}
 			}
 		}
@@ -186,11 +182,22 @@ namespace dso
 		return numGood;
 	}
 
+	/// <summary>
+	/// 在非零层金字塔图像中，提取显著特征
+	/// </summary>
+	/// <param name="grads">指定金字塔层图像灰度及梯度信息</param>
+	/// <param name="map">指定金字塔层特征提取结果</param>
+	/// <param name="w">指定金字塔层图像宽度</param>
+	/// <param name="h">指定金字塔层图像高度</param>
+	/// <param name="desiredDensity">指定金字塔层期望特征数量</param>
+	/// <param name="recsLeft">递归剩余次数</param>
+	/// <param name="THFac">梯度阈值倍率</param>
+	/// <returns>指定金字塔层特征提取数量</returns>
 	inline int makePixelStatus(Eigen::Vector3f* grads, bool* map, int w, int h, float desiredDensity, int recsLeft = 5, float THFac = 1)
 	{
 		if (sparsityFactor < 1) sparsityFactor = 1;
 
-		int numGoodPoints;
+		int numGoodPoints = 0;
 
 		if (sparsityFactor == 1) numGoodPoints = gridMaxSelection<1>(grads, map, w, h, THFac);
 		else if (sparsityFactor == 2) numGoodPoints = gridMaxSelection<2>(grads, map, w, h, THFac);
@@ -205,9 +212,6 @@ namespace dso
 		else if (sparsityFactor == 11) numGoodPoints = gridMaxSelection<11>(grads, map, w, h, THFac);
 		else numGoodPoints = gridMaxSelection(grads, map, w, h, sparsityFactor, THFac);
 
-		/*
-		 * #points is approximately proportional to sparsityFactor^2.
-		 */
 		float quotia = numGoodPoints / (float)(desiredDensity);
 		int newSparsity = (sparsityFactor * sqrtf(quotia)) + 0.7f;
 
@@ -216,21 +220,67 @@ namespace dso
 		float oldTHFac = THFac;
 		if (newSparsity == 1 && sparsityFactor == 1) THFac = 0.5;
 
-		if ((abs(newSparsity - sparsityFactor) < 1 && THFac == oldTHFac) ||
-			(quotia > 0.8 &&  1.0f / quotia > 0.8) ||
-			recsLeft == 0)
+		if ((std::abs(newSparsity - sparsityFactor) < 1 && THFac == oldTHFac) ||
+			(quotia > 0.8 &&  1.0f / quotia > 0.8) || recsLeft == 0)
 		{
-			//printf(" \n");
-			//all good
 			sparsityFactor = newSparsity;
 			return numGoodPoints;
 		}
 		else
 		{
-			//printf(" -> re-evaluate! \n");
-			//re-evaluate.
 			sparsityFactor = newSparsity;
 			return makePixelStatus(grads, map, w, h, desiredDensity, recsLeft - 1, THFac);
 		}
+	}
+
+	/// <summary>
+	/// 在非零层金字塔的特征提取中，绘制提取结果
+	/// </summary>
+	/// <param name="grads"></param>
+	/// <param name="map"></param>
+	/// <param name="h"></param>
+	inline void debugPlotFeatureDetect(Eigen::Vector3f* grads, int lvl, bool* map, int w, int h)
+	{
+		int wh = w * h;
+		float color = 0;
+		MinimalImageB3 img(w, h);
+
+		for (int it = 0; it < wh; ++it)
+		{
+			color = grads[it][0] * 0.7;
+			if (color > 255) color = 255;
+			img.at(it) = Vec3b(color, color, color);
+		}
+
+		IOWrap::displayImage("Selector Image", &img);
+
+#ifdef SAVE_INITIALIZER_DATA
+		cv::Mat selImage = cv::Mat(img.h, img.w, CV_8UC3, img.data);
+		std::string path0 = "./SelectorImage_lvl[" + std::to_string(lvl) + "].png";
+		cv::imwrite(path0, selImage);
+#endif
+
+		int featureNum = 0;
+		for (int y = 0; y < h; ++y)
+		{
+			for (int x = 0; x < w; ++x)
+			{
+				if (map[x + y * w])
+				{
+					img.setPixel1(x, y, Vec3b(0, 255, 0));
+					featureNum++;
+				}
+			}
+		}
+
+		IOWrap::displayImage("Selector Pixels", &img);
+
+#ifdef SAVE_INITIALIZER_DATA
+		cv::Mat selPixel = cv::Mat(img.h, img.w, CV_8UC3, img.data);
+		std::string path1 = "./SelectorPixel_feature["
+			+ std::to_string(featureNum) + "]_lvl["
+			+ std::to_string(lvl) + "].png";
+		cv::imwrite(path1, selPixel);
+#endif
 	}
 }

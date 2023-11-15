@@ -108,7 +108,7 @@ namespace dso
 		PointHessian* data;				// 特征在前端中的表示形式
 
 		float priorF;					// 特征先验信息
-		float deltaF;					// 特征在滑窗优化中的优化增量
+		float deltaF;					// 特征在滑窗优化中相对于逆深度线性化点优化增量
 			
 		int idxInPoints;				// 特征在对应主帧管理的特征序列中的序号
 		EFFrame* host;					// 特征对应的主帧

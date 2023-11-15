@@ -75,7 +75,7 @@ namespace dso
 		b_out = Vec6::Zero();
 		if (dt > 0.5) return 0;
 
-		Vec3 g_w(0, 0, -G_norm);
+		Vec3 g_w(0, 0, -setting_gravityNorm);
 
 		// 计算p、v、q残差
 		Mat33 R_temp = SO3::exp(IMU_preintegrator.getJRBiasg() * lastRef->delta_bias_g).matrix();
@@ -192,11 +192,12 @@ namespace dso
 	/// </summary>
 	CoarseDistanceMap::~CoarseDistanceMap()
 	{
-		delete[] fwdWarpedIDDistFinal;
-		delete[] bfsList1;
-		delete[] bfsList2;
-		delete[] coarseProjectionGrid;
-		delete[] coarseProjectionGridNum;
+		freePointer(debugImage);
+		freePointerVec(fwdWarpedIDDistFinal);
+		freePointerVec(bfsList1);
+		freePointerVec(bfsList2);
+		freePointerVec(coarseProjectionGrid);
+		freePointerVec(coarseProjectionGridNum);
 	}
 
 	/// <summary>
@@ -1055,14 +1056,14 @@ namespace dso
 				if (delta_t < 1e-6) break;
 			}
 
-			IMU_preintegrator.update(m_gry[index] - lastRef->bias_g, m_acc[index] - lastRef->bias_a, delta_t);
+			IMU_preintegrator.update(input_gryList[index] - lastRef->bias_g, input_accList[index] - lastRef->bias_a, delta_t);
 			if (imu_time_stamp[index + 1] >= time_end) break;
 			index++;
 		}
 
 		// TODO：为何随着金字塔层级增加，IMU数据的权重逐渐降低
 		std::vector<double> imuTrackWeight(coarsestLvl + 1, 0);
-		imuTrackWeight[0] = imu_weight_tracker;
+		imuTrackWeight[0] = setting_imuWeightTracker;
 		imuTrackWeight[1] = imuTrackWeight[0] / 1.2;
 		imuTrackWeight[2] = imuTrackWeight[1] / 1.5;
 		imuTrackWeight[3] = imuTrackWeight[2] / 2;
@@ -1109,7 +1110,7 @@ namespace dso
 			for (int iteration = 0; iteration < maxIterations[lvl]; iteration++)
 			{
 				Mat88 Hl = H;
-				if (imu_use_flag && imu_track_flag && imu_track_ready && lvl == 0)
+				if (setting_useImu && setting_imuTrackFlag && setting_imuTrackReady && lvl == 0)
 				{
 					Hl.block(0, 0, 6, 6) = Hl.block(0, 0, 6, 6) + H_imu;
 					b.block(0, 0, 6, 1) = b.block(0, 0, 6, 1) + b_imu.block(0, 0, 6, 1);
@@ -1171,7 +1172,7 @@ namespace dso
 
 				// 计算能量值是否降低来判断此次迭代过程是否被接受
 				bool accept = (resNew[0] / resNew[1]) < (resOld[0] / resOld[1]);
-				if (imu_use_flag && imu_track_flag && imu_track_ready && lvl == 0)
+				if (setting_useImu && setting_imuTrackFlag && setting_imuTrackReady && lvl == 0)
 					accept = (resNew[0] / resNew[1] * resOld[1] + resImuNew) < (resOld[0] + resImuOld);
 
 				if (debugPrint)
@@ -1275,6 +1276,12 @@ namespace dso
 			std::sort(allID.begin(), allID.end(), [&](float a, float b) {return a < b; });
 			int n = allID.size() - 1;
 
+			if (allID.empty())
+			{
+				printf("please check feature param, all idepth vector empty.\n");
+				return;
+			}
+
 			float minID_new = allID[(int)(n*0.05)];
 			float maxID_new = allID[(int)(n*0.95)];
 
@@ -1345,7 +1352,7 @@ namespace dso
 			for (IOWrap::Output3DWrapper* ow : wraps)
 				ow->pushDepthImage(&mf);
 
-			if (debugSaveImages)
+			if (setting_debugSaveImages)
 			{
 				char buf[1000];
 				snprintf(buf, 1000, "images_out/predicted_%05d_%05d.png", lastRef->shell->id, refFrameID);
@@ -1371,11 +1378,11 @@ namespace dso
 	/// CoarseDistanceMap构造函数：分配必要内存空间；
 	/// 该类主要是在金字塔第一层构造距离地图，描述每个像素点到最近特征的距离
 	/// </summary>
-	/// <param name="ww"></param>
-	/// <param name="hh"></param>
+	/// <param name="ww">图像宽度</param>
+	/// <param name="hh">图像高度</param>
 	CoarseDistanceMap::CoarseDistanceMap(int ww, int hh)
 	{
-		fwdWarpedIDDistFinal = new int[ww * hh / 4];
+		fwdWarpedIDDistFinal = new unsigned char[ww * hh / 4];
 
 		bfsList1 = new Eigen::Vector2i[ww * hh / 4];
 		bfsList2 = new Eigen::Vector2i[ww * hh / 4];
@@ -1389,10 +1396,10 @@ namespace dso
 	}
 
 	/// <summary>
-	/// 构造距离地图，作用是均匀选取特征
+	/// 构造距离地图，作用是均匀选取特征进行未成熟点激活操作
 	/// </summary>
 	/// <param name="frameHessians">滑窗中所有关键帧</param>
-	/// <param name="frame">跟踪时设置的参考关键帧</param>
+	/// <param name="frame">滑窗关键帧中最后一帧关键帧</param>
 	void CoarseDistanceMap::makeDistanceMap(std::vector<FrameHessian*> frameHessians, FrameHessian* frame)
 	{
 		int w1 = w[1];
@@ -1400,8 +1407,9 @@ namespace dso
 		int wh1 = w1 * h1;
 		int numItems = 0;
 
-		memset(fwdWarpedIDDistFinal, 1000, sizeof(int) * wh1);
+		memset(fwdWarpedIDDistFinal, 255, sizeof(unsigned char) * wh1); 
 
+		// 滑窗关键帧中管理的特征都投影到最新关键帧frame中
 		for (FrameHessian* fh : frameHessians)
 		{
 			if (frame == fh) continue;
@@ -1410,6 +1418,7 @@ namespace dso
 			Mat33f KRKi = (K[1] * fhToNew.rotationMatrix().cast<float>() * Ki[0]);
 			Vec3f Kt = (K[1] * fhToNew.translation().cast<float>());
 
+			// 将激活的特征加入到距离地图中
 			for (PointHessian* ph : fh->pointHessians)
 			{
 				assert(ph->status == PointHessian::ACTIVE);
@@ -1433,6 +1442,16 @@ namespace dso
 
 	void CoarseDistanceMap::makeInlierVotes(std::vector<FrameHessian*> frameHessians)
 	{
+	}
+
+	void CoarseDistanceMap::debugPlotDistanceMap()
+	{
+		int wl = w[1];
+		int hl = h[1];
+		int whl = wl * hl;
+
+		debugImage = new MinimalImageB(wl, hl);
+		memcpy(debugImage->data, fwdWarpedIDDistFinal, sizeof(unsigned char) * whl);
 	}
 
 	/// <summary>
@@ -1464,6 +1483,7 @@ namespace dso
 					if (x == 0 || y == 0 || x == w1 - 1 || y == h1 - 1) continue;
 					int idx = x + y * w1;
 
+					// 上、下、左、右
 					if (fwdWarpedIDDistFinal[idx + 1] > k)
 					{
 						fwdWarpedIDDistFinal[idx + 1] = k;
@@ -1495,6 +1515,7 @@ namespace dso
 					if (x == 0 || y == 0 || x == w1 - 1 || y == h1 - 1) continue;
 					int idx = x + y * w1;
 
+					// 上、下、左、右、左上、右上、左下、右下
 					if (fwdWarpedIDDistFinal[idx + 1] > k)
 					{
 						fwdWarpedIDDistFinal[idx + 1] = k;

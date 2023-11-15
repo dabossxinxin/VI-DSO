@@ -126,7 +126,7 @@ namespace dso
 			pangolin::Var<bool> settings_showLiveResidual("ui.showResidual", false, true);
 
 			pangolin::Var<bool> settings_showFramesWindow("ui.showFramesWindow", false, true);
-			pangolin::Var<bool> settings_showFullTracking("ui.showFullTracking", false, true);
+			pangolin::Var<bool> settings_showFullTracking("ui.showFullTracking", true, true);
 			pangolin::Var<bool> settings_showCoarseTracking("ui.showCoarseTracking", false, true);
 
 			pangolin::Var<int> settings_sparsity("ui.sparsity", 1, 1, 20, false);
@@ -144,6 +144,7 @@ namespace dso
 
 			pangolin::Var<double> settings_trackFps("ui.Track fps", 0, 0, 0, false);
 			pangolin::Var<double> settings_mapFps("ui.KF fps", 0, 0, 0, false);
+			pangolin::Var<int> settings_featuresNum("ui.FP num", 0, 0, 0, false);
 
 			// Default hooks for exiting (Esc) and fullscreen (tab).
 			while (!pangolin::ShouldQuit() && running)
@@ -154,21 +155,29 @@ namespace dso
 
 				if (setting_render_display3D)
 				{
-					// Activate efficiently by object
 					Visualization3D_display.Activate(Visualization3D_camera);
 					std::unique_lock<std::mutex> lk3d(model3DMutex);
 					//pangolin::glDrawColouredCube();
+					
+					// 绘制滑窗关键帧位姿以及管理的地图点
 					int refreshed = 0;
+					int featuresNum = 0;
 					for (KeyFrameDisplay* fh : keyframes)
 					{
 						float blue[3] = { 0,0,1 };
-						if (this->settings_showKFCameras) fh->drawCam(1, blue, 0.1);
+						if (this->settings_showKFCameras) 
+							fh->drawCam(1, blue, 0.1);
 
 						refreshed += (int)(fh->refreshPC(refreshed < 10, this->settings_scaledVarTH, this->settings_absVarTH,
 							this->settings_pointCloudMode, this->settings_minRelBS, this->settings_sparsity));
 						fh->drawPC(1);
+						featuresNum += fh->validDisplayPts();
 					}
-					if (this->settings_showCurrentCamera) currentCam->drawCam(2, 0, 0.2);
+					settings_featuresNum = featuresNum;
+
+					// 绘制系统当前帧的位姿
+					if (this->settings_showCurrentCamera)
+						currentCam->drawCam(2, 0, 0.2);
 					drawConstraints();
 					lk3d.unlock();
 				}
@@ -286,7 +295,8 @@ namespace dso
 		void PangolinDSOViewer::reset_internal()
 		{
 			model3DMutex.lock();
-			for (size_t i = 0; i < keyframes.size(); i++) delete keyframes[i];
+			for (size_t it = 0; it < keyframes.size(); ++it)
+				freePointer(keyframes[it]);
 			keyframes.clear();
 			allFramePoses.clear();
 			keyframesByKFID.clear();
@@ -389,10 +399,10 @@ namespace dso
 				glLineWidth(3);
 
 				glBegin(GL_LINE_STRIP);
-				for (unsigned int i = 0; i < gt_pose.size(); i++)
+				for (unsigned int i = 0; i < input_gtPose.size(); i++)
 				{
 					if (gt_time_stamp[i] > run_time)break;
-					SE3 pose_show = T_WR_align * gt_pose[i] * T_BC;
+					SE3 pose_show = T_WR_align * input_gtPose[i] * T_BC;
 					glVertex3f((float)(pose_show.translation()[0]),
 						(float)(pose_show.translation()[1]),
 						(float)(pose_show.translation()[2]));
@@ -404,7 +414,7 @@ namespace dso
 		void PangolinDSOViewer::publishGraph(const std::map<uint64_t, Eigen::Vector2i, std::less<uint64_t>, Eigen::aligned_allocator<std::pair<const uint64_t, Eigen::Vector2i>>> &connectivity)
 		{
 			if (!setting_render_display3D) return;
-			if (disableAllDisplay) return;
+			if (setting_disableAllDisplay) return;
 
 			model3DMutex.lock();
 			connections.resize(connectivity.size());
@@ -441,10 +451,16 @@ namespace dso
 			model3DMutex.unlock();
 		}
 
-		void PangolinDSOViewer::publishKeyframes(std::vector<FrameHessian*> &frames, bool final, CalibHessian* HCalib)
+		/// <summary>
+		/// 向显示线程中添加关键帧信息
+		/// </summary>
+		/// <param name="frames">系统计算模块滑窗中所有关键帧</param>
+		/// <param name="final"></param>
+		/// <param name="HCalib">系统中固有的相机内参信息</param>
+		void PangolinDSOViewer::publishKeyframes(std::vector<FrameHessian*>& frames, bool final, CalibHessian* HCalib)
 		{
 			if (!setting_render_display3D) return;
-			if (disableAllDisplay) return;
+			if (setting_disableAllDisplay) return;
 
 			std::unique_lock<std::mutex> lk(model3DMutex);
 			for (FrameHessian* fh : frames)
@@ -453,7 +469,7 @@ namespace dso
 				{
 					KeyFrameDisplay* kfd = new KeyFrameDisplay();
 					keyframesByKFID[fh->frameID] = kfd;
-					keyframes.push_back(kfd);
+					keyframes.emplace_back(kfd);
 				}
 				keyframesByKFID[fh->frameID]->setFromKF(fh, HCalib);
 			}
@@ -462,7 +478,7 @@ namespace dso
 		void PangolinDSOViewer::publishCamPose(FrameShell* frame, CalibHessian* HCalib)
 		{
 			if (!setting_render_display3D) return;
-			if (disableAllDisplay) return;
+			if (setting_disableAllDisplay) return;
 
 			std::unique_lock<std::mutex> lk(model3DMutex);
 			timedso time_now;
@@ -477,18 +493,23 @@ namespace dso
 			allFramePoses.emplace_back((SE3(T_WD.matrix() * frame->camToWorld.matrix() * T_WD.inverse().matrix())).translation().cast<float>());
 		}
 
+		/// <summary>
+		/// 在显示线程中更新实时图像数据internalVideoImg
+		/// </summary>
+		/// <param name="image">最新进入系统的图像帧</param>
 		void PangolinDSOViewer::pushLiveFrame(FrameHessian* image)
 		{
 			if (!setting_render_displayVideo) return;
-			if (disableAllDisplay) return;
+			if (setting_disableAllDisplay) return;
+			int wh = w * h;
 
 			std::unique_lock<std::mutex> lk(openImagesMutex);
 
-			for (int i = 0; i < w*h; i++)
-				internalVideoImg->data[i][0] =
-				internalVideoImg->data[i][1] =
-				internalVideoImg->data[i][2] =
-				image->dI[i][0] * 0.8 > 255.0f ? 255.0 : image->dI[i][0] * 0.8;
+			for (int it = 0; it < wh; ++it)
+				internalVideoImg->data[it][0] =
+				internalVideoImg->data[it][1] =
+				internalVideoImg->data[it][2] =
+				image->dI[it][0] * 0.8 > 255.0f ? 255.0 : image->dI[it][0] * 0.8;
 
 			videoImgChanged = true;
 		}
@@ -498,16 +519,20 @@ namespace dso
 			return setting_render_displayDepth;
 		}
 
+		/// <summary>
+		/// 向显示线程中添加特征深度图
+		/// </summary>
+		/// <param name="image">特征深度图像</param>
 		void PangolinDSOViewer::pushDepthImage(MinimalImageB3* image)
 		{
 			if (!setting_render_displayDepth) return;
-			if (disableAllDisplay) return;
+			if (setting_disableAllDisplay) return;
 
 			std::unique_lock<std::mutex> lk(openImagesMutex);
 
 			timedso time_now;
 			gettimeofday(&time_now, NULL);
-			lastNMappingMs.push_back(((time_now.tv_sec - last_map.tv_sec)*1000.0f + (time_now.tv_usec - last_map.tv_usec) / 1000.0f));
+			lastNMappingMs.emplace_back(((time_now.tv_sec - last_map.tv_sec)*1000.0f + (time_now.tv_usec - last_map.tv_usec) / 1000.0f));
 			if (lastNMappingMs.size() > 10) lastNMappingMs.pop_front();
 			last_map = time_now;
 

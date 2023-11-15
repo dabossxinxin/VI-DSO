@@ -79,6 +79,11 @@ namespace dso
 		deltaF = data->idepth - data->idepth_zero;
 	}
 
+	/// <summary>
+	/// 求解观测残差在各个优化参数为线性化点处的残差
+	/// 残差成员变量isLinearized只有在这里才会被设置为true
+	/// </summary>
+	/// <param name="ef">滑窗优化函数handle</param>
 	void EFResidual::fixLinearizationF(EnergyFunctional* ef)
 	{
 		Vec8f dp = ef->adHTdeltaF[hostIDX + ef->nFrames * targetIDX];

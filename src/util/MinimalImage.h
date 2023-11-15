@@ -32,22 +32,16 @@ namespace dso
 	{
 	public:
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-			int w;
+		int w;
 		int h;
 		T* data;
 
-		/*
-		 * creates minimal image with own memory
-		 */
 		inline MinimalImage(int w_, int h_) : w(w_), h(h_)
 		{
 			data = new T[w*h];
 			ownData = true;
 		}
 
-		/*
-		 * creates minimal image wrapping around existing memory
-		 */
 		inline MinimalImage(int w_, int h_, T* data_) : w(w_), h(h_)
 		{
 			data = data_;
@@ -56,7 +50,8 @@ namespace dso
 
 		inline ~MinimalImage()
 		{
-			if (ownData) delete[] data;
+			if (ownData)
+				freePointerVec(data);
 		}
 
 		inline MinimalImage* getClone()
@@ -65,7 +60,6 @@ namespace dso
 			memcpy(clone->data, data, sizeof(T)*w*h);
 			return clone;
 		}
-
 
 		inline T& at(int x, int y) { return data[(int)x + ((int)y)*w]; }
 		inline T& at(int i) { return data[i]; }
@@ -120,6 +114,11 @@ namespace dso
 				at(u + i, v - 2) = val;
 				at(u + i, v + 2) = val;
 			}
+		}
+
+		inline void SetPixel1(const int& u, const int& v, T val)
+		{
+			at(u, v) = val;
 		}
 
 	private:

@@ -30,6 +30,10 @@
 #include <Eigen/SVD>
 #include <Eigen/Eigenvalues>
 
+#include <opencv2/opencv.hpp>
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+
 #include "FullSystem/FullSystem.h"
 #include "FullSystem/ResidualProjections.h"
 
@@ -150,6 +154,7 @@ namespace dso
 		linearizeOperation = true;
 		runMapping = true;
 
+		newFrameID = -1;
 		needNewKFAfter = -1;
 		lastRefStopID = 0;
 		minIdJetVisDebug = -1;
@@ -289,7 +294,7 @@ namespace dso
 		std::vector<SE3, Eigen::aligned_allocator<SE3>> lastF_2_fh_tries;
 
 		// 1、根据既定规则设置一系列最新帧与参考关键帧之间的位姿变换
-		if (use_stereo && (allFrameHistory.size() == 2 || first_track_flag == false))
+		if (setting_useStereo && (allFrameHistory.size() == 2 || first_track_flag == false))
 		{
 			//initializeFromInitializer(fh);
 			first_track_flag = true;
@@ -399,17 +404,14 @@ namespace dso
 		SE3 lastF_2_fh = SE3();
 		AffLight aff_g2l = AffLight(0, 0);
 
-		// as long as maxResForImmediateAccept is not reached, I'll continue through the options.
-		// I'll keep track of the so-far best achieved residual for each level in achievedRes.
-		// If on a coarse level, tracking is WORSE than achievedRes, we will not continue to save time.
-		Vec5 achievedRes = Vec5::Constant(NAN);
+		Vec5 achievedRes = Vec5::Constant(NAN);		// 每层金字塔跟踪的光度残差初始化为NAN
 		bool haveOneGood = false;
 		int tryIterations = 0;
 
 		// 2、一一尝试上述设置的一系类位姿变换，计算出光度残差较小的尝试作为跟踪结果
 		for (unsigned int it = 0; it < lastF_2_fh_tries.size(); ++it)
 		{
-			if (use_stereo && frameHessians.size() < setting_maxFrames - 1)
+			if (setting_useStereo && frameHessians.size() < setting_maxFrames - 1)
 			{
 				if (it > 0)
 				{
@@ -418,6 +420,12 @@ namespace dso
 				}
 			}
 
+			if (newFrameID == 100)
+			{
+				std::cout << "xinxin" << std::endl;
+			}
+
+			// 跟踪系统最新输入的帧
 			AffLight aff_g2l_this = aff_last_2_l;
 			SE3 lastF_2_fh_this = lastF_2_fh_tries[it];
 			bool trackingIsGood = coarseTracker->trackNewestCoarse(fh, lastF_2_fh_this,
@@ -440,6 +448,7 @@ namespace dso
 					coarseTracker->lastResiduals[2],
 					coarseTracker->lastResiduals[3],
 					coarseTracker->lastResiduals[4]);
+				printf("RE-TRACK IMG ID: %d\n", newFrameID);
 			}
 
 			// 若跟踪成功并且第零层光度残差小于所记录的第零层最小残差，将此时的位姿及光度变换视为最优
@@ -483,6 +492,10 @@ namespace dso
 		fh->shell->trackingRef = lastF->shell;
 		fh->shell->aff_g2l = aff_g2l;
 		fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef;
+		
+		Vec6f state = fh->shell->camToWorld.log().cast<float>();
+		printf("CoarseTrack RESULT POSE[%f, %f, %f, %f, %f, %f]; IMAGE ID: %d\n",
+			state[0], state[1], state[2], state[3], state[4], state[5], newFrameID);
 
 		if (coarseTracker->firstCoarseRMSE < 0)
 			coarseTracker->firstCoarseRMSE = achievedRes[0];
@@ -764,8 +777,13 @@ namespace dso
 		// 1、以滑窗中的最新帧构造距离地图，便于均匀选取未激活点进行优化激活操作
 		coarseDistanceMap->makeK(&Hcalib);
 		coarseDistanceMap->makeDistanceMap(frameHessians, newestHs);
-
-		//coarseTracker->debugPlotDistMap("distMap");
+		
+#ifdef XINXIN_DEBUG
+		// 绘制距离地图，查看距离地图状态
+		coarseDistanceMap->debugPlotDistanceMap();
+		auto distMapData = coarseDistanceMap->debugImage;
+		cv::Mat disMap = cv::Mat(distMapData->h, distMapData->w, CV_8UC1, distMapData->data);
+#endif
 
 		std::vector<ImmaturePoint*> toOptimize; 
 		toOptimize.reserve(20000);
@@ -786,7 +804,7 @@ namespace dso
 
 				if (!std::isfinite(ph->idepth_max) || ph->lastTraceStatus == IPS_OUTLIER)
 				{
-					delete ph;
+					freePointer(ph);
 					host->immaturePoints[it] = NULL;
 					continue;
 				}
@@ -803,7 +821,7 @@ namespace dso
 				{
 					if (ph->host->flaggedForMarginalization || ph->lastTraceStatus == IPS_OOB)
 					{
-						delete ph;
+						freePointer(ph);
 						host->immaturePoints[it] = NULL;
 					}
 					continue;
@@ -813,6 +831,7 @@ namespace dso
 				int u = ptp[0] / ptp[2] + 0.5f;
 				int v = ptp[1] / ptp[2] + 0.5f;
 
+				// 若所选择的激活点在距离地图之外，此时选择该点进行激活
 				if ((u > 0 && v > 0 && u < wG[1] && v < hG[1]))
 				{
 					float dist = (ptp[0] - floorf((float)(ptp[0]))) +
@@ -826,9 +845,10 @@ namespace dso
 				}
 				else
 				{
-					delete ph;
+					freePointer(ph);
 					host->immaturePoints[it] = NULL;
 				}
+					
 			}
 		}
 
@@ -836,7 +856,7 @@ namespace dso
 		std::vector<PointHessian*> optimized; 
 		optimized.resize(toOptimize.size());
 
-		if (multiThreading)
+		if (setting_multiThreading)
 			treadReduce.reduce(std::bind(&FullSystem::activatePointsMT_Reductor, this, &optimized, &toOptimize,
 				std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, toOptimize.size(), 50);
 		else
@@ -854,8 +874,9 @@ namespace dso
 				ef->insertPoint(opt);
 				for (PointFrameResidual* r : opt->residuals)
 					ef->insertResidual(r);
+
 				assert(opt->efPoint != NULL);
-				delete ph;
+				freePointer(ph);
 			}
 			else if (opt == (PointHessian*)((long)(-1)) || ph->lastTraceStatus == IPS_OOB)
 			{
@@ -930,6 +951,8 @@ namespace dso
 					{
 						flag_in++;
 						int ngoodRes = 0;
+
+						// 对于标记为Marginalize的关键帧上的特征，将该特征对应的观测残差固定线性化点
 						for (PointFrameResidual* r : ph->residuals)
 						{
 							r->resetOOB();
@@ -991,6 +1014,7 @@ namespace dso
 	{
 		std::unique_lock<std::mutex> lock(mapMutex);
 
+		// 将初始化handle中的firstFrame加入到滑窗关键帧中
 		coarseInitializer->firstFrame->idx = frameHessians.size();
 		frameHessians.emplace_back(coarseInitializer->firstFrame);
 		coarseInitializer->firstFrame->frameID = allKeyFramesHistory.size();
@@ -1000,9 +1024,6 @@ namespace dso
 		ef->insertFrame(coarseInitializer->firstFrame, &Hcalib);
 		setPrecalcValues();
 		FrameHessian* firstFrameRight = coarseInitializer->firstFrameRight;
-
-		//int numPointsTotal = makePixelStatus(firstFrame->dI, selectionMap, wG[0], hG[0], setting_desiredDensity);
-		//int numPointsTotal = pixelSelector->makeMaps(firstFrame->dIp, selectionMap,setting_desiredDensity);
 
 		coarseInitializer->firstFrame->pointHessians.reserve(wG[0] * hG[0] * 0.2f);
 		coarseInitializer->firstFrame->pointHessiansMarginalized.reserve(wG[0] * hG[0] * 0.2f);
@@ -1026,7 +1047,7 @@ namespace dso
 				100 * keepPercentage, (int)(setting_desiredPointDensity), coarseInitializer->numPoints[0]);
 
 		// 2、将初始化器中计算得到的特征加入到以firstFrame为主帧的激活点中并添加到energyFunction中
-		if (use_stereo)
+		if (setting_useStereo)
 		{
 			for (int idx = 0; idx < coarseInitializer->numPoints[0]; ++idx)
 			{
@@ -1050,23 +1071,20 @@ namespace dso
 				if (!std::isfinite(pt->energyTH) || !std::isfinite(pt->idepth_min) ||
 					!std::isfinite(pt->idepth_max) || pt->idepth_min < 0 || pt->idepth_max < 0)
 				{
-					delete pt;
-					pt = NULL;
+					freePointer(pt);
 					continue;
 				}
 
 				PointHessian* ph = new PointHessian(pt, &Hcalib);
 				if (pt != NULL) 
 				{ 
-					delete pt; 
-					pt = NULL;
+					freePointer(pt);
 					pt = NULL; 
 				}
 				if (!std::isfinite(ph->energyTH)) 
 				{ 
-					delete ph; 
-					ph = NULL;
-					continue; 
+					freePointer(ph);
+					continue;
 				}
 
 				ph->setIdepthScaled(idepthStereo);
@@ -1090,33 +1108,30 @@ namespace dso
 		{
 			for (int idx = 0; idx < coarseInitializer->numPoints[0]; ++idx)
 			{
-				if (rand() / (float)RAND_MAX > keepPercentage) continue;
+				//if (rand() / (float)RAND_MAX > keepPercentage) continue;
 
 				Pnt* point = coarseInitializer->points[0] + idx;
 				ImmaturePoint* pt = new ImmaturePoint(point->u + 0.5f, point->v + 0.5f,
 					coarseInitializer->firstFrame, point->my_type, &Hcalib);
+
 				if (!std::isfinite(pt->energyTH)) 
 				{ 
-					delete pt;
-					pt = NULL;
+					freePointer(pt);
 					continue;
 				}
 
 				pt->idepth_max = pt->idepth_min = 1;
 				PointHessian* ph = new PointHessian(pt, &Hcalib);
-				if (pt != NULL) 
-				{ 
-					delete pt; 
-					pt = NULL; 
-				}
+				if (pt != NULL) freePointer(pt);
+
 				if (!std::isfinite(ph->energyTH)) 
 				{ 
-					delete ph; 
-					ph = NULL;
-					continue; 
+					freePointer(ph);
+					continue;
 				}
-
-				ph->setIdepthScaled(point->iR* rescaleFactor);
+				 
+				// 设置特征的逆深度为初始化器中计算得到的逆深度
+				ph->setIdepthScaled(point->iR * rescaleFactor);
 				ph->setIdepthZero(ph->idepth);
 				ph->hasDepthPrior = true;
 				ph->setPointStatus(PointHessian::ACTIVE);
@@ -1130,7 +1145,7 @@ namespace dso
 		SE3 firstToNew = coarseInitializer->thisToNext;
 		firstToNew.translation() /= rescaleFactor;
 
-		// really no lock required, as we are initializing.
+		// 实际上这里不用加上互斥锁，在初始化过程中建图线程不会启动
 		{
 			std::unique_lock<std::mutex> crlock(shellPoseMutex);
 			coarseInitializer->firstFrame->shell->trackingRef = NULL;
@@ -1161,17 +1176,18 @@ namespace dso
 		printf("image id-stamp: %d-%.12f, marginalization total-half: %d-%d\n",
 			id, pic_time_stamp[id], marg_num, marg_num_half);
 
+		newFrameID = id;
 		if (isLost) return;
 		std::unique_lock<std::mutex> lock(trackMutex);
 
-		if (use_stereo && (T_WD.scale() > 2 || T_WD.scale() < 0.6))
+		if (setting_useStereo && (T_WD.scale() > 2 || T_WD.scale() < 0.6))
 		{
 			initFailed = true;
 			first_track_flag = false;
 			printf("tracking error scale\n");
 		}
 
-		if (!use_stereo && (T_WD.scale() < 0.1 || T_WD.scale() > 10))
+		if (!setting_useStereo && (T_WD.scale() < 0.1 || T_WD.scale() > 10))
 		{
 			initFailed = true;
 			first_track_flag = false;
@@ -1211,7 +1227,7 @@ namespace dso
 		//				   移较大的帧并且接下来连续5帧都可以成功跟踪则完成初始化
 		if (!initialized)
 		{
-			if (coarseInitializer->frameID < 0 && use_stereo)
+			if (coarseInitializer->frameID < 0 && setting_useStereo)
 			{
 				coarseInitializer->setFirstStereo(&Hcalib, fh, fhRight);
 				initFirstFrameImu(fh);
@@ -1227,14 +1243,14 @@ namespace dso
 			else if (coarseInitializer->trackFrame(fh, outputWrapper))
 			{
 				initializeFromInitializer(fh);
+
 				lock.unlock();							// 跟踪完毕，释放与跟踪线程绑定的互斥锁
-				deliverTrackedFrame(fh, fhRight, true);	// 跟踪成功，将跟踪的帧提交进行建图线程进行建图操作
+				deliverTrackedFrame(fh, fhRight, true);	// 跟踪成功，将跟踪的帧提交进行建图线程进行建图操作，初始化帧直接加入到滑窗中
 			}
 			else
 			{
 				fh->shell->poseValid = false;
-				delete fh;
-				fh = NULL;
+				freePointer(fh);
 			}
 
 			return;
@@ -1300,8 +1316,8 @@ namespace dso
 			lock.unlock();
 			deliverTrackedFrame(fh, fhRight, needToMakeKF);
 
-			auto T = T_WD.matrix() * shell->camToWorld.matrix() * T_WD.inverse().matrix();
-			savetrajectoryTum(SE3(T), run_time);
+			//auto T = T_WD.matrix() * shell->camToWorld.matrix() * T_WD.inverse().matrix();
+			//savetrajectoryTum(SE3(T), run_time);
 
 			return;
 		}
@@ -1328,7 +1344,7 @@ namespace dso
 		Vec3 g_w(0, 0, -1);
 
 		for (int idx = 0; idx < 40; ++idx)
-			g_b = g_b + m_acc[imuStartIdx - idx];
+			g_b = g_b + input_accList[idx];
 
 		g_b = -g_b / g_b.norm();
 		Vec3 g_c = T_BC.inverse().rotationMatrix() * g_b;
@@ -1348,8 +1364,8 @@ namespace dso
 		// T_WR_align为GroundTruth与当前系统坐标系之间的变换
 		// 这个参数的作用为将GroundTruth坐标转换到当前系统坐标系下
 		SE3 T_wc(R_wc, Vec3::Zero());
-		if (gt_path.empty()) T_WR_align = SE3();
-		else T_WR_align = T_wc * T_BC.inverse() * gt_pose[imuStartIdxGT].inverse();
+		if (input_gtPath.empty()) T_WR_align = SE3();
+		else T_WR_align = T_wc * T_BC.inverse() * input_gtPose[imuStartIdxGT].inverse();
 
 		fh->shell->camToWorld = T_wc;
 		fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(), fh->shell->aff_g2l);
@@ -1405,7 +1421,7 @@ namespace dso
 		std::string gtfile = "./data/" + savefile_tail + "_gt.txt";
 		fsGT.open(gtfile, std::ios::out | std::ios::app);
 
-		SE3 gt_C = T_WR_align * gt_pose[idxStart] * T_BC;
+		SE3 gt_C = T_WR_align * input_gtPose[idxStart] * T_BC;
 		t = gt_C.translation();
 		q = Eigen::Quaterniond(gt_C.rotationMatrix()).coeffs();
 
@@ -1428,7 +1444,7 @@ namespace dso
 		// 通过外部输入控制已跟踪的帧逐帧进行建图操作
 		if (linearizeOperation)
 		{
-			if (goStepByStep && lastRefStopID != coarseTracker->refFrameID)
+			if (setting_goStepByStep && lastRefStopID != coarseTracker->refFrameID)
 			{
 				MinimalImageF3 img(wG[0], hG[0], fh->dI);
 				IOWrap::displayImage("frameToTrack", &img);
@@ -1556,8 +1572,8 @@ namespace dso
 	/// 最新跟踪的帧fh不是关键帧时，设置该帧的位姿以及光度参数并且使用该帧追踪滑窗关键帧
 	/// 中的未成熟点，优化未成熟点的精度
 	/// </summary>
-	/// <param name="fh"></param>
-	/// <param name="fhRight"></param>
+	/// <param name="fh">最新跟踪的关键帧</param>
+	/// <param name="fhRight">最新跟踪的关键帧的右视图</param>
 	void FullSystem::makeNonKeyFrame(FrameHessian* fh, FrameHessian* fhRight)
 	{
 		// 1、根据跟踪结果设置帧fh的位姿以及光度参数
@@ -1695,6 +1711,11 @@ namespace dso
 		{
 			ow->publishGraph(ef->connectivityMap);
 			ow->publishKeyframes(frameHessians, false, &Hcalib);
+		}
+
+		while(true)
+		{
+			std::cout << "xinxin" << std::endl;
 		}
 
 		// 边缘化关键帧

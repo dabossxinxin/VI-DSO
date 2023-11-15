@@ -68,6 +68,8 @@ namespace dso
 #define patternP staticPattern[8]
 #define patternPadding 2
 
+#define SAVE_INITIALIZER_DATA
+
 	// ============== PARAMETERS TO BE DECIDED ON COMPILE TIME =================
 	extern int pyrLevelsUsed;
 
@@ -97,10 +99,14 @@ namespace dso
 	extern float setting_minIdepthH_act;
 	extern float setting_minIdepthH_marg;
 
+	extern int setting_initStepFrames;
+	extern bool setting_useInitStep;
+	extern bool setting_initFixAffine;
+
 	extern float setting_maxIdepth;
 	extern float setting_maxPixSearch;
-	extern float setting_desiredImmatureDensity;		// done
-	extern float setting_desiredPointDensity;			// done
+	extern float setting_desiredImmatureDensity;
+	extern float setting_desiredPointDensity;
 	extern float setting_minPointsRemaining;
 	extern float setting_maxLogAffFacInWindow;
 	extern int setting_minFrames;
@@ -171,15 +177,15 @@ namespace dso
 	extern bool setting_render_displayDepth;
 	extern bool setting_fullResetRequested;
 	extern bool setting_debugout_runquiet;
-	extern bool disableAllDisplay;
-	extern bool disableReconfigure;
+
+	extern bool setting_disableAllDisplay;
 	extern bool setting_onlyLogKFPoses;
-	extern bool debugSaveImages;
+	extern bool setting_debugSaveImages;
+	extern bool setting_multiThreading;
 
 	extern int sparsityFactor;
-	extern bool goStepByStep;
+	extern bool setting_goStepByStep;
 	extern bool plotStereoImages;
-	extern bool multiThreading;
 
 	extern float freeDebugParam1;
 	extern float freeDebugParam2;
@@ -188,7 +194,7 @@ namespace dso
 	extern float freeDebugParam5;
 
 	template <typename T>
-	inline void freePointer(T* ptr)
+	void freePointer(T* ptr)
 	{
 		if (ptr != NULL)
 		{
@@ -198,7 +204,7 @@ namespace dso
 	}
 
 	template <typename T>
-	inline void freePointerVec(T* ptr)
+	void freePointerVec(T* ptr)
 	{
 		if (ptr != NULL)
 		{
@@ -213,17 +219,34 @@ namespace dso
 	extern int staticPattern[10][40][2];
 	extern int staticPatternNum[10];
 	extern int staticPatternPadding[10];
+	
+	extern std::string input_gtPath;
+	extern std::string input_imuPath;
+	extern std::string input_vignette;
+	extern std::string input_gammaCalib;
+	extern std::string input_sourceLeft;
+	extern std::string input_sourceRight;
+	extern std::string input_calibLeft;
+	extern std::string input_calibRight;
+	extern std::string input_calibStereo;
+	extern std::string input_calibImu;
+	extern std::string input_picTimestampLeft;
+	extern std::string input_picTimestampRight;
 
-	extern double baseline;
-	extern std::string gt_path;
-	extern std::string imu_path;
-	extern std::vector<SE3> gt_pose;
-	extern std::vector<Vec3> gt_velocity;
-	extern std::vector<Vec3> gt_bias_g;
-	extern std::vector<Vec3> gt_bias_a;
-	extern std::vector<Vec3> m_gry;
-	extern std::vector<Vec3> m_acc;
-	extern std::string savefile_tail;
+	extern double setting_baseline;
+	extern double setting_stereoWeight;
+	extern double setting_imuWeightNoise;
+	extern double setting_imuWeightTracker;
+	extern bool setting_useStereo;
+	extern double setting_margWeightFacImu;
+
+	extern std::vector<SE3> input_gtPose;
+	extern std::vector<Vec3> input_gtVelocity;
+	extern std::vector<Vec3> input_gtBiasG;
+	extern std::vector<Vec3> input_gtBiasA;
+	extern std::vector<Vec3> input_gryList;
+	extern std::vector<Vec3> input_accList;
+
 	extern SE3 T_C0C1;
 	extern SE3 T_C1C0;
 	extern Mat33f K_right;
@@ -236,33 +259,27 @@ namespace dso
 	extern Mat33 AccCov;
 	extern Mat33 GyrRandomWalkNoise;
 	extern Mat33 AccRandomWalkNoise;
+
 	extern Sim3 T_WD;
 	extern Sim3 T_WD_l;
 	extern Sim3 T_WD_l_half;
 	extern Sim3 T_WD_change;
-	extern double G_norm;
+	
 	extern int index_align;
 	extern SE3 T_WR_align;
 	extern double run_time;
 	extern Vec7 step_twd;
 	extern Vec7 state_twd;
-	extern double imu_weight;
-	extern double imu_weight_tracker;
-	extern bool imu_use_flag;
-	extern bool imu_track_flag;
-	extern bool use_optimize;
-	extern bool use_Dmargin;
-	extern double d_min;
-	extern double imu_lambda;
-	extern bool imu_track_ready;
-	extern double stereo_weight;
+	
+	extern bool setting_useImu;
+	extern bool setting_imuTrackFlag;
+	extern bool setting_imuTrackReady;
+	extern bool setting_useOptimize;
+	extern bool setting_useDynamicMargin;
+	extern double setting_gravityNorm;
+	extern double setting_dynamicMin;
+	
 	extern int marg_num;
 	extern int marg_num_half;
-	extern double setting_margWeightFac_imu;
 	extern bool first_track_flag;
-	extern bool use_stereo;
-
-	//#define patternNum staticPatternNum[setting_pattern]
-	//#define patternP staticPattern[setting_pattern]
-	//#define patternPadding staticPatternPadding[setting_pattern]
 }

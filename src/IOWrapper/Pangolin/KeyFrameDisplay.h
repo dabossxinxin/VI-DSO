@@ -41,26 +41,37 @@ namespace dso
 
 	namespace IOWrap
 	{
+		/// <summary>
+		/// 特征状态/类别
+		/// </summary>
+		enum InputPointStatus
+		{
+			STATUS_IMMATURE = 0,
+			STATUS_NORMAL = 1,
+			STATUS_MARGINALIZE = 2,
+			STATUS_OUTLIER = 3
+		};
+		
+		/// <summary>
+		/// 输入显示线程的特征点结构
+		/// </summary>
 		template<int ppp>
 		struct InputPointSparse
 		{
-			float u;
-			float v;
-			float idpeth;
-			float idepth_hessian;
-			float relObsBaseline;
-			int numGoodRes;
-			unsigned char color[ppp];
-			unsigned char status;
+			float u;					// 特征点像素坐标
+			float v;					// 特征点像素坐标
+			float idpeth;				// 特征点在主帧的逆深度
+			float idepth_hessian;		// 特征点所有观测信息的hessian
+			float relObsBaseline;		// 特征点所有观测中的最大基线长度
+			int numGoodRes;				// 特征点所有观测中好的观测的数量
+			unsigned char color[ppp];	// 特征点在主帧图像中的像素灰度值
+			InputPointStatus status;	// 特征点状态/类别
 		};
+		typedef InputPointSparse<MAX_RES_PER_POINT> InputPointSparseGroup;
 
-		struct MyVertex
-		{
-			float point[3];
-			unsigned char color[4];
-		};
-
-		// stores a pointcloud associated to a Keyframe.
+		/// <summary>
+		/// 用于在显示线程中绘制关键帧位姿以及管理的特征点
+		/// </summary>
 		class KeyFrameDisplay
 		{
 		public:
@@ -83,9 +94,10 @@ namespace dso
 			void drawCam(float lineWidth = 1, float* color = 0, float sizeFactor = 1);
 			void drawPC(float pointSize);
 
-			int id;
-			bool active;
-			SE3 camToWorld;
+			int validDisplayPts() { return numGLBufferGoodPoints; }
+
+			int id;										// 当前帧ID
+			SE3 camToWorld;								// 当前帧位姿
 
 			inline bool operator < (const KeyFrameDisplay& other) const
 			{
@@ -93,25 +105,25 @@ namespace dso
 			}
 
 		private:
-			float fx, fy, cx, cy;
-			float fxi, fyi, cxi, cyi;
-			int width, height;
+			float fx, fy, cx, cy;						// 相机内参信息
+			float fxi, fyi, cxi, cyi;					// 相机内参信息
+			int width, height;							// 相机图像大小信息
 
-			float my_scaledTH, my_absTH, my_scale;
-			int my_sparsifyFactor;
-			int my_displayMode;
-			float my_minRelBS;
-			bool needRefresh;
+			float my_scaledTH, my_absTH, my_scale;		// 当前设定的关键帧特征筛选参数
+			int my_sparsifyFactor;						// 通过稀疏程度筛选关键帧中的特征用于显示
+			int my_displayMode;							// 通过显示模式筛选关键帧中的特征用于显示
+			float my_minRelBS;							// 通过特征基线筛选关键帧中的特征用于显示
+			bool needRefresh;							// 关键帧中的显示数据是否需要刷新
 
-			int numSparsePoints;
-			int numSparseBufferSize;
-			InputPointSparse<MAX_RES_PER_POINT>* originalInputSparse;
+			int numSparsePoints;						// originalInputSparse实际存储数据空间大小
+			int numSparseBufferSize;					// originalInputSparse数据声明内存空间大小
+			InputPointSparseGroup* originalInputSparse;	// 关键帧中管理的所有特征数据：包含未成熟点、正常点、边缘化点以及外点
 
-			bool bufferValid;
-			int numGLBufferPoints;
-			int numGLBufferGoodPoints;
-			pangolin::GlBuffer vertexBuffer;
-			pangolin::GlBuffer colorBuffer;
+			bool bufferValid;							// 待显示的buffer数据是否准备好
+			int numGLBufferPoints;						// 待显示的buffer数据声明内存空间大小
+			int numGLBufferGoodPoints;					// 待显示的buffer实际存储数据空间大小
+			pangolin::GlBuffer vertexBuffer;			// 用于存储待显示特征的坐标数据
+			pangolin::GlBuffer colorBuffer;				// 用于存储待显示特征的颜色数据
 		};
 	}
 }

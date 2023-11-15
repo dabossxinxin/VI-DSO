@@ -46,6 +46,7 @@ set(dso_SOURCE_FILES
   ${PROJECT_SOURCE_DIR}/src/util/Undistort.cpp
   ${PROJECT_SOURCE_DIR}/src/util/globalCalib.cpp
   ${PROJECT_SOURCE_DIR}/src/util/threading.cpp
+  ${PROJECT_SOURCE_DIR}/src/util/systemInput.cpp
 )
 
 set(pangolin_SOURCE_FILES 
@@ -67,8 +68,8 @@ add_library(dso ${dso_SOURCE_FILES} ${opencv_SOURCE_FILES} ${pangolin_SOURCE_FIL
 target_link_libraries(dso Google::glog Pangolin::pangolin SuiteSparse OpenCV LibZip)
 #target_link_libraries(dso Boost::system Boost::thread Boost::date_time Boost::chrono)
 
-add_executable(dso_dataset ${PROJECT_SOURCE_DIR}/src/main_dso_pangolin.cpp)
+add_executable(dso_dataset ${PROJECT_SOURCE_DIR}/src/main/main_dso.cpp)
 target_link_libraries(dso_dataset dso)
 
-add_executable(dso_test ${PROJECT_SOURCE_DIR}/src/main_test.cpp)
+add_executable(dso_test ${PROJECT_SOURCE_DIR}/src/main/main_test.cpp)
 target_link_libraries(dso_test dso)

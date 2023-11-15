@@ -37,23 +37,20 @@ namespace dso
 		maxRelBaseline = 0;
 		numGoodResiduals = 0;
 
-		// set static values & initialization.
 		u = rawPoint->u;
 		v = rawPoint->v;
 		assert(std::isfinite(rawPoint->idepth_max));
-		//idepth_init = rawPoint->idepth_GT;
 
 		my_type = rawPoint->my_type;
 
 		setIdepthScaled((rawPoint->idepth_max + rawPoint->idepth_min)*0.5);
 		setPointStatus(PointHessian::INACTIVE);
 
-		int n = patternNum;
-		memcpy(color, rawPoint->color, sizeof(float)*n);
-		memcpy(weights, rawPoint->weights, sizeof(float)*n);
+		memcpy(color, rawPoint->color, sizeof(float) * patternNum);
+		memcpy(weights, rawPoint->weights, sizeof(float) * patternNum);
 		energyTH = rawPoint->energyTH;
 
-		efPoint = 0;
+		efPoint = NULL;
 	}
 
 	void PointHessian::release()
@@ -107,10 +104,14 @@ namespace dso
 	/// </summary>
 	void FrameHessian::release()
 	{
-		for (unsigned int it = 0; it < pointHessians.size(); ++it) delete pointHessians[it];
-		for (unsigned int it = 0; it < pointHessiansMarginalized.size(); ++it) delete pointHessiansMarginalized[it];
-		for (unsigned int it = 0; it < pointHessiansOut.size(); ++it) delete pointHessiansOut[it];
-		for (unsigned int it = 0; it < immaturePoints.size(); ++it) delete immaturePoints[it];
+		for (unsigned int it = 0; it < pointHessians.size(); ++it)
+			freePointer(pointHessians[it]);
+		for (unsigned int it = 0; it < pointHessiansMarginalized.size(); ++it)
+			freePointer(pointHessiansMarginalized[it]);
+		for (unsigned int it = 0; it < pointHessiansOut.size(); ++it)
+			freePointer(pointHessiansOut[it]);
+		for (unsigned int it = 0; it < immaturePoints.size(); ++it)
+			freePointer(immaturePoints[it]);
 
 		pointHessians.clear();
 		pointHessiansMarginalized.clear();

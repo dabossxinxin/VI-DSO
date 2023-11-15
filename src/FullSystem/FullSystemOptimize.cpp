@@ -44,14 +44,14 @@
 namespace dso
 {	
 	/// <summary>
-	/// Linearizes all reductor.
+	/// 对成员变量activeResiduals中的观测残差进行线性化
 	/// </summary>
-	/// <param name="fixLinearization">if set to <c>true</c> [fix linearization].</param>
-	/// <param name="toRemove">To remove.</param>
-	/// <param name="min">The minimum.</param>
-	/// <param name="max">The maximum.</param>
-	/// <param name="stats">The stats.</param>
-	/// <param name="tid">The tid.</param>
+	/// <param name="fixLinearization">是否将线性化结果传递到后端观测残差结构中</param>
+	/// <param name="toRemove">成员变量activeResiduals线性化结果不好的部分</param>
+	/// <param name="min">观测残差序列索引值</param>
+	/// <param name="max">观测残差序列索引值</param>
+	/// <param name="stats">多线程任务结果返回值</param>
+	/// <param name="tid">线程ID</param>
 	void FullSystem::linearizeAll_Reductor(bool fixLinearization, std::vector<PointFrameResidual*>* toRemove, int min, int max, Vec10* stats, int tid)
 	{
 		for (int k = min; k < max; ++k)
@@ -64,8 +64,11 @@ namespace dso
 
 			if (fixLinearization)
 			{
+				// 拷贝残差观测的线性化数据并更新残差状态
 				r->applyRes(true);
 
+				// 若观测在图像范围内并光度残差在阈值条件内，则更新该残差的对应特征的最大基线长度
+				// 若观测在图像范围外或光度残差在阈值条件外，则认为这个观测残差并不好需要去掉
 				if (r->efResidual->isActive())
 				{
 					if (r->isNew && !r->stereoResidualFlag)
@@ -86,18 +89,29 @@ namespace dso
 				else
 				{
 					toRemove[tid].emplace_back(activeResiduals[k]);
-				}
+				}     
 			}
 		}
 	}
 
+	/// <summary>
+	/// 残差线性化之后设置该残差的最新状态并根据copyJacobians标值拷贝雅可比信息到后端残差结构中
+	/// </summary>
+	/// <param name="copyJacobians">是否将前端计算的雅可比信息拷贝到后端残差结构中</param>
+	/// <param name="min">残差序列索引值</param>
+	/// <param name="max">残差序列索引值</param>
+	/// <param name="stats">多线程任务结果返回值</param>
+	/// <param name="tid">线程ID</param>
 	void FullSystem::applyRes_Reductor(bool copyJacobians, int min, int max, Vec10* stats, int tid)
 	{
 		for (int k = min; k < max; ++k)
 			activeResiduals[k]->applyRes(true);
 	}
 
-	void FullSystem::setNewFrameEnergyTH()
+	/// <summary>
+	/// 设定最新帧的光度阈值为被该帧观测到特征残差序列的光度残差值
+	/// </summary>
+	void FullSystem::setNewFrameEnergyTH() 
 	{
 		// collect all residuals and make decision on TH.
 		allResVec.clear();
@@ -107,13 +121,14 @@ namespace dso
 		for (PointFrameResidual* r : activeResiduals)
 		{
 			if (r->state_NewEnergyWithOutlier >= 0 && r->target == newFrame)
-				allResVec.push_back(r->state_NewEnergyWithOutlier);
+				allResVec.emplace_back(r->state_NewEnergyWithOutlier);
 		}
 
-		if (allResVec.size() == 0)
+		// 最新帧中没有观测到之前关键帧观测到的特征，那么最新帧能量值阈值设为默认值
+		if (allResVec.empty())
 		{
 			newFrame->frameEnergyTH = 12 * 12 * patternNum;
-			return;		// should never happen, but lets make sure.
+			return;
 		}
 
 		int nthIdx = setting_frameEnergyTHN * allResVec.size();
@@ -128,30 +143,26 @@ namespace dso
 		newFrame->frameEnergyTH = 26.0f * setting_frameEnergyTHConstWeight + newFrame->frameEnergyTH * (1 - setting_frameEnergyTHConstWeight);
 		newFrame->frameEnergyTH = newFrame->frameEnergyTH * newFrame->frameEnergyTH;
 		newFrame->frameEnergyTH *= setting_overallEnergyTHWeight * setting_overallEnergyTHWeight;
-
-		/*int good=0,bad=0;
-		for (float f : allResVec)
-			if (f < newFrame->frameEnergyTH) good++; else bad++;
-		printf("EnergyTH: mean %f, median %f, result %f (in %d, out %d)! \n",
-			meanElement, nthElement, sqrtf(newFrame->frameEnergyTH), good, bad);*/
 	}
 
 	/// <summary>
-	/// 
+	/// 线性化残差序列activeResiduals中所有残差，根据在最新帧中观测到的特征光度误差
+	/// 计算最新帧光度残差阈值并删除光度误差较大的残差
 	/// </summary>
 	/// <param name="fixLinearization"></param>
-	/// <returns></returns>
+	/// <returns>activeResiduals残差序列中所有残差的光度误差之和</returns>
 	Vec3 FullSystem::linearizeAll(bool fixLinearization)
 	{
 		double lastEnergyP = 0;
 		double lastEnergyR = 0;
 		double num = 0;
 
+		// 1、对观测残差进行进行线性化求解雅可比信息，并剔除观测残差较大或观测越界的残差
 		std::vector<PointFrameResidual*> toRemove[NUM_THREADS];
 		for (int it = 0; it < NUM_THREADS; ++it)
 			toRemove[it].clear();
 
-		if (multiThreading)
+		if (setting_multiThreading)
 		{
 			treadReduce.reduce(std::bind(&FullSystem::linearizeAll_Reductor, this, fixLinearization, toRemove,
 				std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, activeResiduals.size(), 0);
@@ -164,9 +175,13 @@ namespace dso
 			lastEnergyP = stats[0];
 		}
 
+		// 2、设置滑窗中最新帧的光度误差的阈值
 		setNewFrameEnergyTH();
+
+		// 3、更新特征最近观测残差的状态，并删残差序列中光度误差较大的残差
 		if (fixLinearization)
 		{
+			// 更新特征最新残差和此次新残差的观测状态
 			for (PointFrameResidual* r : activeResiduals)
 			{
 				PointHessian* ph = r->point;
@@ -176,6 +191,7 @@ namespace dso
 					ph->lastResiduals[1].second = r->state_state;
 			}
 
+			// 删除线性化中计算出来的光度残差过大或观测越界的残差
 			int nResRemoved = 0;
 			for (int it = 0; it < NUM_THREADS; ++it)
 			{
@@ -184,9 +200,9 @@ namespace dso
 					PointHessian* ph = r->point;
 
 					if (ph->lastResiduals[0].first == r)
-						ph->lastResiduals[0].first = 0;
+						ph->lastResiduals[0].first = NULL;
 					else if (ph->lastResiduals[1].first == r)
-						ph->lastResiduals[1].first = 0;
+						ph->lastResiduals[1].first = NULL;
 
 					for (unsigned int k = 0; k < ph->residuals.size(); ++k)
 					{
@@ -205,11 +221,17 @@ namespace dso
 		return Vec3(lastEnergyP, lastEnergyR, num);
 	}
 
-	// applies step to linearization point.
+	/// <summary>
+	/// 将各个状态的增量添加到上一步迭代中得到的状态量上，并根据增量大小判断是否还需要继续迭代
+	/// </summary>
+	/// <param name="stepfacC">相机内参增量控制因子</param>
+	/// <param name="stepfacT">相机位置增量控制因子</param>
+	/// <param name="stepfacR">相机姿态增量控制因子</param>
+	/// <param name="stepfacA">相机光度增量控制因子</param>
+	/// <param name="stepfacD">特征逆深度增量控制因子</param>
+	/// <returns>是否能够中止迭代</returns>
 	bool FullSystem::doStepFromBackup(float stepfacC, float stepfacT, float stepfacR, float stepfacA, float stepfacD)
 	{
-		//	float meanStepC=0,meanStepP=0,meanStepD=0;
-		//	meanStepC += Hcalib.step.norm();
 		Vec10 pstepfac;
 		pstepfac.segment<3>(0).setConstant(stepfacT);
 		pstepfac.segment<3>(3).setConstant(stepfacR);
@@ -243,11 +265,12 @@ namespace dso
 				}
 			}
 		}
-		else if (use_optimize)
+		else if (setting_useOptimize)
 		{
 			Hcalib.setValue(Hcalib.value_backup + stepfacC * Hcalib.step);
 			T_WD_change = Sim3::exp(Vec7::Zero());
-			if (imu_use_flag)
+
+			if (setting_useImu)
 			{
 				state_twd += stepfacC * step_twd;
 				if (std::exp(state_twd[6]) < 0.1 || std::exp(state_twd[6]) > 10)
@@ -256,16 +279,17 @@ namespace dso
 					first_track_flag = false;
 					return false;
 				}
-				// 		  LOG(INFO)<<"state_twd: "<<state_twd.transpose();
+
 				T_WD_change = Sim3::exp(state_twd);
 
-				// 		  Sim3 T_WD_temp = T_WD*T_WD_change;
-				// 		  double s_temp = T_WD_temp.scale();
-				// 		  double s_wd = T_WD.scale();
-				// 		  double s_new = s_temp/s_wd;
-				// 		  if(s_new>d_min)s_new = d_min;
-				// 		  if(s_new<1/d_min)s_new = 1/d_min;
-				// 		  T_WD = Sim3(RxSO3(s_new*s_wd,T_WD_temp.rotationMatrix()),Vec3::Zero());+
+				/*Sim3 T_WD_temp = T_WD * T_WD_change;
+				double s_temp = T_WD_temp.scale();
+				double s_wd = T_WD.scale();
+				double s_new = s_temp / s_wd;
+				if (s_new > d_min)s_new = d_min;
+				if (s_new < 1 / d_min)s_new = 1 / d_min;
+				T_WD = Sim3(RxSO3(s_new * s_wd, T_WD_temp.rotationMatrix()), Vec3::Zero());*/
+
 				T_WD = T_WD_l * T_WD_change;
 
 				if (marg_num_half == 0)
@@ -278,12 +302,12 @@ namespace dso
 			for (FrameHessian* fh : frameHessians)
 			{
 				fh->setState(fh->state_backup + pstepfac.cwiseProduct(fh->step));
-				sumA += fh->step[6] * fh->step[6];
-				sumB += fh->step[7] * fh->step[7];
-				sumT += fh->step.segment<3>(0).squaredNorm();
-				sumR += fh->step.segment<3>(3).squaredNorm();
+				sumA += fh->step[6] * fh->step[6];				// 光度参数a增量平方和
+				sumB += fh->step[7] * fh->step[7];				// 光度参数b增量平方和
+				sumT += fh->step.segment<3>(0).squaredNorm();	// 关键帧位置参数增量平方和
+				sumR += fh->step.segment<3>(3).squaredNorm();	// 关键帧姿态参数增量平方和
 
-				if (imu_use_flag)
+				if (setting_useImu)
 				{
 					fh->velocity += stepfacC * fh->step_imu.block(0, 0, 3, 1);
 					fh->delta_bias_g += stepfacC * fh->step_imu.block(3, 0, 3, 1);
@@ -296,11 +320,11 @@ namespace dso
 				for (PointHessian* ph : fh->pointHessians)
 				{
 					ph->setIdepth(ph->idepth_backup + stepfacD * ph->step);
-					sumID += ph->step * ph->step;
-					sumNID += fabsf(ph->idepth_backup);
-					numID++;
-
 					ph->setIdepthZero(ph->idepth_backup + stepfacD * ph->step);
+
+					sumID += ph->step * ph->step;				// 特征逆深度参数增量平方和
+					sumNID += fabsf(ph->idepth_backup);			// 特征逆深度之和
+					numID++;									// 滑窗关键帧中特征总数量
 				}
 			}
 		}
@@ -322,15 +346,17 @@ namespace dso
 		EFDeltaValid = false;
 		setPrecalcValues();
 
+		// 如果增量小于阈值，说明可以提前中止迭代过程了
 		return sqrtf(sumA) < 0.0005 * setting_thOptIterations &&
 			sqrtf(sumB) < 0.00005 * setting_thOptIterations &&
 			sqrtf(sumR) < 0.00005 * setting_thOptIterations &&
 			sqrtf(sumT) * sumNID < 0.00005 * setting_thOptIterations;
-
-		//printf("mean steps: %f %f %f!\n", meanStepC, meanStepP, meanStepD);
 	}
 
-	// sets linearization point.
+	/// <summary>
+	/// 备份上一个迭代步骤中得到的各个参数状态：包含相机内参、相机位姿、光度参数以及特征逆深度
+	/// </summary>
+	/// <param name="backupLastStep">是否备份参数的标志位</param>
 	void FullSystem::backupState(bool backupLastStep)
 	{
 		if (setting_solverMode & SOLVER_MOMENTUM)
@@ -378,7 +404,9 @@ namespace dso
 		}
 	}
 
-	// sets linearization point.
+	/// <summary>
+	/// 如果本次迭代不成功，那么应该放弃本次迭代并加载上一次迭代后的状态
+	/// </summary>
 	void FullSystem::loadSateBackup()
 	{
 		Hcalib.setValue(Hcalib.value_backup);
@@ -388,34 +416,51 @@ namespace dso
 			for (PointHessian* ph : fh->pointHessians)
 			{
 				ph->setIdepth(ph->idepth_backup);
-
 				ph->setIdepthZero(ph->idepth_backup);
 			}
-
 		}
 
 		EFDeltaValid = false;
 		setPrecalcValues();
 	}
 
+	/// <summary>
+	/// 打印滑窗优化后的残差信息
+	/// </summary>
+	/// <param name="res"></param>
+	/// <param name="resL"></param>
+	/// <param name="resM"></param>
+	/// <param name="resPrior"></param>
+	/// <param name="LExact"></param>
+	/// <param name="a"></param>
+	/// <param name="b"></param>
 	void FullSystem::printOptRes(const Vec3& res, double resL, double resM, double resPrior, double LExact, float a, float b)
 	{
 		printf("A(%f)=(AV %.3f). Num: A(%'d) + M(%'d); ab %f %f!\n",
 			res[0], sqrtf((float)(res[0] / (patternNum * ef->resInA))), ef->resInA, ef->resInM, a, b);
 	}
 
-	float FullSystem::optimize(int mnumOptIts)
+	/// <summary>
+	/// 滑窗优化主函数
+	/// </summary>
+	/// <param name="numOptIts">优化迭代次数</param>
+	/// <returns>优化后的光度残差</returns>
+	float FullSystem::optimize(int numOptIts)
 	{
+		// 1、根据滑窗中关键帧的数量约定滑窗优化迭代次数：
+		// 若滑窗关键帧只有一帧，此时不用优化；
+		// 若滑窗关键帧较少，说明系统刚刚初始化成功，为了保证良好的初始化结果，多迭代几次获取更好的结果
+		// 若滑窗关键帧数量已经比较多了，说明系统已经过了初始化环节正常跟踪了，正常设置优化迭代数量即可
 		if (frameHessians.size() < 2) return 0;
-		if (frameHessians.size() < 3) mnumOptIts = 20;
-		if (frameHessians.size() < 4) mnumOptIts = 15;
+		if (frameHessians.size() < 3) numOptIts = 20;
+		if (frameHessians.size() < 4) numOptIts = 15;
 
-		//get statistics and active residuals.
-		//LOG(INFO)<<"frameHessians.size(): "<<frameHessians.size();
 		int numPoints = 0;
 		int numLRes = 0;
 		activeResiduals.clear();
 		
+		// 2、系统中将残差分为了两种：被边缘化帧上的特征对应的残差会被固定线性化点，从而计算一个线性化点处的残差；
+		// 第二种是普通残差；边缘化残差用于计算边缘化信息中，而普通残差用于计算基本Hessian信息
 		for (FrameHessian* fh : frameHessians) 
 		{
 			for (PointHessian* ph : fh->pointHessians)
@@ -435,14 +480,14 @@ namespace dso
 		}
 
 		if (!setting_debugout_runquiet)
-			printf("OPTIMIZE %d pts, %d active res, %d lin res!\n", ef->nPoints, (int)activeResiduals.size(), numLRes);
+			printf("OPTIMIZE %d pts, %d active res, %d linearize res!\n", ef->nPoints, (int)activeResiduals.size(), numLRes);
 
-		//LOG(INFO)<<"start linearize";
+		// 3、将观测残差线性化得到雅可比信息并计算一次滑窗优化初始能量值
 		Vec3 lastEnergy = linearizeAll(false);
-		double lastEnergyL = calcLEnergy();
-		double lastEnergyM = calcMEnergy();
+		double lastEnergyL = calcLEnergy();		// 边缘化信息的能量值
+		double lastEnergyM = calcMEnergy();		// 线性化观测残差能量值
 
-		if (multiThreading)
+		if (setting_multiThreading)
 			treadReduce.reduce(std::bind(&FullSystem::applyRes_Reductor, this, true,
 				std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, activeResiduals.size(), 50);
 		else
@@ -459,12 +504,13 @@ namespace dso
 		double lambda = 1e-1;
 		float stepsize = 1;
 		VecX previousX = VecX::Constant(CPARS + 8 * frameHessians.size(), NAN);
-		for (int iteration = 0; iteration < mnumOptIts; iteration++)
+		for (int iteration = 0; iteration < numOptIts; ++iteration)
 		{
-			// solve!
+			// 备份上一次迭代步骤的参数增量并求解当前迭代步骤参数增量
 			backupState(iteration != 0);
-			//solveSystemNew(0);
 			solveSystem(iteration, lambda);
+
+			// incDirChange为两次迭代求解的增量之间的夹角
 			double incDirChange = (1e-20 + previousX.dot(ef->lastX)) / (1e-20 + previousX.norm() * ef->lastX.norm());
 			previousX = ef->lastX;
 
@@ -478,13 +524,13 @@ namespace dso
 				if (stepsize < 0.25) stepsize = 0.25;
 			}
 
+			// 将当前迭代步骤参数增量附加到对应状态上并判断参数增量是否小到可以中止迭代
 			bool canbreak = doStepFromBackup(stepsize, stepsize, stepsize, stepsize, stepsize);
 
-			// eval new energy!
+			// 根据更新后的各个状态重新线性化观测残差并计算状态更新后的滑窗优化能量值
 			Vec3 newEnergy = linearizeAll(false);
 			double newEnergyL = calcLEnergy();
 			double newEnergyM = calcMEnergy();
-			//LOG(INFO)<<"Visual Energy: "<<newEnergy[0];
 
 			if (!setting_debugout_runquiet)
 			{
@@ -498,10 +544,12 @@ namespace dso
 				printOptRes(newEnergy, newEnergyL, newEnergyM, 0, 0, frameHessians.back()->aff_g2l().a, frameHessians.back()->aff_g2l().b);
 			}
 
+			// 若接受本次迭代，那么就减小lambda，增大增量步长，加快迭代收敛
+			// 若拒接本次迭代，那么就加大lambda，减小增量步长，使能量快速下降
 			if (setting_forceAceptStep || (newEnergy[0] + newEnergy[1] + newEnergyL + newEnergyM <
 				lastEnergy[0] + lastEnergy[1] + lastEnergyL + lastEnergyM))
 			{
-				if (multiThreading)
+				if (setting_multiThreading)
 					treadReduce.reduce(std::bind(&FullSystem::applyRes_Reductor, this, true,
 						std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, activeResiduals.size(), 50);
 				else
@@ -525,7 +573,7 @@ namespace dso
 			if (canbreak && iteration >= setting_minOptIterations) break;
 		}
 
-		//LOG(INFO)<<"optimize for end";
+		// TODO
 		Vec10 newStateZero = Vec10::Zero();
 		newStateZero.segment<2>(6) = frameHessians.back()->get_state().segment<2>(6);
 		frameHessians.back()->setEvalPT(frameHessians.back()->PRE_worldToCam, newStateZero);
@@ -544,6 +592,7 @@ namespace dso
 		LOG(INFO) << "T_WD.scale(): " << T_WD.scale();
 		LOG(INFO) << "frameHessians.back()->bias_a: " << (frameHessians.back()->bias_a + frameHessians.back()->delta_bias_a).transpose();
 		LOG(INFO) << "frameHessians.back()->bias_g: " << (frameHessians.back()->bias_g + frameHessians.back()->delta_bias_g).transpose();
+		
 		EFDeltaValid = false;
 		EFAdjointsValid = false;
 		ef->setAdjointsF(&Hcalib);
@@ -579,6 +628,7 @@ namespace dso
 
 		debugPlotTracking();
 
+		// 滑窗优化后的平均光度观测残差
 		return sqrtf((float)(lastEnergy[0] / (patternNum * ef->resInA)));
 	}
 
@@ -599,15 +649,14 @@ namespace dso
 	}
 
 	/// <summary>
-	/// 计算优化函数能量值
+	/// 计算边缘化信息优化光度残差 
 	/// </summary>
 	/// <returns>优化函数能量值</returns>
 	double FullSystem::calcMEnergy()
 	{
-		if (setting_forceAceptStep) return 0;
-		// calculate (x-x0)^T * [2b + H * (x-x0)] for everything saved in L.
-		//ef->makeIDX();
-		//ef->setDeltaF(&Hcalib);
+		if (setting_forceAceptStep)
+			return 0;
+
 		return ef->calcMEnergyF();
 	}
 

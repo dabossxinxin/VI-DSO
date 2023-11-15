@@ -1187,7 +1187,6 @@ namespace dso
 			float J8, float w,
 			int off = 0)
 		{
-
 			float* pt = SSEData + off;
 			*pt += J0 * J0*w; pt += 4; J0 *= w;
 			*pt += J1 * J0; pt += 4;
@@ -1247,7 +1246,6 @@ namespace dso
 			numIn1++;
 			shiftUp(false);
 		}
-
 
 	private:
 

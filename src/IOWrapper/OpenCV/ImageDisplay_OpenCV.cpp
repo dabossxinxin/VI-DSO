@@ -39,7 +39,7 @@ namespace dso
 
 		void displayImage(const char* windowName, const cv::Mat& image, bool autoSize)
 		{
-			if (disableAllDisplay) return;
+			if (setting_disableAllDisplay) return;
 
 			std::unique_lock<std::mutex> lock(openCVdisplayMutex);
 			if (!autoSize)
@@ -54,11 +54,10 @@ namespace dso
 			cv::imshow(windowName, image);
 		}
 
-
 		void displayImageStitch(const char* windowName, const std::vector<cv::Mat*> images, int cc, int rc)
 		{
-			if (disableAllDisplay) return;
-			if (images.size() == 0) return;
+			if (setting_disableAllDisplay) return;
+			if (images.empty()) return;
 
 			// get dimensions.
 			int w = images[0]->cols;
@@ -73,7 +72,6 @@ namespace dso
 			{
 				int ww = w * cc;
 				int hh = h * ((num + cc - 1) / cc);
-
 
 				float wLoss = ww / 16.0f;
 				float hLoss = hh / 10.0f;
@@ -92,14 +90,14 @@ namespace dso
 				bestCC = cc;
 				bestRC = rc;
 			}
-			cv::Mat stitch = cv::Mat(bestRC*h, bestCC*w, images[0]->type());
+			cv::Mat stitch = cv::Mat(bestRC * h, bestCC * w, images[0]->type());
 			stitch.setTo(0);
-			for (int i = 0; i < (int)images.size() && i < bestCC*bestRC; i++)
+			for (int i = 0; i < (int)images.size() && i < bestCC * bestRC; i++)
 			{
 				int c = i % bestCC;
 				int r = i / bestCC;
 
-				cv::Mat roi = stitch(cv::Rect(c*w, r*h, w, h));
+				cv::Mat roi = stitch(cv::Rect(c * w, r * h, w, h));
 				images[i]->copyTo(roi);
 			}
 			displayImage(windowName, stitch, false);
@@ -142,12 +140,13 @@ namespace dso
 
 		void displayImageStitch(const char* windowName, const std::vector<MinimalImageB3*> images, int cc, int rc)
 		{
+			// 将图像格式转化为opencv的格式并显示
 			std::vector<cv::Mat*> imagesCV;
-			for (size_t i = 0; i < images.size(); i++)
-				imagesCV.push_back(new cv::Mat(images[i]->h, images[i]->w, CV_8UC3, images[i]->data));
+			for (size_t it = 0; it < images.size(); ++it)
+				imagesCV.emplace_back(new cv::Mat(images[it]->h, images[it]->w, CV_8UC3, images[it]->data));
 			displayImageStitch(windowName, imagesCV, cc, rc);
-			for (size_t i = 0; i < images.size(); i++)
-				delete imagesCV[i];
+			for (size_t it = 0; it < images.size(); ++it)
+				freePointer(imagesCV[it]);
 		}
 
 		void displayImageStitch(const char* windowName, const std::vector<MinimalImageF*> images, int cc, int rc)
@@ -172,7 +171,7 @@ namespace dso
 
 		int waitKey(int milliseconds)
 		{
-			if (disableAllDisplay) return 0;
+			if (setting_disableAllDisplay) return 0;
 
 			std::unique_lock<std::mutex> lock(openCVdisplayMutex);
 			return cv::waitKey(milliseconds);
@@ -180,7 +179,7 @@ namespace dso
 
 		void closeAllWindows()
 		{
-			if (disableAllDisplay) return;
+			if (setting_disableAllDisplay) return;
 			std::unique_lock<std::mutex> lock(openCVdisplayMutex);
 			cv::destroyAllWindows();
 			openWindows.clear();

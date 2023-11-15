@@ -121,7 +121,7 @@ namespace dso
 
 		// Photometric Calibration Stuff
 		float frameEnergyTH;	// set dynamically depending on tracking residual
-		float ab_exposure;		// 相机在当前帧的曝光时间
+		float ab_exposure;		// 当前帧的相机曝光时间
 
 		bool flaggedForMarginalization;
 
@@ -136,12 +136,12 @@ namespace dso
 
 		// variable info.
 		SE3 worldToCam_evalPT;
-		Vec10 state_zero;
+		Vec10 state_zero;			// 关键帧在线性化点处参数状态量
 		Vec10 state_scaled;
 		Vec10 state;				// [0-5: worldToCam-leftEps. 6-7: a,b]
-		Vec10 step;
-		Vec10 step_backup;
-		Vec10 state_backup;
+		Vec10 step;					// [0-5: worldToCam-leftEps. 6-7: a,b]
+		Vec10 step_backup;			// 相机姿态、光度参数上一迭代步骤结果备份
+		Vec10 state_backup;			// 相机姿态、光度参数上一迭代步骤状态备份
 
 		Vec9 step_imu = Vec9::Zero();
 
@@ -171,7 +171,7 @@ namespace dso
 		inline AffLight aff_g2l_0() const { return AffLight(get_state_zero()[6] * SCALE_A, get_state_zero()[7] * SCALE_B); }
 		void setStateZero(const Vec10 &state_zero);
 
-		inline void setState(const Vec10 &state)
+		inline void setState(const Vec10& state)
 		{
 			this->state = state;
 			state_scaled.segment<3>(0) = SCALE_XI_TRANS * state.segment<3>(0);
@@ -222,15 +222,17 @@ namespace dso
 
 		inline ~FrameHessian()
 		{
-			assert(efFrame == 0);
-			release(); instanceCounter--;
-			for (int i = 0; i < pyrLevelsUsed; i++)
+			assert(efFrame == NULL);
+			release();
+			instanceCounter--;
+			for (int it = 0; it < pyrLevelsUsed; ++it)
 			{
-				delete[] dIp[i];
-				delete[] absSquaredGrad[i];
+				freePointerVec(dIp[it]);
+				freePointerVec(absSquaredGrad[it]);
 			}
 
-			if (debugImage != 0) delete debugImage;
+			if (debugImage != NULL)
+				freePointer(debugImage);
 		};
 
 		inline FrameHessian()
@@ -392,10 +394,10 @@ namespace dso
 		float color[MAX_RES_PER_POINT];			// colors in host frame
 		float weights[MAX_RES_PER_POINT];		// host-weights for respective residuals.
 
-		float u, v;
-		int idx;
+		float u, v;					// 特征在host帧中的像素坐标
+		int idx;		
 		float energyTH;
-		FrameHessian* host;
+		FrameHessian* host;			// 当前特征对应的主帧
 		bool hasDepthPrior;
 
 		float my_type;
@@ -408,10 +410,10 @@ namespace dso
 		float step;					// 特征逆深度最新一次迭代更新量
 		float step_backup;			// 特征逆深度上一次迭代更新量
 			
-		float nullspaces_scale;
-		float idepth_hessian;
-		float maxRelBaseline;
-		int numGoodResiduals;
+		float nullspaces_scale;		// 该特征的尺度信息零空间
+		float idepth_hessian;		// 当前特征观测残差构造的特征逆深度Hessian
+		float maxRelBaseline;		// 系统中观测到该特征的最大基线
+		int numGoodResiduals;		// 系统中观测到该特征所构造残差序列的Good残差数量
 
 		enum PtStatus { ACTIVE = 0, INACTIVE, OUTLIER, OOB, MARGINALIZED };
 		PtStatus status;

@@ -39,6 +39,10 @@
 //#include "OptimizationBackend/EnergyFunctional.h"
 #include "OptimizationBackend/EnergyFunctionalStructs.h"
 
+#include <opencv2/opencv.hpp>
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+
 namespace dso
 {
 	int PointFrameResidual::instanceCounter = 0;
@@ -405,8 +409,8 @@ namespace dso
 		float JabJab_00 = 0, JabJab_01 = 0, JabJab_11 = 0;
 
 		float wJI2_sum = 0;
-		float lambda = stereo_weight;
-		if (use_stereo == false)lambda = 0;
+		float lambda = setting_stereoWeight;
+		if (!setting_useStereo) lambda = 1.0;
 
 		for (int idx = 0; idx < patternNum; idx++)
 		{
@@ -499,6 +503,11 @@ namespace dso
 		return energyLeft;
 	}
 
+	/// <summary>
+	/// 在观测残差的target帧中绘制观测到的特征在target帧中的投影
+	/// 若在图上特征颜色为蓝色，表示当前残差状态为INNER
+	/// 若在图上特征颜色为红色，表示当前残差状态为OUTLIER
+	/// </summary>
 	void PointFrameResidual::debugPlot()
 	{
 		if (state_state == ResState::OOB) return;
@@ -512,6 +521,7 @@ namespace dso
 		}
 		else
 		{
+			// BGR
 			if (state_state == ResState::INNER) cT = Vec3b(255, 0, 0);
 			else if (state_state == ResState::OOB) cT = Vec3b(255, 255, 0);
 			else if (state_state == ResState::OUTLIER) cT = Vec3b(0, 0, 255);
@@ -535,12 +545,14 @@ namespace dso
 	{
 		if (copyJacobians)
 		{
+			// 当前观测超出了图像的范围
 			if (state_state == ResState::OOB)
 			{
 				assert(!efResidual->isActiveAndIsGoodNEW);
 				return;	// can never go back from OOB
 			}
 
+			// 当前观测在图像范围内并且光度残差在阈值范围之内
 			if (state_NewState == ResState::INNER)
 			{
 				efResidual->isActiveAndIsGoodNEW = true;

@@ -134,10 +134,12 @@ namespace dso
 
 		void makeDistanceMap(std::vector<FrameHessian*> frameHessians, FrameHessian* frame);
 		void makeInlierVotes(std::vector<FrameHessian*> frameHessians);
+		void debugPlotDistanceMap();
 
 		void makeK(CalibHessian* HCalib);
 
-		int* fwdWarpedIDDistFinal;
+		unsigned char* fwdWarpedIDDistFinal;
+		MinimalImageB* debugImage;
 
 		// 各层金字塔相机内参信息
 		Mat33f K[PYR_LEVELS];

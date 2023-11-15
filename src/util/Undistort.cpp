@@ -826,9 +826,9 @@ namespace dso
 		}
 
 		//　l5 第五行，存放baseline, 放到bl中
-		if (std::sscanf(l5.c_str(), "%lf", &baseline) == 1)
+		if (std::sscanf(l5.c_str(), "%lf", &setting_baseline) == 1)
 		{
-			printf("Baseline: %lf \n", baseline);
+			printf("Baseline: %lf \n", setting_baseline);
 		}
 		else
 		{

@@ -64,6 +64,14 @@ namespace dso
 			+ (1 - dx - dy + dxdy) * *(const Eigen::Vector3f*)(bp);
 	}
 
+	/// <summary>
+	/// 双线性差值取像素灰度值
+	/// </summary>
+	/// <param name="mat"></param>
+	/// <param name="x"></param>
+	/// <param name="y"></param>
+	/// <param name="width"></param>
+	/// <returns></returns>
 	EIGEN_ALWAYS_INLINE Eigen::Vector3f getInterpolatedElement33(const Eigen::Vector3f* const mat, const float x, const float y, const int width)
 	{
 		int ix = (int)x;

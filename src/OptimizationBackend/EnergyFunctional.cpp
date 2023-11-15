@@ -36,9 +36,9 @@
 
 namespace dso
 {
-	bool EFAdjointsValid = false;
-	bool EFIndicesValid = false;
-	bool EFDeltaValid = false;
+	bool EFAdjointsValid = false;		// 视觉信息中相对量相对于绝对量的雅可比是否计算完成
+	bool EFIndicesValid = false;		// 视觉信息中关键帧、特征点、观测残差是否准备好
+	bool EFDeltaValid = false;			// 视觉信息中相对于线性化点处的增量是否计算完成
 
 	/// <summary>
 	/// 计算滑窗优化中惯导信息的Hessian和b 
@@ -59,7 +59,7 @@ namespace dso
 		double timeStart = 0, timeEnd = 0;
 		double dt = 0, delta_t = 0;
 		int fhIdxS = 0, fhIdxE = 0;
-		Vec3 g_w(0, 0, -G_norm);
+		Vec3 g_w(0, 0, -setting_gravityNorm);
 
 		for (int fhIdx = 0; fhIdx < frames.size() - 1; ++fhIdx)
 		{
@@ -97,7 +97,7 @@ namespace dso
 			Mat66 covBias = Mat66::Zero();
 			covBias.block(0, 0, 3, 3) = GyrRandomWalkNoise * dt;
 			covBias.block(3, 3, 3, 3) = AccRandomWalkNoise * dt;
-			Mat66 weightBias = Mat66::Identity() * imu_weight * imu_weight * covBias.inverse();
+			Mat66 weightBias = Mat66::Identity() * setting_imuWeightNoise * setting_imuWeightNoise * covBias.inverse();
 			H += J_bias.transpose() * weightBias * J_bias;
 			b += J_bias.transpose() * weightBias * r_bias;
 
@@ -120,7 +120,7 @@ namespace dso
 					if (delta_t < 0.000001) break;
 				}
 
-				IMU_preintegrator.update(m_gry[imuStartStamp] - Framei->bias_g, m_acc[imuStartStamp] - Framei->bias_a, delta_t);
+				IMU_preintegrator.update(input_gryList[imuStartStamp] - Framei->bias_g, input_accList[imuStartStamp] - Framei->bias_a, delta_t);
 				if (imu_time_stamp[imuStartStamp + 1] >= timeEnd) break;
 				imuStartStamp++;
 			}
@@ -439,7 +439,7 @@ namespace dso
 			}
 		}
 
-		// 2、获取相机内参增量
+		// 2、获取相机内参相对于线性化点处的增量
 		cDeltaF = HCalib->value_minus_value_zero.cast<float>();
 
 		// 3、获取滑窗关键帧位姿、光度增量以及所管理的特征逆深度增量
@@ -662,6 +662,7 @@ namespace dso
 
 			for (EFResidual* r : p->residualsAll)
 			{
+				// 计算线性化观测残差的能量值
 				if (!r->isLinearized || !r->isActive()) continue;
 
 				Mat18f dp = adHTdeltaF[r->hostIDX + nFrames * r->targetIDX];
@@ -848,7 +849,7 @@ namespace dso
 		int odim = nFrames * 17 + CPARS + 7;		// 旧的惯导Hessian矩阵维度
 
 		if (nFrames >= setting_maxFrames)
-			imu_track_ready = true;
+			setting_imuTrackReady = true;
 
 		// 相机内参、DSO系与Metric系变换、p、q、v、bg、ba、a、b
 		MatXX HM_change = MatXX::Zero(CPARS + 7 + nFrames * 17, CPARS + 7 + nFrames * 17);
@@ -900,14 +901,14 @@ namespace dso
 					delta_t = time_end - imu_time_stamp[imuStartIdx];
 					if (delta_t < 0.000001) break;
 				}
-				IMU_preintegrator.update(m_gry[imuStartIdx] - Framei->bias_g, m_acc[imuStartIdx] - Framei->bias_a, delta_t);
+				IMU_preintegrator.update(input_gryList[imuStartIdx] - Framei->bias_g, input_accList[imuStartIdx] - Framei->bias_a, delta_t);
 				if (imu_time_stamp[imuStartIdx + 1] >= time_end)
 					break;
 				imuStartIdx++;
 			}
 
 			Vec3 g_w;
-			g_w << 0, 0, -G_norm;
+			g_w << 0, 0, -setting_gravityNorm;
 
 			Mat44 M_WC_I = T_WD.matrix() * worldToCam_i.inverse().matrix() * T_WD.inverse().matrix();
 			SE3 T_WB_I(M_WC_I * T_BC.inverse().matrix());
@@ -972,7 +973,7 @@ namespace dso
 			Weight.block(6, 6, 3, 3) = Cov.block(3, 3, 3, 3);
 
 			Weight = Weight.diagonal().asDiagonal();
-			Weight = imu_weight * imu_weight * Weight.inverse();
+			Weight = setting_imuWeightNoise * setting_imuWeightNoise * Weight.inverse();
 
 			Mat1515 J_reli = Mat1515::Identity();
 			Mat1515 J_relj = Mat1515::Identity();
@@ -1036,8 +1037,8 @@ namespace dso
 
 			HM_change_half = (J_all_half.transpose() * Weight * J_all_half);
 			bM_change_half = (J_all_half.transpose() * Weight * r_all);
-			//HM_change_half = HM_change_half * setting_margWeightFac_imu;
-			//bM_change_half = bM_change_half * setting_margWeightFac_imu;
+			//HM_change_half = HM_change_half * setting_margWeightFacImu;
+			//bM_change_half = bM_change_half * setting_margWeightFacImu;
 
 			VecX r_all_bias = VecX::Zero(6);
 			MatXX J_all_bias = MatXX::Zero(6, CPARS + 7 + nFrames * 17);
@@ -1052,16 +1053,16 @@ namespace dso
 			Mat66 Cov_bias = Mat66::Zero();
 			Cov_bias.block(0, 0, 3, 3) = GyrRandomWalkNoise * dt;
 			Cov_bias.block(3, 3, 3, 3) = AccRandomWalkNoise * dt;
-			Mat66 weight_bias = Mat66::Identity() * imu_weight * imu_weight * Cov_bias.inverse();
-			HM_bias += (J_all_bias.transpose() * weight_bias * J_all_bias * setting_margWeightFac_imu);
-			bM_bias += (J_all_bias.transpose() * weight_bias * r_all_bias * setting_margWeightFac_imu);
+			Mat66 weight_bias = Mat66::Identity() * setting_imuWeightNoise * setting_imuWeightNoise * Cov_bias.inverse();
+			HM_bias += (J_all_bias.transpose() * weight_bias * J_all_bias * setting_margWeightFacImu);
+			bM_bias += (J_all_bias.transpose() * weight_bias * r_all_bias * setting_margWeightFacImu);
 		}
 
-		HM_change = HM_change * setting_margWeightFac_imu;
-		bM_change = bM_change * setting_margWeightFac_imu;
+		HM_change = HM_change * setting_margWeightFacImu;
+		bM_change = bM_change * setting_margWeightFacImu;
 
-		HM_change_half = HM_change_half * setting_margWeightFac_imu;
-		bM_change_half = bM_change_half * setting_margWeightFac_imu;
+		HM_change_half = HM_change_half * setting_margWeightFacImu;
+		bM_change_half = bM_change_half * setting_margWeightFacImu;
 
 		// 获取视觉部分得到的滑窗内优化量增量信息
 		VecX StitchedDelta = getStitchedDeltaF();
@@ -1104,12 +1105,12 @@ namespace dso
 		s_last = s_now;
 
 		if (di > d_now) d_now = di;
-		if (d_now > d_min) d_now = d_min;
+		if (d_now > setting_dynamicMin) d_now = setting_dynamicMin;
 
 		LOG(INFO) << "s_now: " << s_now << " s_middle: " << s_middle << " d_now: " << d_now << " scale_l: " << T_WD_l.scale();
 		
 		if (di > d_half) d_half = di;
-		if (d_half > d_min) d_half = d_min;
+		if (d_half > setting_dynamicMin) d_half = setting_dynamicMin;
 		bool side = s_now > s_middle;
 		
 		// 对应论文中if upper != lastUpper
@@ -1123,7 +1124,7 @@ namespace dso
 			//HM_imu_half.setZero();
 			//bM_imu_half.setZero();
 			d_half = di;
-			if (d_half > d_min) d_half = d_min;
+			if (d_half > setting_dynamicMin) d_half = setting_dynamicMin;
 
 			marg_num_half = 0;
 			T_WD_l_half = T_WD;
@@ -1230,7 +1231,7 @@ namespace dso
 		}
 
 		// TODO：是否意味着尺度信息已经收敛了
-		if (marg_num > 25) use_Dmargin = false;
+		if (marg_num > 25) setting_useDynamicMargin = false;
 
 		// 	if(s_now>s_middle*d_now){
 		// 	    HM_imu = HM_imu_half;
@@ -1263,7 +1264,7 @@ namespace dso
 		// 	    if(d_half>d_min)d_half = d_min;
 		// 	    M_num = 0;
 		// 	}else
-		if ((s_now > s_middle*d_now || s_now < s_middle / d_now) && use_Dmargin) 
+		if ((s_now > s_middle*d_now || s_now < s_middle / d_now) && setting_useDynamicMargin) 
 		{
 			HM_imu = HM_imu_half;
 			bM_imu = bM_imu_half;
@@ -1279,7 +1280,7 @@ namespace dso
 			bM_imu_half[CPARS + 6] = 0;
 
 			d_half = di;
-			if (d_half > d_min) d_half = d_min;
+			if (d_half > setting_dynamicMin) d_half = setting_dynamicMin;
 			marg_num_half = 0;
 			T_WD_l = T_WD_l_half;
 			state_twd = Sim3(T_WD_l.inverse()*T_WD).log();
@@ -1348,7 +1349,7 @@ namespace dso
 		assert((int)fh->points.size() == 0);
 
 		// 1、惯导信息边缘化
-		if (imu_use_flag)
+		if (setting_useImu)
 			marginalizeFrame_imu(fh);
 
 		// 2、视觉信息边缘化
@@ -1643,9 +1644,9 @@ namespace dso
 		VecX b_imu;
 		calcIMUHessian(H_imu, b_imu);
 
-		accumulateAF_MT(HA_visual, bA_visual, multiThreading);
-		accumulateLF_MT(HL_visual, bL_visual, multiThreading);
-		accumulateSCF_MT(Hsc_visual, bsc_visual, multiThreading);
+		accumulateAF_MT(HA_visual, bA_visual, setting_multiThreading);
+		accumulateLF_MT(HL_visual, bL_visual, setting_multiThreading);
+		accumulateSCF_MT(Hsc_visual, bsc_visual, setting_multiThreading);
 
 		// 边缘化信息bM中添加最新状态更新量的影响
 		VecX StitchedDeltaVisual = getStitchedDeltaF();
@@ -1807,7 +1808,7 @@ namespace dso
 		}
 		else
 		{
-			if (!imu_use_flag)
+			if (!setting_useImu)
 			{
 				VecX SVecI = (HFinal_visual.diagonal() + VecX::Constant(HFinal_visual.cols(), 10)).cwiseSqrt().cwiseInverse();
 				MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_visual * SVecI.asDiagonal();
@@ -1826,6 +1827,15 @@ namespace dso
 					frames[it]->data->step_imu = -x_visualAndImu.block(CPARS + 7 + 17 * it + 8, 0, 9, 1);
 				}
 				step_twd = -x_visualAndImu.block(CPARS, 0, 7, 1);
+
+				if (!std::isfinite(x_visual[0]))
+				{
+					LOG(INFO) << "H_imu: " << H_imu;
+					LOG(INFO) << "H_visual: " << HFinal_visual;
+					LOG(INFO) << "b_imu: " << b_imu;
+					LOG(INFO) << "bFinal_visual: " << bFinal_visual;
+					LOG(INFO) << "x_visualAndImu: " << x_visualAndImu;
+				}
 			}
 		}
 
@@ -1837,7 +1847,7 @@ namespace dso
 
 		lastX = x_visual;
 		currentLambda = lambda;
-		resubstituteF_MT(x_visual, HCalib, multiThreading);
+		resubstituteF_MT(x_visual, HCalib, setting_multiThreading);
 		currentLambda = 0;
 	}
 

@@ -59,10 +59,10 @@ namespace dso
 		Vec2f gradH_ev;
 		Mat22f gradH_eig;
 		float energyTH;
-		float u, v;
+		float u, v;							// 当前未成熟点在主帧中的像素坐标
 		float u_stereo, v_stereo;  // u, v used to do static stereo matching
-		FrameHessian* host;
-		int idxInImmaturePoints;
+		FrameHessian* host;					// 当前未成熟点的主帧
+		int idxInImmaturePoints;			// 当前未成熟点在未成熟点序列中的索引
 
 		float quality;
 

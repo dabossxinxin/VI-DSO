@@ -30,11 +30,15 @@ namespace dso
 	enum PixelSelectorStatus
 	{
 		PIXSEL_VOID = 0,
-		PIXSEL_1,
-		PIXSEL_2,
-		PIXSEL_3
+		PIXSEL_1 = 1,
+		PIXSEL_2 = 2,
+		PIXSEL_3 = 3
 	};
 
+	/// <summary>
+	/// 在图像中提取特征点：为了保证所选特征的均匀性，执行的是分块选点的策略
+	/// 选出来的像素点记录在statusMap中，值为1表示在第一层金字塔中选的点，2为第二层，4为第三层
+	/// </summary>
 	class PixelSelector
 	{
 	public:

@@ -44,21 +44,21 @@ namespace dso
 		float u, v;			// 特征点的像素坐标值
 
 		// idepth / isgood / energy during optimization.
-		float idepth;
-		bool isGood;
+		float idepth;		// 特征点逆深度值
+		bool isGood;		// 特征点质量是否OK
 		Vec2f energy;		// (UenergyPhotometric, energyRegularizer)
 		bool isGood_new;
 		float idepth_new;
 		Vec2f energy_new;
 
-		float iR;
+		float iR;			// 特征点逆深度均值
 		float iRSumNum;
 
-		float lastHessian;
-		float lastHessian_new;
+		float lastHessian;				// 特征点残差对逆深度雅可比的平方项
+		float lastHessian_new;			// 特征点残差对逆深度雅可比的平方项
 
 		// max stepsize for idepth (corresponding to max. movement in pixel-space).
-		float maxstep;
+		float maxstep;					// 特征优化迭代中允许的最大增量
 
 		// idx (x+y*w) of closest point one pyramid level above.
 		int parent;						// 该点在上一层金字塔中的最邻近点
@@ -69,7 +69,7 @@ namespace dso
 		float neighboursDist[10];		// 同层金字塔中当前点的十个最邻近点的距离
 
 		float my_type;
-		float outlierTH;
+		float outlierTH;				// 特征点光度能量阈值，大于该阈值特征
 	};
 
 	class CoarseInitializer 
@@ -88,7 +88,6 @@ namespace dso
 		void calcTGrads(FrameHessian* newFrameHessian);
 
 		int frameID;						// 初始化过程中进入系统的图像帧数量	
-		bool fixAffine;						// 优化中是否固定光度残差的标志位
 		bool printDebug;					// DSO初始化中是否打印调试信息
 
 		Pnt* points[PYR_LEVELS];			// 金字塔中选取的所有特征点的坐标
@@ -115,7 +114,6 @@ namespace dso
 		int w[PYR_LEVELS];
 		int h[PYR_LEVELS];
 
-		// 设置初始化器中的相机内参信息
 		void makeK(CalibHessian* HCalib);
 
 		float* idepth[PYR_LEVELS];
@@ -123,18 +121,16 @@ namespace dso
 		bool snapped;				// 初始化中是否找到了位移较大的两帧
 		int snappedAt;				// 初始化中在进入系统的第几帧图像中找到的位移较大的帧
 
-		// 参与DSO初始化的两帧图像数据
-		Eigen::Vector3f* dINew[PYR_LEVELS];
-		Eigen::Vector3f* dIFist[PYR_LEVELS];
+		Eigen::Vector3f* dINew[PYR_LEVELS];		// 初始化中最新帧图像灰度以及梯度数据
+		Eigen::Vector3f* dIFist[PYR_LEVELS];	// 初始化中第一帧图像灰度以及梯度数据
 
-		Eigen::DiagonalMatrix<float, 8> wM;
+		Eigen::DiagonalMatrix<float, 8> wM;		// 降低Hessian矩阵条件数准备的权重矩阵
 
-		// temporary buffers for H and b.
-		Vec10f* JbBuffer;			// 0-7: sum(dd * dp). 8: sum(res*dd). 9: 1/(1+sum(dd*dd))=inverse hessian entry.
-		Vec10f* JbBuffer_new;
+		Vec10f* JbBuffer;			// 计算舒尔补项的临时变量；0-7: sum(dd * dp). 8: sum(res*dd). 9: 1/(1+sum(dd*dd))=inverse hessian entry.
+		Vec10f* JbBuffer_new;		// 计算舒尔补项的临时变量；0-7: sum(dd * dp). 8: sum(res*dd). 9: 1/(1+sum(dd*dd))=inverse hessian entry.	
 
-		Accumulator9 acc9;			// 计算光度残差对于相机位姿以及光度参数的H和b
-		Accumulator9 acc9SC;		// 计算acc9中H和b的舒尔补项
+		Accumulator9 acc9;			// 计算光度残差对于相机位姿以及光度参数部分的Hessian
+		Accumulator9 acc9SC;		// 计算光度残差对于特征逆深度部分的Hessian舒尔补项
 
 		Vec3f dGrads[PYR_LEVELS];
 
@@ -163,11 +159,7 @@ namespace dso
 		void applyStep(int lvl);
 
 		void makeGradients(Eigen::Vector3f** data); 
-
-		// 在pangolin中显示初始化得到深度图结果以便于调试程序
-		void debugPlot(int lvl, std::vector<IOWrap::Output3DWrapper*> &wraps);
-
-		// 初始化过程中在不同层金字塔中选好特征后构造特征的空间拓扑结构
+		void debugPlotDepth(int lvl, std::vector<IOWrap::Output3DWrapper*>& wraps);
 		void makeNN();
 	};
 

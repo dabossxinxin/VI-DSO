@@ -76,7 +76,7 @@ namespace dso
 
 		void setState(ResState s) { state_state = s; }
 
-		bool isNew;
+		bool isNew;											// 当前观测残差是否是新构造的，在构造函数中将这个值设为true
 
 		Eigen::Vector2f projectedTo[MAX_RES_PER_POINT];		// 特征点及周围领域的七个点target帧上的投影像素坐标
 		Vec3f centerProjectedTo;							// 特征中心点在target帧上的投影像素点坐标[0,1]以及逆深度[2]

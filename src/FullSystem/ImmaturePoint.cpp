@@ -429,7 +429,8 @@ namespace dso
 	}
 
 	// do static stereo match. if mode_right = true, it matches from left to right. otherwise do it from right to left.
-	ImmaturePointStatus ImmaturePoint::traceStereo(FrameHessian* frame, CalibHessian* HCalib, bool mode_right) {
+	ImmaturePointStatus ImmaturePoint::traceStereo(FrameHessian* frame, CalibHessian* HCalib, bool mode_right) 
+	{
 		Mat33f K = Mat33f::Identity();
 		K(0, 0) = HCalib->fxl();
 		K(1, 1) = HCalib->fyl();
@@ -444,16 +445,16 @@ namespace dso
 
 		if (mode_right)
 		{
-			bl << -baseline, 0, 0;
+			bl << -setting_baseline, 0, 0;
 			KRKi = K_right * T_C1C0.rotationMatrix().cast<float>()*K.inverse();
 			Kt = K_right * T_C1C0.translation().cast<float>();
 		}
-		else {
-			bl << baseline, 0, 0;
-			KRKi = K * T_C0C1.rotationMatrix().cast<float>()*K_right.inverse();
+		else 
+		{
+			bl << -setting_baseline, 0, 0;
+			KRKi = K * T_C0C1.rotationMatrix().cast<float>() * K_right.inverse();
 			Kt = K * T_C0C1.translation().cast<float>();
 		}
-		// 	Kt = K*bl;
 
 		Vec3f pr = KRKi * Vec3f(u_stereo, v_stereo, 1);
 		Vec3f ptpMin = pr + Kt * idepth_min_stereo;

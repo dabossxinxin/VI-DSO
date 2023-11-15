@@ -22,22 +22,57 @@
 */
 #pragma once
 
+#include <iostream>
+#include <string>
+#include <fstream>
+
+#include "util/settings.h"
 #include "util/NumType.h"
-#include "util/MinimalImage.h"
 
 namespace dso
 {
-	namespace IOWrap
-	{
-		MinimalImageB* readImageBW_8U(std::string filename);
-		MinimalImageB3* readImageRGB_8U(std::string filename);
-		MinimalImage<unsigned short>* readImageBW_16U(std::string filename);
+	void settingsDefault(int preset);
 
-		MinimalImageB* readStreamBW_8U(char* data, int numBytes);
+	/// <summary>
+	/// 解析命令行输入参数
+	/// </summary>
+	/// <param name="arg">输入参数</param>
+	void parseArgument(char* arg);
 
-		void writeImage(std::string filename, MinimalImageB* img);
-		void writeImage(std::string filename, MinimalImageB3* img);
-		void writeImage(std::string filename, MinimalImageF* img);
-		void writeImage(std::string filename, MinimalImageF3* img);
-	}
+	/// <summary>
+	/// 将四元数转换为旋转矩阵
+	/// </summary>
+	/// <param name="q">四元数</param>
+	/// <returns>旋转矩阵</returns>
+	Eigen::Matrix3d quaternionToRotation(const Eigen::Vector4d& q);
+
+	/// <summary>
+	/// 获取KITTI数据集的真实轨迹信息
+	/// </summary>
+	void getGroundtruth_kitti();
+
+	/// <summary>
+	/// 获取EUROC数据集的真实轨迹信息
+	/// </summary>
+	void getGroundtruth_euroc();
+
+	/// <summary>
+	/// 获取EUROC数据集IMU信息
+	/// </summary>
+	void getIMUdata_euroc();
+
+	/// <summary>
+	/// 获取双目相机外参信息
+	/// </summary>
+	void getTstereo();
+
+	/// <summary>
+	/// 获取IMU内参信息
+	/// </summary>
+	void getIMUinfo();
+
+	/// <summary>
+	/// 获取数据集时间戳信息
+	/// </summary>
+	void getPicTimestamp();
 }

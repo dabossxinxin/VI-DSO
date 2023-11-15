@@ -64,12 +64,16 @@ namespace dso
 	float setting_minPointsRemaining = 0.05;  // marg a frame if less than X% points remain.
 	float setting_maxLogAffFacInWindow = 0.7; // marg a frame if factor between intensities to current frame is larger than 1/X or X.
 
-	int   setting_minFrames = 5; // min frames in window.
-	int   setting_maxFrames = 7; // max frames in window.
+	int   setting_initStepFrames = 5;		// 初始化中找到SNAP帧后继续跟踪的帧数量
+	bool  setting_useInitStep = true;		// 初始化中找到SNAP帧后是否需要继续跟踪几帧
+	bool  setting_initFixAffine = true;		// 初始化中是否优化光度参数
+
+	int   setting_minFrames = 5;			// min frames in window.
+	int   setting_maxFrames = 7;			// max frames in window.
 	int   setting_minFrameAge = 1;
-	int   setting_maxOptIterations = 6; // max GN iterations.
-	int   setting_minOptIterations = 1; // min GN iterations.
-	float setting_thOptIterations = 1.2; // factor on break threshold for GN iteration (larger = break earlier)
+	int   setting_maxOptIterations = 6;		// max GN iterations.
+	int   setting_minOptIterations = 1;		// min GN iterations.
+	float setting_thOptIterations = 1.2;	// factor on break threshold for GN iteration (larger = break earlier)
 
 	/* Outlier Threshold on photometric energy */
 	float setting_outlierTH = 12 * 12;					// higher -> less strict
@@ -138,18 +142,17 @@ namespace dso
 	float freeDebugParam4 = 1;
 	float freeDebugParam5 = 1;
 
-	bool disableReconfigure = false;
-	bool debugSaveImages = false;
-	bool multiThreading = true;
-	bool disableAllDisplay = false;
+	bool setting_debugSaveImages = false;
+	bool setting_multiThreading = true;
+	bool setting_disableAllDisplay = false;
 	bool setting_onlyLogKFPoses = true;
 	bool setting_logStuff = true;
 
-	bool goStepByStep = false;
+	bool setting_goStepByStep = false;
 
 	bool setting_render_displayCoarseTrackingFull = false;
 	bool setting_render_renderWindowFrames = true;
-	bool setting_render_plotTrackingFull = false;
+	bool setting_render_plotTrackingFull = true;
 	bool setting_render_display3D = true;
 	bool setting_render_displayResidual = true;
 	bool setting_render_displayVideo = true;
@@ -159,18 +162,37 @@ namespace dso
 
 	bool setting_debugout_runquiet = false;
 
-	int sparsityFactor = 5;	// not actually a setting, only some legacy stuff for coarse initializer.
+	int sparsityFactor = 5;
 
-	double baseline = 0;
-	std::string gt_path = "";
-	std::string imu_path = "";
-	std::vector<SE3> gt_pose;
-	std::vector<Vec3> gt_velocity;
-	std::vector<Vec3> gt_bias_g;
-	std::vector<Vec3> gt_bias_a;
-	std::vector<Vec3> m_gry;
-	std::vector<Vec3> m_acc;
-	std::string savefile_tail = "";
+	// 系统输入图像信息以及惯导信息的路径
+	std::string input_gtPath = "";
+	std::string input_imuPath = "";
+	std::string input_vignette = "";
+	std::string input_gammaCalib = "";
+	std::string input_sourceLeft = "";
+	std::string input_sourceRight = "";
+	std::string input_calibLeft = "";
+	std::string input_calibRight = "";
+	std::string input_calibStereo = "";
+	std::string input_calibImu = "";
+	std::string input_picTimestampLeft = "";
+	std::string input_picTimestampRight = "";
+
+	double setting_baseline = 0;
+	double setting_margWeightFacImu = 1;
+	double setting_imuWeightNoise = 1;
+	double setting_imuWeightTracker = 1;
+	double setting_stereoWeight = 3;
+	bool setting_useStereo = true;
+	
+	// 输入数据序列
+	std::vector<SE3> input_gtPose;
+	std::vector<Vec3> input_gtVelocity;
+	std::vector<Vec3> input_gtBiasG;
+	std::vector<Vec3> input_gtBiasA;
+	std::vector<Vec3> input_gryList;
+	std::vector<Vec3> input_accList;
+	
 	SE3 T_C0C1;
 	SE3 T_C1C0;
 	Mat33f K_right;
@@ -187,28 +209,25 @@ namespace dso
 	Sim3 T_WD_l;			// 视觉估计坐标基准与IMU基准之间的变换-上一估计值
 	Sim3 T_WD_l_half;		// 视觉估计坐标基准与IMU基准之间的变换-上一估计值并采用部分IMU信息
 	Sim3 T_WD_change;
-	double G_norm;
+	double setting_gravityNorm;
 	int index_align;
 	SE3 T_WR_align = SE3();
 	double run_time = 0;
 	Vec7 step_twd = Vec7::Zero();
 	Vec7 state_twd = Vec7::Zero();
-	double imu_weight = 1;
-	double imu_weight_tracker = 1;
-	bool imu_use_flag = true;
-	bool imu_track_flag = true;
-	bool use_optimize = true;
-	bool use_Dmargin = false;
-	double d_min = sqrt(1.1);
-	double imu_lambda = 2;
-	bool imu_track_ready = false;
-	double stereo_weight = 3;
+	
+	bool setting_useImu = false;
+	bool setting_imuTrackFlag = true;
+	bool setting_useOptimize = true;
+	bool setting_useDynamicMargin = false;
+	double setting_dynamicMin = std::sqrt(1.1);
+	bool setting_imuTrackReady = false;
+	
 	int marg_num = 0;					// 边缘化IMU数据的次数
 	int marg_num_half = 0;				// 边缘化IMU数据的次数
-	double setting_margWeightFac_imu = 1;
+	
 	bool first_track_flag = false;
-	bool use_stereo = true;
-
+	
 	void handleKey(char k)
 	{
 		char kkk = k;

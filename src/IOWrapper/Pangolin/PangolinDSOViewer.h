@@ -80,13 +80,13 @@ namespace dso
 			void reset_internal();
 			void drawConstraints();
 
-			std::thread runThread;
-			bool running;
-			int w, h;
+			std::thread runThread;		// 显示线程handle
+			bool running;				// 显示线程是否运行的标志位
+			int w, h;					// 显示线程所显示的图像宽高
 
 			// images rendering
 			std::mutex openImagesMutex;
-			MinimalImageB3* internalVideoImg;
+			MinimalImageB3* internalVideoImg;					// 实时图像数据
 			MinimalImageB3* internalKFImg;
 			MinimalImageB3* internalResImg;
 			bool videoImgChanged, kfImgChanged, resImgChanged;
@@ -96,7 +96,7 @@ namespace dso
 			KeyFrameDisplay* currentCam;
 			std::vector<KeyFrameDisplay*> keyframes;
 			std::vector<Vec3f, Eigen::aligned_allocator<Vec3f>> allFramePoses;
-			std::map<int, KeyFrameDisplay*> keyframesByKFID;
+			std::map<int, KeyFrameDisplay*> keyframesByKFID;		// 系统计算模块传递的全部关键帧信息[KeyFrame id，KeyFrameDisplay handle]
 			std::vector<GraphConnection, Eigen::aligned_allocator<GraphConnection>> connections;
 
 			// render settings

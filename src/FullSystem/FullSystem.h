@@ -51,6 +51,12 @@
 
 namespace dso
 {
+	/// <summary>
+	/// 删除指针序列v中的第i个元素
+	/// </summary>
+	/// <typeparam name="T">指针类型</typeparam>
+	/// <param name="v">指针序列</param>
+	/// <param name="i">待删除元素索引值</param>
 	template<typename T>
 	inline void deleteOut(std::vector<T*>& v, const int i)
 	{
@@ -139,7 +145,7 @@ namespace dso
 		void marginalizeFrame(FrameHessian* frame);
 		void blockUntilMappingIsFinished();
 
-		float optimize(int mnumOptIts);
+		float optimize(int numOptIts);
 
 		void printResult(std::string file);
 
@@ -150,6 +156,7 @@ namespace dso
 
 		std::vector<IOWrap::Output3DWrapper*> outputWrapper;
 
+		int newFrameID;				// 系统最新进入的帧在图像序列中的ID
 		bool isLost;				// 系统跟踪丢失的标志位
 		bool initFailed;			// 系统初始化失败的标志位
 		bool initialized;			// 系统是否成功初始化的标志位
