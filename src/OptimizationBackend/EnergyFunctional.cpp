@@ -396,28 +396,28 @@ namespace dso
 				for (EFResidual* r : p->residualsAll)
 				{
 					r->data->efResidual = NULL;
-					freePointer(r);
+					SAFE_DELETE(r);
 				}
 				p->data->efPoint = NULL;
-				freePointer(p);
+				SAFE_DELETE(p);
 			}
 			f->data->efFrame = NULL;
-			freePointer(f);
+			SAFE_DELETE(f);
 		}
 
 		// 释放Hessian矩阵累加器handle
-		freePointer(accSSE_top_L);
-		freePointer(accSSE_top_A);
-		freePointer(accSSE_bot);
+		SAFE_DELETE(accSSE_top_L);
+		SAFE_DELETE(accSSE_top_A);
+		SAFE_DELETE(accSSE_bot);
 
 		// 释放参数相对量对绝对量的雅可比
-		freePointerVec(adHost);
-		freePointerVec(adTarget);
-		freePointerVec(adHostF);
-		freePointerVec(adTargetF);
+		SAFE_DELETE(adHost,true);
+		SAFE_DELETE(adTarget,true);
+		SAFE_DELETE(adHostF, true);
+		SAFE_DELETE(adTargetF, true);
 
 		// 释放滑窗两帧之间的相对参数
-		freePointerVec(adHTdeltaF);
+		SAFE_DELETE(adHTdeltaF, true);
 	}
 
 	/// <summary>
@@ -427,7 +427,7 @@ namespace dso
 	void EnergyFunctional::setDeltaF(CalibHessian* HCalib)
 	{
 		// 1、计算滑窗关键帧之间的位姿变化、光度变换参数
-		if (adHTdeltaF != NULL) freePointerVec(adHTdeltaF);
+		SAFE_DELETE(adHTdeltaF, true);
 		adHTdeltaF = new Mat18f[nFrames * nFrames];
 		for (int h = 0; h < nFrames; ++h)
 		{
@@ -575,7 +575,7 @@ namespace dso
 		else
 			resubstituteFPt(cstep, xAd, 0, allPoints.size(), 0, 0);
 
-		freePointerVec(xAd);
+		SAFE_DELETE(xAd);
 	}
 	
 	/// <summary>
@@ -1422,7 +1422,7 @@ namespace dso
 		EFDeltaValid = false;
 
 		makeIDX();
-		freePointer(fh);
+		SAFE_DELETE(fh);
 	}
 
 	/// <summary>
@@ -1516,6 +1516,7 @@ namespace dso
 		p->residualsAll[r->idxInAll]->idxInAll = r->idxInAll;
 		p->residualsAll.pop_back();
 
+		// 删除残差时，统计当前残差对应的主帧中有效残差和无效残差的数量
 		if (r->isActive())
 			r->host->data->shell->statistics_goodResOnThis++;
 		else
@@ -1526,7 +1527,7 @@ namespace dso
 
 		nResiduals--;
 		r->data->efResidual = NULL;
-		freePointer(r);
+		SAFE_DELETE(r);
 	}
 
 	/// <summary>
@@ -1571,7 +1572,7 @@ namespace dso
 		p->data->efPoint = NULL;
 
 		EFIndicesValid = false;
-		freePointer(p);
+		SAFE_DELETE(p);
 	}
 
 	/// <summary>

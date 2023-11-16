@@ -54,9 +54,35 @@ void loadArgument(int argc, char** argv)
 		dso::parseArgument(argv[it]);
 }
 
+/// <summary>
+/// 设置系统运行参数
+/// </summary>
+/// <param name="folder">数据集文件夹路径</param>
+void setArgument(const std::string folder)
+{
+	input_sourceLeft = folder + "/MH_01_easy/mav0/cam0/data.zip";
+	input_calibLeft = folder + "/MH_01_easy/mav0/cam0/cam0.txt";
+	input_calibImu = folder + "/MH_01_easy/mav0/imu0/imu0.txt";
+	input_gtPath = folder + "/MH_01_easy/mav0/state_groundtruth_estimate0/data.csv";
+	input_imuPath = folder + "/MH_01_easy/mav0/imu0/data.csv";
+	input_picTimestampLeft = folder + "/MH_01_easy/mav0/cam0/data.csv";
+
+	setting_debugout_runquiet = true;
+	setting_photometricCalibration = 0;
+	setting_affineOptModeA = 0;
+	setting_affineOptModeB = 0;
+	setting_useStereo = false;
+	setting_imuWeightNoise = 6;
+	setting_imuWeightTracker = 0.6;
+	setting_stereoWeight = 0;
+
+	dso::settingsDefault(0);
+}
+
 int main(int argc, char** argv)
 {
-	loadArgument(argc, argv);
+	//loadArgument(argc, argv); 
+	setArgument("E:/TumData");
 
 	dso::getTstereo();
 	dso::getIMUinfo();
@@ -190,7 +216,7 @@ int main(int argc, char** argv)
 						printf("- DSO RESETTING!\n");
 
 						auto& wraps = fullSystem->outputWrapper;
-						delete fullSystem;
+						SAFE_DELETE(fullSystem);
 
 						for (IOWrap::Output3DWrapper* ow : wraps) ow->reset();
 
@@ -236,12 +262,11 @@ int main(int argc, char** argv)
 	for (auto ow : fullSystem->outputWrapper)
 	{
 		ow->join();
-		delete ow;
+		SAFE_DELETE(ow);
 	}
 
 	printf("- DELETE FULLSYSTEM!\n");
-	delete fullSystem;
-	fullSystem = NULL;
+	SAFE_DELETE(fullSystem);
 
 	printf("- DELETE READER!\n");
 	delete readerLeft;

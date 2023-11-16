@@ -296,7 +296,7 @@ namespace dso
 		{
 			model3DMutex.lock();
 			for (size_t it = 0; it < keyframes.size(); ++it)
-				freePointer(keyframes[it]);
+				SAFE_DELETE(keyframes[it]);
 			keyframes.clear();
 			allFramePoses.clear();
 			keyframesByKFID.clear();

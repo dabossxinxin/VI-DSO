@@ -146,7 +146,7 @@ namespace dso
 				imagesCV.emplace_back(new cv::Mat(images[it]->h, images[it]->w, CV_8UC3, images[it]->data));
 			displayImageStitch(windowName, imagesCV, cc, rc);
 			for (size_t it = 0; it < images.size(); ++it)
-				freePointer(imagesCV[it]);
+				SAFE_DELETE(imagesCV[it]);
 		}
 
 		void displayImageStitch(const char* windowName, const std::vector<MinimalImageF*> images, int cc, int rc)

@@ -51,7 +51,7 @@ namespace dso
 		inline ~MinimalImage()
 		{
 			if (ownData)
-				freePointerVec(data);
+				SAFE_DELETE(data, true);
 		}
 
 		inline MinimalImage* getClone()

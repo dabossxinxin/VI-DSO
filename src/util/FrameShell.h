@@ -31,7 +31,7 @@ namespace dso
 	{
 	public:
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
-		int id; 			// INTERNAL ID, starting at zero.
+		int id; 			// 帧全局ID，从0开始递增
 		int incomingId;		// 将图像输入算法时设置的图像ID
 		int imuStampId;		// 图像帧时间戳在IMU数据中的索引
 		double timestamp;	// 将图像输入算法时设置的图像时间戳
@@ -45,11 +45,10 @@ namespace dso
 		AffLight aff_g2l;
 		bool poseValid;
 
-		// statisitcs
-		int statistics_outlierResOnThis;
-		int statistics_goodResOnThis;
-		int marginalizedAt;
-		double movedByOpt;
+		int statistics_outlierResOnThis;	// 记录当前帧中管理的无效残差的数量		
+		int statistics_goodResOnThis;		// 记录当前帧中管理的有效残差的数量
+		int marginalizedAt;					// 记录当前帧被边缘化时系统最后一帧关键帧的全局序号
+		double movedByOpt;					// TODO
 
 		Vec3 velocity = Vec3::Zero();
 		Vec3 bias_g = Vec3::Zero();

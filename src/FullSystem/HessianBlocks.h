@@ -135,7 +135,7 @@ namespace dso
 		Vec6 nullspaces_scale;		// 尺度零空间
 
 		// variable info.
-		SE3 worldToCam_evalPT;
+		SE3 worldToCam_evalPT;		// 线性化点处当前帧的位姿
 		Vec10 state_zero;			// 关键帧在线性化点处参数状态量
 		Vec10 state_scaled;
 		Vec10 state;				// [0-5: worldToCam-leftEps. 6-7: a,b]
@@ -227,12 +227,11 @@ namespace dso
 			instanceCounter--;
 			for (int it = 0; it < pyrLevelsUsed; ++it)
 			{
-				freePointerVec(dIp[it]);
-				freePointerVec(absSquaredGrad[it]);
+				SAFE_DELETE(dIp[it], true);
+				SAFE_DELETE(absSquaredGrad[it], true);
 			}
 
-			if (debugImage != NULL)
-				freePointer(debugImage);
+			SAFE_DELETE(debugImage);
 		};
 
 		inline FrameHessian()

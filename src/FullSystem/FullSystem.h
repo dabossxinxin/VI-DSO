@@ -56,21 +56,27 @@ namespace dso
 	/// </summary>
 	/// <typeparam name="T">指针类型</typeparam>
 	/// <param name="v">指针序列</param>
-	/// <param name="i">待删除元素索引值</param>
+	/// <param name="i">待删除元素索引</param>
 	template<typename T>
 	inline void deleteOut(std::vector<T*>& v, const int i)
 	{
-		delete v[i];
+		if (v[i] != NULL)
+			delete v[i];
 		v[i] = v.back();
 		v.pop_back();
 	}
 
+	/// <summary>
+	/// 删除指针序列v中地址为i的元素
+	/// </summary>
+	/// <typeparam name="T">指针类型</typeparam>
+	/// <param name="v">指针序列</param>
+	/// <param name="i">待删除元素地址</param>
 	template<typename T>
 	inline void deleteOutPt(std::vector<T*>& v, const T* i)
 	{
-		delete i;
-
-		for (unsigned int k = 0; k < v.size(); k++)
+		if (i != NULL) delete i;
+		for (unsigned int k = 0; k < v.size(); ++k)
 		{
 			if (v[k] == i)
 			{
@@ -80,20 +86,32 @@ namespace dso
 		}
 	}
 
+	/// <summary>
+	/// 删除指针序列v中第i个元素，并把后面的元素往前移动
+	/// </summary>
+	/// <typeparam name="T">指针类型</typeparam>
+	/// <param name="v">指针序列</param>
+	/// <param name="i">待删除元素索引</param>
 	template<typename T>
 	inline void deleteOutOrder(std::vector<T*>& v, const int i)
 	{
-		delete v[i];
+		if (v[i] != NULL) delete v[i];
 		for (unsigned int k = i + 1; k < v.size(); k++)
 			v[k - 1] = v[k];
 		v.pop_back();
 	}
 
+	/// <summary>
+	/// 删除指针序列v中地址为element的元素，并把后面的元素往前移动
+	/// </summary>
+	/// <typeparam name="T">指针类型</typeparam>
+	/// <param name="v">指针序列</param>
+	/// <param name="element">待删除元素地址</param>
 	template<typename T>
 	inline void deleteOutOrder(std::vector<T*>& v, const T* element)
 	{
 		int idx = -1;
-		for (unsigned int k = 0; k < v.size(); k++)
+		for (unsigned int k = 0; k < v.size(); ++k)
 		{
 			if (v[k] == element)
 			{
@@ -106,17 +124,21 @@ namespace dso
 		for (unsigned int k = idx + 1; k < v.size(); k++)
 			v[k - 1] = v[k];
 		v.pop_back();
-
-		delete element;
-		element = NULL;
+		SAFE_DELETE(element);
 	}
 
+	/// <summary>
+	/// 搜索矩阵中是否存在nan的元素
+	/// </summary>
+	/// <param name="m">待搜索矩阵</param>
+	/// <param name="msg">调试信息</param>
+	/// <returns>矩阵中是否有nan元素</returns>
 	inline bool eigenTestNan(const MatXX& m, std::string msg)
 	{
 		bool foundNan = false;
-		for (int y = 0; y < m.rows(); y++)
+		for (int y = 0; y < m.rows(); ++y)
 		{
-			for (int x = 0; x < m.cols(); x++)
+			for (int x = 0; x < m.cols(); ++x)
 			{
 				if (!std::isfinite((double)m(y, x))) foundNan = true;
 			}
@@ -141,34 +163,74 @@ namespace dso
 		// adds a new frame, and creates point & residual structs.
 		void addActiveFrame(ImageAndExposure* image, ImageAndExposure* imageRight, int id);
 
-		// marginalizes a frame. drops / marginalizes points & residuals.
+		/// <summary>
+		/// 边缘化指定滑窗关键帧，步骤为:
+		/// 1、后端优化中使用舒尔补边缘化该关键帧;
+		/// 2、前端后端中都删除目标帧为边缘化帧的观测残差;
+		/// 3、将边缘化的关键帧发送到显示线程显示，并记录该帧的统计信息;
+		/// 4、前端管理的滑窗关键帧中删除边缘化帧，并重置关键帧序号，重新计算关键帧相对关系;
+		/// </summary>
+		/// <param name="frame">待边缘化的关键帧</param>
 		void marginalizeFrame(FrameHessian* frame);
+
+		/// <summary>
+		/// 阻塞跟踪线程（主线程），等待建图线程完成任务
+		/// </summary>
 		void blockUntilMappingIsFinished();
 
+		/// <summary>
+		/// 后端滑窗优化主函数
+		/// </summary>
+		/// <param name="numOptIts">优化迭代次数</param>
+		/// <returns>优化后的光度残差</returns>
 		float optimize(int numOptIts);
 
+		/// <summary>
+		/// 输出系统中所有帧的位姿信息
+		/// </summary>
+		/// <param name="file">信息保存路径</param>
 		void printResult(std::string file);
 
 		void debugPlot(std::string name);
 
+		/// <summary>
+		/// 打印系统中所有帧记录的统计信息，包含何时边缘化，有效残差数量等
+		/// </summary>
 		void printFrameLifetimes();
-		// contains pointers to active frames
 
-		std::vector<IOWrap::Output3DWrapper*> outputWrapper;
+		/// <summary>
+		/// 设置图像Gamma校正参数
+		/// </summary>
+		/// <param name="BInv">校正参数</param>
+		void setGammaFunction(float* BInv);
 
+		/// <summary>
+		/// 保存系统跟踪的帧位姿信息
+		/// </summary>
+		/// <param name="T">位姿信息</param>
+		void savetrajectory(const Sophus::Matrix4d& T);
+
+		/// <summary>
+		/// 按照TUM格式保存系统跟踪得到的位姿信息
+		/// </summary>
+		/// <param name="T">位姿信息</param>
+		/// <param name="time">时间戳信息</param>
+		void savetrajectoryTum(const SE3& T, const double time);
+
+		/// <summary>
+		/// 初始化惯导信息：设置第一帧坐标系为世界系以及定义世界系与DSO系之间的变换
+		/// </summary>
+		/// <param name="fh">进入系统的第一帧数据</param>
+		void initFirstFrameImu(FrameHessian* fh);
+
+	public:
 		int newFrameID;				// 系统最新进入的帧在图像序列中的ID
 		bool isLost;				// 系统跟踪丢失的标志位
 		bool initFailed;			// 系统初始化失败的标志位
 		bool initialized;			// 系统是否成功初始化的标志位
-		bool linearizeOperation;	// 是否通过
+		bool linearizeOperation;	// 跟踪成功后进行建图操作时是否进行逐帧操作模式
 
-		void setGammaFunction(float* BInv);
-		void setOriginalCalib(const VecXf& originalCalib, int originalW, int originalH);
-
-		void savetrajectory(const Sophus::Matrix4d& T);
-		void savetrajectoryTum(const SE3& T, const double time);
-
-		void initFirstFrameImu(FrameHessian* fh);
+		std::vector<IOWrap::Output3DWrapper*> outputWrapper;	// 显示线程handle
 
 	private:
 		// FullSystemOptPoint
@@ -178,7 +240,13 @@ namespace dso
 		void printLogLine();
 		void printEigenValLine();
 		Vec4 trackNewCoarse(FrameHessian* fh);
+
+		/// <summary>
+		/// 滑窗关键帧中的未激活点在最新帧fh中跟踪一遍，优化其深度信息
+		/// </summary>
+		/// <param name="fh">系统中的最新帧</param>
 		void traceNewCoarse(FrameHessian* fh);
+
 		void traceNewCoarseNonKey(FrameHessian* fh, FrameHessian* fhRight);
 		void traceNewCoarseKey(FrameHessian* fh, FrameHessian* fhRight);
 		void setPrecalcValues();

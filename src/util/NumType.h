@@ -42,17 +42,18 @@ namespace dso
 
 #define todouble(x) (x).cast<double>()
 
+#define CPARS 4
+
+#define MatToDynamic(x) MatXX(x)
+
 	typedef Sophus::SE3d SE3;
 	typedef Sophus::Sim3d Sim3;
 	typedef Sophus::SO3d SO3;
 	typedef Sophus::SO3f SO3f;
 	typedef Sophus::RxSO3d RxSO3;
 
-#define CPARS 4
-
 	typedef Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> MatXX;
 	typedef Eigen::Matrix<double, CPARS, CPARS> MatCC;
-#define MatToDynamic(x) MatXX(x)
 
 	typedef Eigen::Matrix<double, CPARS, 10> MatC10;
 	typedef Eigen::Matrix<double, 10, 10> Mat1010;
@@ -168,22 +169,23 @@ namespace dso
 	typedef Eigen::Matrix<double, 14, 14> Mat1414;
 	typedef Eigen::Matrix<double, 14, 1> Vec14;
 
-	// transforms points from one frame to another.
+	/// <summary>
+	/// 光度参数结构
+	/// </summary>
 	struct AffLight
 	{
 		AffLight(double a_, double b_) : a(a_), b(b_) {};
 		AffLight() : a(0), b(0) {};
 
 		// Affine Parameters:
-		double a, b;	// I_frame = exp(a)*I_global + b. // I_global = exp(-a)*(I_frame - b).
+		// I_frame = exp(a)*I_global + b. // I_global = exp(-a)*(I_frame - b).
+		double a, b;	
 
 		static Vec2 fromToVecExposure(float exposureH, float exposureT, AffLight g2H, AffLight g2T)
 		{
 			if (exposureH == 0 || exposureT == 0)
 			{
 				exposureT = exposureH = 1;
-				//printf("got exposure value of 0! please choose the correct model.\n");
-				//assert(setting_brightnessTransferFunc < 2);
 			}
 
 			double a = exp(g2T.a - g2H.a) * exposureT / exposureH;
@@ -197,10 +199,34 @@ namespace dso
 		}
 	};
 
+	/// <summary>
+	/// 残差状态枚举值
+	/// </summary>
 	enum ResState
 	{
 		INNER = 0,		// 残差的值小于阈值视为内点
 		OOB,			// 点不在主帧或目标帧视野中
 		OUTLIER			// 残差的值大于阈值视为外点
 	};
+
+	/// <summary>
+	/// 析构指针内存空间
+	/// </summary>
+	/// <typeparam name="T">指针类型</typeparam>
+	/// <param name="data">指针地址</param>
+	/// <param name="flag">是否为指针序列</param>
+	template <typename T>
+	void SAFE_DELETE(T* data, bool flag = false)
+	{
+		if (flag && data != NULL)
+		{
+			delete[] data;
+			data = NULL;
+		}
+		else if (!flag && data != NULL)
+		{
+			delete data;
+			data = NULL;
+		}
+	}
 }

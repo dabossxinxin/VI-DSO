@@ -108,7 +108,7 @@ namespace dso
 			idx++;
 		}
 
-		IOWrap::waitKey(0);
+		//IOWrap::waitKey(0);
 	}
 
 	void FullSystem::debugPlot(std::string name)
@@ -137,11 +137,9 @@ namespace dso
 			minID = allID[(int)(n * 0.05)];
 			maxID = allID[(int)(n * 0.95)];
 
-
 			// slowly adapt: change by maximum 10% of old span.
 			float maxChange = 0.1 * (maxIdJetVisDebug - minIdJetVisDebug);
 			if (maxIdJetVisDebug < 0 || minIdJetVisDebug < 0) maxChange = 1e5;
-
 
 			if (minID < minIdJetVisDebug - maxChange)
 				minID = minIdJetVisDebug - maxChange;
@@ -166,7 +164,6 @@ namespace dso
 			images.push_back(img);
 			//float* fd = frameHessians[f]->I;
 			Eigen::Vector3f* fd = frameHessians[f]->dI;
-
 
 			for (int i = 0; i < wh; i++)
 			{

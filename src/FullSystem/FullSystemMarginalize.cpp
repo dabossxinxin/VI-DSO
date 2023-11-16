@@ -153,48 +153,48 @@ namespace dso
 
 	void FullSystem::marginalizeFrame(FrameHessian* frame)
 	{
-		// marginalize or remove all this frames points.
-		assert((int)frame->pointHessians.size() == 0);
+		assert(frame->pointHessians.empty());
 
-		delete frame->frameRight->efFrame;
-		frame->frameRight->efFrame = NULL;
-		delete frame->frameRight;
-		frame->frameRight = NULL;
+		// 1、在后端优化中进行这一帧数据的边缘化
+		SAFE_DELETE(frame->frameRight->efFrame);
+		SAFE_DELETE(frame->frameRight);
 		ef->marginalizeFrame(frame->efFrame);
 
-		// drop all observations of existing points in that frame
+		// 2、删除特征点中观测到待边缘化帧的残差
 		for (FrameHessian* fh : frameHessians)
 		{
 			if (fh == frame) continue;
 
 			for (PointHessian* ph : fh->pointHessians)
 			{
-				for (unsigned int i = 0; i < ph->residuals.size(); i++)
+				for (unsigned int idx = 0; idx < ph->residuals.size(); ++idx)
 				{
-					PointFrameResidual* r = ph->residuals[i];
+					auto r = ph->residuals[idx];
 					if (r->target == frame)
 					{
 						if (ph->lastResiduals[0].first == r)
-							ph->lastResiduals[0].first = 0;
+							ph->lastResiduals[0].first = NULL;
 						else if (ph->lastResiduals[1].first == r)
-							ph->lastResiduals[1].first = 0;
+							ph->lastResiduals[1].first = NULL;
 
 						if (r->host->frameID < r->target->frameID)
 							statistics_numForceDroppedResFwd++;
 						else
 							statistics_numForceDroppedResBwd++;
 
-						ef->dropResidual(r->efResidual);
-						deleteOut<PointFrameResidual>(ph->residuals, i);
+						// 分别在后端优化以及前端模块中删除观测到边缘化帧的残差
+						ef->dropResidual(r->efResidual);			
+						deleteOut<PointFrameResidual>(ph->residuals, idx);
 						break;
 					}
 				}
 			}
 		}
 
+		// 3、将边缘化的滑窗关键帧发送到显示线程显示，并记录边缘化帧的信息
 		{
 			std::vector<FrameHessian*> v;
-			v.push_back(frame);
+			v.emplace_back(frame);
 			for (IOWrap::Output3DWrapper* ow : outputWrapper)
 				ow->publishKeyframes(v, true, &Hcalib);
 		}
@@ -202,10 +202,12 @@ namespace dso
 		frame->shell->marginalizedAt = frameHessians.back()->shell->id;
 		frame->shell->movedByOpt = frame->w2c_leftEps().norm();
 
+		// 4、在滑窗中删除待边缘化帧并且重置滑窗关键帧的序号
 		deleteOutOrder<FrameHessian>(frameHessians, frame);
-		for (unsigned int i = 0; i < frameHessians.size(); i++)
-			frameHessians[i]->idx = i;
+		for (unsigned int it = 0; it < frameHessians.size(); ++it)
+			frameHessians[it]->idx = it;
 
+		// 5、滑窗关键帧数量变化后，重新计算滑窗关键帧之间的位置关系以及姿态雅可比
 		setPrecalcValues();
 		ef->setAdjointsF(&Hcalib);
 	}

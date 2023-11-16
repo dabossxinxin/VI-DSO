@@ -158,7 +158,7 @@ namespace dso
 		PointHessian* p = new PointHessian(point, &Hcalib);
 		if (!std::isfinite(p->energyTH))
 		{
-			freePointer(p);
+			SAFE_DELETE(p);
 			return (PointHessian*)((long)(-1));
 		}
 

@@ -33,12 +33,19 @@
 
 namespace dso
 {
+	/// <summary>
+	/// 内存对齐函数
+	/// </summary>
+	/// <typeparam name="T"></typeparam>
+	/// <param name="size"></param>
+	/// <param name="rawPtrVec"></param>
+	/// <returns></returns>
 	template<int b, typename T>
 	T* allocAligned(int size, std::vector<T*> &rawPtrVec)
 	{
 		const int padT = 1 + ((1 << b) / sizeof(T));
 		T* ptr = new T[size + padT];
-		rawPtrVec.push_back(ptr);
+		rawPtrVec.emplace_back(ptr);
 		T* alignedPtr = (T*)((((uintptr_t)(ptr + padT)) >> b) << b);
 		return alignedPtr;
 	}
@@ -192,12 +199,12 @@ namespace dso
 	/// </summary>
 	CoarseDistanceMap::~CoarseDistanceMap()
 	{
-		freePointer(debugImage);
-		freePointerVec(fwdWarpedIDDistFinal);
-		freePointerVec(bfsList1);
-		freePointerVec(bfsList2);
-		freePointerVec(coarseProjectionGrid);
-		freePointerVec(coarseProjectionGridNum);
+		SAFE_DELETE(debugImage);
+		SAFE_DELETE(fwdWarpedIDDistFinal, true);
+		SAFE_DELETE(bfsList1, true);
+		SAFE_DELETE(bfsList2, true);
+		SAFE_DELETE(coarseProjectionGrid, true);
+		SAFE_DELETE(coarseProjectionGridNum, true);
 	}
 
 	/// <summary>
@@ -205,8 +212,8 @@ namespace dso
 	/// </summary>
 	CoarseTracker::~CoarseTracker()
 	{
-		for (float* ptr : ptrToDelete)
-			delete[] ptr;
+		for (auto ptr : ptrToDelete)
+			SAFE_DELETE(ptr, true);
 		ptrToDelete.clear();
 	}
 
@@ -479,73 +486,6 @@ namespace dso
 				}
 			}
 		}
-
-		// 	for(FrameHessian* fh : frameHessians)
-		// 	{
-		// 		for(PointHessian* ph : fh->pointHessians)
-		// 		{
-		// 			if(ph->lastResiduals[0].first != 0 && ph->lastResiduals[0].second == ResState::INNER) //contains information about residuals to the last two (!) frames. ([0] = latest, [1] = the one before).
-		// 			{
-		// 				PointFrameResidual* r = ph->lastResiduals[0].first;
-		// 				assert(r->efResidual->isActive() && r->target == lastRef);
-		// 				int u = r->centerProjectedTo[0] + 0.5f;
-		// 				int v = r->centerProjectedTo[1] + 0.5f;
-		// 
-		// 				ImmaturePoint* pt_track = new ImmaturePoint((float)u, (float)v, fh_target, &Hcalib);
-		// 
-		// 				pt_track->u_stereo = pt_track->u;
-		// 				pt_track->v_stereo = pt_track->v;
-		// 
-		// 						// free to debug
-		// 				pt_track->idepth_min_stereo = r->centerProjectedTo[2] * 0.1f;
-		// 				pt_track->idepth_max_stereo = r->centerProjectedTo[2] * 1.9f;
-		// 
-		// 				ImmaturePointStatus pt_track_right = pt_track->traceStereo(fh_right, &Hcalib, 1);
-		// 
-		// 				float new_idepth = 0;
-		// 
-		// 				if (pt_track_right == ImmaturePointStatus::IPS_GOOD)
-		// 				{
-		// 				    ImmaturePoint* pt_track_back = new ImmaturePoint(pt_track->lastTraceUV(0), pt_track->lastTraceUV(1), fh_right, &Hcalib);
-		// 				    pt_track_back->u_stereo = pt_track_back->u;
-		// 				    pt_track_back->v_stereo = pt_track_back->v;
-		// 
-		// 
-		// 				    pt_track_back->idepth_min_stereo = r->centerProjectedTo[2] * 0.1f;
-		// 				    pt_track_back->idepth_max_stereo = r->centerProjectedTo[2] * 1.9f;
-		// 
-		// 				    ImmaturePointStatus pt_track_left = pt_track_back->traceStereo(fh_target, &Hcalib, 0);
-		// 
-		// 				    float depth = 1.0f/pt_track->idepth_stereo;
-		// 				    float u_delta = abs(pt_track->u - pt_track_back->lastTraceUV(0));
-		// 				    if(u_delta<1 && depth > 0 && depth < 50)
-		// 				    {
-		// 					new_idepth = pt_track->idepth_stereo;
-		// 					delete pt_track;
-		// 					delete pt_track_back;
-		// 
-		// 				    } else{
-		// 
-		// 					new_idepth = r->centerProjectedTo[2];
-		// 					delete pt_track;
-		// 					delete pt_track_back;
-		// 				    }
-		// 
-		// 				}else{
-		// 
-		// 				    new_idepth = r->centerProjectedTo[2];
-		// 				    delete pt_track;
-		// 
-		// 				}
-		// 
-		// 				float weight = sqrtf(1e-3 / (ph->efPoint->HdiF+1e-12));
-		// 
-		// 				idepth[0][u+w[0]*v] += new_idepth *weight;
-		// 				weightSums[0][u+w[0]*v] += weight;
-		// 
-		// 			}
-		// 		}
-		// 	}
 
 		// 将深度值从金字塔顶层传播
 		for (int lvl = 1; lvl < pyrLevelsUsed; ++lvl)
@@ -840,7 +780,7 @@ namespace dso
 
 		float maxEnergy = 2 * setting_huberTH*cutoffTH - setting_huberTH * setting_huberTH;	// energy for r=setting_coarseCutoffTH.
 
-		MinimalImageB3* resImage = 0;
+		MinimalImageB3* resImage = NULL;
 		if (debugPlot)
 		{
 			resImage = new MinimalImageB3(wl, hl);
@@ -952,7 +892,7 @@ namespace dso
 		{
 			IOWrap::displayImage("RES", resImage, false);
 			IOWrap::waitKey(0);
-			delete resImage;
+			SAFE_DELETE(resImage);
 		}
 
 		Vec6 rs;

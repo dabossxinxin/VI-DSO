@@ -60,9 +60,6 @@ namespace dso
 		return q;
 	}
 
-	/// <summary>
-	/// FullSystem构造函数：为主要成员变量赋初值
-	/// </summary>
 	FullSystem::FullSystem()
 	{
 		int retstat = 0;
@@ -176,56 +173,39 @@ namespace dso
 		// 2、释放成员变量的内存空间
 		if (setting_logStuff)
 		{
-			calibLog->close(); delete calibLog;
-			numsLog->close(); delete numsLog;
-			coarseTrackingLog->close(); delete coarseTrackingLog;
-			errorsLog->close(); delete errorsLog;
-			eigenAllLog->close(); delete eigenAllLog;
-			eigenPLog->close(); delete eigenPLog;
-			eigenALog->close(); delete eigenALog;
-			DiagonalLog->close(); delete DiagonalLog;
-			variancesLog->close(); delete variancesLog;
-			nullspacesLog->close(); delete nullspacesLog;
+			calibLog->close(); SAFE_DELETE(calibLog);
+			numsLog->close(); SAFE_DELETE(numsLog);
+			coarseTrackingLog->close(); SAFE_DELETE(coarseTrackingLog);
+			errorsLog->close(); SAFE_DELETE(errorsLog);
+			eigenAllLog->close(); SAFE_DELETE(eigenAllLog);
+			eigenPLog->close(); SAFE_DELETE(eigenPLog);
+			eigenALog->close(); SAFE_DELETE(eigenALog);
+			DiagonalLog->close(); SAFE_DELETE(DiagonalLog);
+			variancesLog->close(); SAFE_DELETE(variancesLog);
+			nullspacesLog->close(); SAFE_DELETE(nullspacesLog);
 		}
 
-		delete[] selectionMap;
+		SAFE_DELETE(selectionMap, true);
 
-		for (FrameShell* s : allFrameHistory)
-			delete s;
-		for (FrameHessian* fh : unmappedTrackedFrames)
-			delete fh;
+		for (auto fs : allFrameHistory)
+			SAFE_DELETE(fs);
+		for (auto fh : unmappedTrackedFrames)
+			SAFE_DELETE(fh);
 
-		delete coarseDistanceMap;
-		delete coarseTracker;
-		delete coarseTracker_forNewKF;
-		delete coarseInitializer;
-		delete pixelSelector;
-		delete ef;
+		SAFE_DELETE(coarseDistanceMap);
+		SAFE_DELETE(coarseTracker);
+		SAFE_DELETE(coarseTracker_forNewKF);
+		SAFE_DELETE(coarseInitializer);
+		SAFE_DELETE(pixelSelector);
+		SAFE_DELETE(ef);
 	}
 
-	/// <summary>
-	/// 未实现函数
-	/// </summary>
-	/// <param name="originalCalib"></param>
-	/// <param name="originalW"></param>
-	/// <param name="originalH"></param>
-	void FullSystem::setOriginalCalib(const VecXf &originalCalib, int originalW, int originalH)
-	{
-
-	}
-
-	/// <summary>
-	/// 设置Gamma校正参数
-	/// </summary>
-	/// <param name="BInv">校正参数</param>
 	void FullSystem::setGammaFunction(float* BInv)
 	{
 		if (BInv == NULL) return;
-
-		// copy BInv.
 		memcpy(Hcalib.Binv, BInv, sizeof(float) * 256);
 
-		// invert.
+		// invert
 		for (int it = 1; it < 255; ++it)
 		{
 			// find val, such that Binv[val] = i.
@@ -243,18 +223,14 @@ namespace dso
 		Hcalib.B[255] = 255;
 	}
 
-	/// <summary>
-	/// 输出系统中所有帧的位姿信息
-	/// </summary>
-	/// <param name="file">信息保存路径</param>
 	void FullSystem::printResult(std::string file)
 	{
 		std::unique_lock<std::mutex> lock(trackMutex);
 		std::unique_lock<std::mutex> crlock(shellPoseMutex);
 
-		std::ofstream myfile;
-		myfile.open(file.c_str());
-		myfile << std::setprecision(15);
+		std::ofstream ofs;
+		ofs.open(file.c_str());
+		ofs << std::setprecision(15);
 
 		for (FrameShell* s : allFrameHistory)
 		{
@@ -262,14 +238,14 @@ namespace dso
 
 			if (setting_onlyLogKFPoses && s->marginalizedAt == s->id) continue;
 
-			myfile << s->timestamp <<
+			ofs << s->timestamp <<
 				" " << s->camToWorld.translation().transpose() <<
 				" " << s->camToWorld.so3().unit_quaternion().x() <<
 				" " << s->camToWorld.so3().unit_quaternion().y() <<
 				" " << s->camToWorld.so3().unit_quaternion().z() <<
 				" " << s->camToWorld.so3().unit_quaternion().w() << "\n";
 		}
-		myfile.close();
+		ofs.close();
 	}
 
 	/// <summary>
@@ -519,10 +495,6 @@ namespace dso
 		return Vec4(achievedRes[0], flowVecs[0], flowVecs[1], flowVecs[2]);
 	}
 
-	/// <summary>
-	/// 将关键帧中的未激活点在最新帧中跟踪一遍，优化其逆深度信息
-	/// </summary>
-	/// <param name="fh">系统中的最新帧</param>
 	void FullSystem::traceNewCoarse(FrameHessian* fh)
 	{
 		std::unique_lock<std::mutex> lock(mapMutex);
@@ -804,7 +776,7 @@ namespace dso
 
 				if (!std::isfinite(ph->idepth_max) || ph->lastTraceStatus == IPS_OUTLIER)
 				{
-					freePointer(ph);
+					SAFE_DELETE(ph);
 					host->immaturePoints[it] = NULL;
 					continue;
 				}
@@ -821,7 +793,7 @@ namespace dso
 				{
 					if (ph->host->flaggedForMarginalization || ph->lastTraceStatus == IPS_OOB)
 					{
-						freePointer(ph);
+						SAFE_DELETE(ph);
 						host->immaturePoints[it] = NULL;
 					}
 					continue;
@@ -845,7 +817,7 @@ namespace dso
 				}
 				else
 				{
-					freePointer(ph);
+					SAFE_DELETE(ph);
 					host->immaturePoints[it] = NULL;
 				}
 					
@@ -876,7 +848,7 @@ namespace dso
 					ef->insertResidual(r);
 
 				assert(opt->efPoint != NULL);
-				freePointer(ph);
+				SAFE_DELETE(ph);
 			}
 			else if (opt == (PointHessian*)((long)(-1)) || ph->lastTraceStatus == IPS_OOB)
 			{
@@ -1071,19 +1043,19 @@ namespace dso
 				if (!std::isfinite(pt->energyTH) || !std::isfinite(pt->idepth_min) ||
 					!std::isfinite(pt->idepth_max) || pt->idepth_min < 0 || pt->idepth_max < 0)
 				{
-					freePointer(pt);
+					SAFE_DELETE(pt);
 					continue;
 				}
 
 				PointHessian* ph = new PointHessian(pt, &Hcalib);
 				if (pt != NULL) 
 				{ 
-					freePointer(pt);
+					SAFE_DELETE(pt);
 					pt = NULL; 
 				}
 				if (!std::isfinite(ph->energyTH)) 
 				{ 
-					freePointer(ph);
+					SAFE_DELETE(ph);
 					continue;
 				}
 
@@ -1116,17 +1088,17 @@ namespace dso
 
 				if (!std::isfinite(pt->energyTH)) 
 				{ 
-					freePointer(pt);
+					SAFE_DELETE(pt);
 					continue;
 				}
 
 				pt->idepth_max = pt->idepth_min = 1;
 				PointHessian* ph = new PointHessian(pt, &Hcalib);
-				if (pt != NULL) freePointer(pt);
+				SAFE_DELETE(pt);
 
 				if (!std::isfinite(ph->energyTH)) 
 				{ 
-					freePointer(ph);
+					SAFE_DELETE(ph);
 					continue;
 				}
 				 
@@ -1250,7 +1222,7 @@ namespace dso
 			else
 			{
 				fh->shell->poseValid = false;
-				freePointer(fh);
+				SAFE_DELETE(fh);
 			}
 
 			return;
@@ -1323,10 +1295,6 @@ namespace dso
 		}
 	}
 
-	/// <summary>
-	/// 初始化惯导信息：包含设置第一帧坐标系为世界系以及定义世界系与DSO系之间的变换
-	/// </summary>
-	/// <param name="fh">进入系统的第一帧数据</param>
 	void FullSystem::initFirstFrameImu(FrameHessian* fh)
 	{
 		int imuStartIdx = -1;
@@ -1336,8 +1304,8 @@ namespace dso
 		imuStartIdx = findNearestIdx(imu_time_stamp, fhTime);
 		imuStartIdxGT = findNearestIdx(gt_time_stamp, fhTime);
 
-		if (imuStartIdx == -1) printf("timestamp error, check it\n");
-		if (imuStartIdxGT == -1) printf("timestamp error, check it\n");
+		if (imuStartIdx == -1) printf("ERROR: timestamp error, check it\n");
+		if (imuStartIdxGT == -1) printf("ERROR: timestamp error, check it\n");
 		if (imuStartIdx == -1 || imuStartIdxGT == -1) return;
 
 		Vec3 g_b = Vec3::Zero();
@@ -1377,10 +1345,6 @@ namespace dso
 		state_twd.setZero();
 	}
 
-	/// <summary>
-	/// 保存系统跟踪得到的位姿信息
-	/// </summary>
-	/// <param name="T">待保存的位姿信息</param>
 	void FullSystem::savetrajectory(const Sophus::Matrix4d& T)
 	{
 		std::ofstream fs;
@@ -1393,12 +1357,7 @@ namespace dso
 			<< T(2, 0) << " " << T(2, 1) << " " << T(2, 2) << " " << T(2, 3) << std::endl;
 		fs.close();
 	}
-
-	/// <summary>
-	/// 按照TUM格式保存系统跟踪得到的位姿信息
-	/// </summary>
-	/// <param name="T"></param>
-	/// <param name="time"></param>
+	
 	void FullSystem::savetrajectoryTum(const SE3& T, const double time)
 	{
 		std::ofstream fs;
@@ -1555,9 +1514,6 @@ namespace dso
 		printf("MAPPING FINISHED!\n");
 	}
 
-	/// <summary>
-	/// 阻塞跟踪线程（主线程），等待建图线程完成任务
-	/// </summary>
 	void FullSystem::blockUntilMappingIsFinished()
 	{
 		std::unique_lock<std::mutex> lock(trackMapSyncMutex);
@@ -1713,10 +1669,10 @@ namespace dso
 			ow->publishKeyframes(frameHessians, false, &Hcalib);
 		}
 
-		while(true)
+		/*while(true)
 		{
 			std::cout << "xinxin" << std::endl;
-		}
+		}*/
 
 		// 边缘化关键帧
 		for (unsigned int it = 0; it < frameHessians.size(); ++it)
@@ -1900,7 +1856,6 @@ namespace dso
 	void FullSystem::printFrameLifetimes()
 	{
 		if (!setting_logStuff) return;
-
 		std::unique_lock<std::mutex> lock(trackMutex);
 
 		std::ofstream* lg = new std::ofstream();
@@ -1918,6 +1873,6 @@ namespace dso
 		}
 
 		lg->close();
-		delete lg;
+		SAFE_DELETE(lg);
 	}
 }

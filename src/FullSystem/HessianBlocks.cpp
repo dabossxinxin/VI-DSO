@@ -105,13 +105,13 @@ namespace dso
 	void FrameHessian::release()
 	{
 		for (unsigned int it = 0; it < pointHessians.size(); ++it)
-			freePointer(pointHessians[it]);
+			SAFE_DELETE(pointHessians[it]);
 		for (unsigned int it = 0; it < pointHessiansMarginalized.size(); ++it)
-			freePointer(pointHessiansMarginalized[it]);
+			SAFE_DELETE(pointHessiansMarginalized[it]);
 		for (unsigned int it = 0; it < pointHessiansOut.size(); ++it)
-			freePointer(pointHessiansOut[it]);
+			SAFE_DELETE(pointHessiansOut[it]);
 		for (unsigned int it = 0; it < immaturePoints.size(); ++it)
-			freePointer(immaturePoints[it]);
+			SAFE_DELETE(immaturePoints[it]);
 
 		pointHessians.clear();
 		pointHessiansMarginalized.clear();

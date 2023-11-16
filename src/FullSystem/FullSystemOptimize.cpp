@@ -440,11 +440,6 @@ namespace dso
 			res[0], sqrtf((float)(res[0] / (patternNum * ef->resInA))), ef->resInA, ef->resInM, a, b);
 	}
 
-	/// <summary>
-	/// 滑窗优化主函数
-	/// </summary>
-	/// <param name="numOptIts">优化迭代次数</param>
-	/// <returns>优化后的光度残差</returns>
 	float FullSystem::optimize(int numOptIts)
 	{
 		// 1、根据滑窗中关键帧的数量约定滑窗优化迭代次数：

@@ -105,7 +105,7 @@ namespace dso
 
 			if (numSparseBufferSize < npoints)
 			{
-				if (originalInputSparse != NULL) freePointer(originalInputSparse);
+				SAFE_DELETE(originalInputSparse, true);
 				numSparseBufferSize = npoints + 100;
 				originalInputSparse = new InputPointSparse<MAX_RES_PER_POINT>[numSparseBufferSize];
 			}
@@ -180,8 +180,7 @@ namespace dso
 		/// </summary>
 		KeyFrameDisplay::~KeyFrameDisplay()
 		{
-			if (originalInputSparse != NULL)
-				freePointerVec(originalInputSparse);
+			SAFE_DELETE(originalInputSparse,true);
 		}
 
 		/// <summary>
@@ -314,8 +313,8 @@ namespace dso
 
 			if (vertexBufferNumPoints == 0)
 			{
-				freePointerVec(tmpColorBuffer);
-				freePointerVec(tmpVertexBuffer);
+				SAFE_DELETE(tmpColorBuffer,true);
+				SAFE_DELETE(tmpVertexBuffer,true);
 				return true;
 			}
 
@@ -331,8 +330,8 @@ namespace dso
 			colorBuffer.Upload(tmpColorBuffer, sizeof(unsigned char) * 3 * numGLBufferGoodPoints, 0);
 			bufferValid = true;
 
-			freePointerVec(tmpColorBuffer);
-			freePointerVec(tmpVertexBuffer);
+			SAFE_DELETE(tmpColorBuffer, true);
+			SAFE_DELETE(tmpVertexBuffer, true);
 
 			return true;
 		}

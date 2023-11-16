@@ -59,10 +59,10 @@ namespace dso
 	CoarseInitializer::~CoarseInitializer()
 	{
 		for (int lvl = 0; lvl < pyrLevelsUsed; ++lvl)
-			freePointerVec(points[lvl]);
+			SAFE_DELETE(points[lvl],true);
 
-		freePointerVec(JbBuffer);
-		freePointerVec(JbBuffer_new);
+		SAFE_DELETE(JbBuffer,true);
+		SAFE_DELETE(JbBuffer_new,true);
 	}
 
 	/// <summary>
@@ -854,7 +854,7 @@ namespace dso
 				debugPlotFeatureDetect(firstFrame->dIp[lvl], lvl, statusMapB, w[lvl], h[lvl]);
 			}
 
-			freePointerVec(points[lvl]);
+			SAFE_DELETE(points[lvl]);
 			points[lvl] = new Pnt[npts];
 
 			// 初始化所有点的逆深度值为1
@@ -902,8 +902,8 @@ namespace dso
 			numPoints[lvl] = nl;
 		}
 
-		freePointerVec(statusMap);
-		freePointerVec(statusMapB);
+		SAFE_DELETE(statusMap,true);
+		SAFE_DELETE(statusMapB,true);
 
 		// 构造金字塔中所提取特征的空间拓扑结构
 		makeNN();
@@ -990,8 +990,8 @@ namespace dso
 
 			numPoints[lvl] = nl;
 		}
-		freePointerVec(statusMap);
-		freePointerVec(statusMapB);
+		SAFE_DELETE(statusMap,true);
+		SAFE_DELETE(statusMapB,true);
 
 		makeNN();
 

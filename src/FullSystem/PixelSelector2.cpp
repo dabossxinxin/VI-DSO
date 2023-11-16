@@ -67,10 +67,10 @@ namespace dso
 	/// </summary>
 	PixelSelector::~PixelSelector()
 	{
-		freePointerVec(randomPattern);
-		freePointerVec(gradHist);
-		freePointerVec(ths);
-		freePointerVec(thsSmoothed);
+		SAFE_DELETE(randomPattern, true);
+		SAFE_DELETE(gradHist, true);
+		SAFE_DELETE(ths, true);
+		SAFE_DELETE(thsSmoothed, true);
 	}
 
 	/// <summary>
