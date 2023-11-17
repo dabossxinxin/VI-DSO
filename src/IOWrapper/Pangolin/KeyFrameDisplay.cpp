@@ -1,6 +1,6 @@
 /**
 * This file is part of DSO.
-* 
+*
 * Copyright 2016 Technical University of Munich and Intel.
 * Developed by Jakob Engel <engelj at in dot tum dot de>,
 * for more information see <http://vision.in.tum.de/dso>.
@@ -180,7 +180,7 @@ namespace dso
 		/// </summary>
 		KeyFrameDisplay::~KeyFrameDisplay()
 		{
-			SAFE_DELETE(originalInputSparse,true);
+			SAFE_DELETE(originalInputSparse, true);
 		}
 
 		/// <summary>
@@ -313,8 +313,8 @@ namespace dso
 
 			if (vertexBufferNumPoints == 0)
 			{
-				SAFE_DELETE(tmpColorBuffer,true);
-				SAFE_DELETE(tmpVertexBuffer,true);
+				SAFE_DELETE(tmpColorBuffer, true);
+				SAFE_DELETE(tmpVertexBuffer, true);
 				return true;
 			}
 

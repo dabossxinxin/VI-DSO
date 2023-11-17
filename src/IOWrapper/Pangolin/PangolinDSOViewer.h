@@ -113,10 +113,11 @@ namespace dso
 			int settings_pointCloudMode;
 			float settings_minRelBS;
 			int settings_sparsity;
-#ifdef _WIN_
+
+#if defined(_WIN_)
 			timedso last_track;
 			timedso last_map;
-#elifdef _OSX_
+#elif defined(_OSX_)
             timeval last_track;
             timeval last_map;
 #endif

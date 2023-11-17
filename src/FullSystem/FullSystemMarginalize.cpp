@@ -1,6 +1,6 @@
 /**
 * This file is part of DSO.
-* 
+*
 * Copyright 2016 Technical University of Munich and Intel.
 * Developed by Jakob Engel <engelj at in dot tum dot de>,
 * for more information see <http://vision.in.tum.de/dso>.
@@ -30,7 +30,7 @@
  */
 
 #include "FullSystem/FullSystem.h"
- 
+
 #include "stdio.h"
 #include "util/globalFuncs.h"
 #include <Eigen/LU>
@@ -52,9 +52,6 @@
 
 namespace dso
 {
-
-
-
 	void FullSystem::flagFramesForMarginalization(FrameHessian* newFH)
 	{
 		if (setting_minFrameAge > setting_maxFrames)
@@ -66,7 +63,6 @@ namespace dso
 			}
 			return;
 		}
-
 
 		int flagged = 0;
 		// marginalize all frames that have not enough points.
@@ -183,7 +179,7 @@ namespace dso
 							statistics_numForceDroppedResBwd++;
 
 						// 分别在后端优化以及前端模块中删除观测到边缘化帧的残差
-						ef->dropResidual(r->efResidual);			
+						ef->dropResidual(r->efResidual);
 						deleteOut<PointFrameResidual>(ph->residuals, idx);
 						break;
 					}

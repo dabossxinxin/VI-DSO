@@ -1,6 +1,6 @@
 /**
 * This file is part of DSO.
-* 
+*
 * Copyright 2016 Technical University of Munich and Intel.
 * Developed by Jakob Engel <engelj at in dot tum dot de>,
 * for more information see <http://vision.in.tum.de/dso>.
@@ -42,7 +42,7 @@
 #include "OptimizationBackend/EnergyFunctionalStructs.h"
 
 namespace dso
-{	
+{
 	/// <summary>
 	/// 对成员变量activeResiduals中的观测残差进行线性化
 	/// </summary>
@@ -89,7 +89,7 @@ namespace dso
 				else
 				{
 					toRemove[tid].emplace_back(activeResiduals[k]);
-				}     
+				}
 			}
 		}
 	}
@@ -111,7 +111,7 @@ namespace dso
 	/// <summary>
 	/// 设定最新帧的光度阈值为被该帧观测到特征残差序列的光度残差值
 	/// </summary>
-	void FullSystem::setNewFrameEnergyTH() 
+	void FullSystem::setNewFrameEnergyTH()
 	{
 		// collect all residuals and make decision on TH.
 		allResVec.clear();
@@ -453,10 +453,10 @@ namespace dso
 		int numPoints = 0;
 		int numLRes = 0;
 		activeResiduals.clear();
-		
+
 		// 2、系统中将残差分为了两种：被边缘化帧上的特征对应的残差会被固定线性化点，从而计算一个线性化点处的残差；
 		// 第二种是普通残差；边缘化残差用于计算边缘化信息中，而普通残差用于计算基本Hessian信息
-		for (FrameHessian* fh : frameHessians) 
+		for (FrameHessian* fh : frameHessians)
 		{
 			for (PointHessian* ph : fh->pointHessians)
 			{
@@ -584,16 +584,16 @@ namespace dso
 		// 	if(s_new<1/d_min)s_new = 1/d_min;
 		// 	T_WD = Sim3(RxSO3(s_new*s_wd,T_WD_temp.rotationMatrix()),Vec3::Zero());
 
-		printf("INFO: T_WD.scale(): %f\n",T_WD.scale());
-        printf("INFO: frameHessian.back()->bias_a: %f,%f,%f\n",
-               (frameHessians.back()->bias_a + frameHessians.back()->delta_bias_a)[0],
-               (frameHessians.back()->bias_a + frameHessians.back()->delta_bias_a)[1],
-               (frameHessians.back()->bias_a + frameHessians.back()->delta_bias_a)[2]);
-        printf("INFO: frameHessian.back()->bias_g: %f,%f,%f\n",
-               (frameHessians.back()->bias_g + frameHessians.back()->delta_bias_g)[0],
-               (frameHessians.back()->bias_g + frameHessians.back()->delta_bias_g)[1],
-               (frameHessians.back()->bias_g + frameHessians.back()->delta_bias_g)[2]);
-        
+		printf("INFO: T_WD.scale(): %f\n", T_WD.scale());
+		printf("INFO: frameHessian.back()->bias_a: %f,%f,%f\n",
+			(frameHessians.back()->bias_a + frameHessians.back()->delta_bias_a)[0],
+			(frameHessians.back()->bias_a + frameHessians.back()->delta_bias_a)[1],
+			(frameHessians.back()->bias_a + frameHessians.back()->delta_bias_a)[2]);
+		printf("INFO: frameHessian.back()->bias_g: %f,%f,%f\n",
+			(frameHessians.back()->bias_g + frameHessians.back()->delta_bias_g)[0],
+			(frameHessians.back()->bias_g + frameHessians.back()->delta_bias_g)[1],
+			(frameHessians.back()->bias_g + frameHessians.back()->delta_bias_g)[2]);
+
 		EFDeltaValid = false;
 		EFAdjointsValid = false;
 		ef->setAdjointsF(&Hcalib);

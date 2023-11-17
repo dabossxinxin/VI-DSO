@@ -1,4 +1,3 @@
-
 cmake_minimum_required(VERSION 3.18)
 set(PROJECT_NAME DSO)
 project(${PROJECT_NAME})
@@ -68,7 +67,7 @@ include_directories(${PROJECT_SOURCE_DIR}/src)
 include_directories(${PROJECT_SOURCE_DIR}/thirdparty/Sophus)
 include_directories(${PROJECT_SOURCE_DIR}/thirdparty/sse2neon)
 
-add_library(dso SHARED ${dso_SOURCE_FILES} ${opencv_SOURCE_FILES} ${pangolin_SOURCE_FILES})
+add_library(dso ${dso_SOURCE_FILES} ${opencv_SOURCE_FILES} ${pangolin_SOURCE_FILES})
 target_link_libraries(dso pangolin SuiteSparse OpenCV LibZip)
 
 add_executable(dso_dataset ${PROJECT_SOURCE_DIR}/src/main/main_dso.cpp)

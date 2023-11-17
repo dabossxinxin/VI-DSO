@@ -27,7 +27,6 @@
 namespace dso
 {
 	// 成员变量中的G表示global
-
 	int wG[PYR_LEVELS], hG[PYR_LEVELS];
 	float fxG[PYR_LEVELS], fyG[PYR_LEVELS],
 		cxG[PYR_LEVELS], cyG[PYR_LEVELS];

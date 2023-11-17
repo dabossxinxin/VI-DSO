@@ -1,6 +1,6 @@
 /**
 * This file is part of DSO.
-* 
+*
 * Copyright 2016 Technical University of Munich and Intel.
 * Developed by Jakob Engel <engelj at in dot tum dot de>,
 * for more information see <http://vision.in.tum.de/dso>.
@@ -158,14 +158,14 @@ namespace dso
 					Visualization3D_display.Activate(Visualization3D_camera);
 					std::unique_lock<std::mutex> lk3d(model3DMutex);
 					//pangolin::glDrawColouredCube();
-					
+
 					// 绘制滑窗关键帧位姿以及管理的地图点
 					int refreshed = 0;
 					int featuresNum = 0;
 					for (KeyFrameDisplay* fh : keyframes)
 					{
 						float blue[3] = { 0,0,1 };
-						if (this->settings_showKFCameras) 
+						if (this->settings_showKFCameras)
 							fh->drawCam(1, blue, 0.1);
 
 						refreshed += (int)(fh->refreshPC(refreshed < 10, this->settings_scaledVarTH, this->settings_absVarTH,
@@ -194,14 +194,14 @@ namespace dso
 					openImagesMutex.lock();
 					float sd = 0;
 					for (float d : lastNMappingMs) sd += d;
-					settings_mapFps = lastNMappingMs.size()*1000.0f / sd;
+					settings_mapFps = lastNMappingMs.size() * 1000.0f / sd;
 					openImagesMutex.unlock();
 				}
 				{
 					model3DMutex.lock();
 					float sd = 0;
 					for (float d : lastNTrackingMs) sd += d;
-					settings_trackFps = lastNTrackingMs.size()*1000.0f / sd;
+					settings_trackFps = lastNTrackingMs.size() * 1000.0f / sd;
 					model3DMutex.unlock();
 				}
 
@@ -275,7 +275,7 @@ namespace dso
 
 			exit(1);
 		}
-		
+
 		void PangolinDSOViewer::close()
 		{
 			running = false;
@@ -411,7 +411,7 @@ namespace dso
 			}
 		}
 
-		void PangolinDSOViewer::publishGraph(const std::map<uint64_t, Eigen::Vector2i, std::less<uint64_t>, Eigen::aligned_allocator<std::pair<const uint64_t, Eigen::Vector2i>>> &connectivity)
+		void PangolinDSOViewer::publishGraph(const std::map<uint64_t, Eigen::Vector2i, std::less<uint64_t>, Eigen::aligned_allocator<std::pair<const uint64_t, Eigen::Vector2i>>>& connectivity)
 		{
 			if (!setting_render_display3D) return;
 			if (setting_disableAllDisplay) return;
@@ -481,13 +481,13 @@ namespace dso
 			if (setting_disableAllDisplay) return;
 
 			std::unique_lock<std::mutex> lk(model3DMutex);
-#ifdef _WIN_
+#if defined(_WIN_)
 			timedso time_now;
-#elifdef _OSX_
-            timeval time_now;
+#elif defined(_OSX_)
+			timeval time_now;
 #endif
 			gettimeofday(&time_now, NULL);
-			lastNTrackingMs.push_back(((time_now.tv_sec - last_track.tv_sec)*1000.0f + (time_now.tv_usec - last_track.tv_usec) / 1000.0f));
+			lastNTrackingMs.push_back(((time_now.tv_sec - last_track.tv_sec) * 1000.0f + (time_now.tv_usec - last_track.tv_usec) / 1000.0f));
 			if (lastNTrackingMs.size() > 10) lastNTrackingMs.pop_front();
 			last_track = time_now;
 
@@ -534,17 +534,17 @@ namespace dso
 
 			std::unique_lock<std::mutex> lk(openImagesMutex);
 
-#ifdef _WIN_
+#if defined(_WIN_)
 			timedso time_now;
-#elifdef _OSX_
-            timeval time_now;
+#elif defined(_OSX_)
+			timeval time_now;
 #endif
 			gettimeofday(&time_now, NULL);
-			lastNMappingMs.emplace_back(((time_now.tv_sec - last_map.tv_sec)*1000.0f + (time_now.tv_usec - last_map.tv_usec) / 1000.0f));
+			lastNMappingMs.emplace_back(((time_now.tv_sec - last_map.tv_sec) * 1000.0f + (time_now.tv_usec - last_map.tv_usec) / 1000.0f));
 			if (lastNMappingMs.size() > 10) lastNMappingMs.pop_front();
 			last_map = time_now;
 
-			memcpy(internalKFImg->data, image->data, w*h * 3);
+			memcpy(internalKFImg->data, image->data, w * h * 3);
 			kfImgChanged = true;
 		}
 	}

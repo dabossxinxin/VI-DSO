@@ -1,6 +1,6 @@
 /**
 * This file is part of DSO.
-* 
+*
 * Copyright 2016 Technical University of Munich and Intel.
 * Developed by Jakob Engel <engelj at in dot tum dot de>,
 * for more information see <http://vision.in.tum.de/dso>.
@@ -27,16 +27,15 @@
 #include <vector>
 #include "NumType.h"
 
-#ifdef WIN32
+#if defined(_WIN_)
 #include <sys/timeb.h>
-
 struct timedso
 {
 	long	tv_sec;         /* seconds */
 	long    tv_usec;        /* and microseconds */
 };
 
-inline int gettimeofday(timedso *tp, struct timezone *tzp)
+inline int gettimeofday(timedso* tp, struct timezone* tzp)
 {
 	struct timeb timebuffer;
 	ftime(&timebuffer);
@@ -44,7 +43,7 @@ inline int gettimeofday(timedso *tp, struct timezone *tzp)
 	tp->tv_usec = timebuffer.millitm * 1000;
 	return 0;
 }
-#else
+#elif defined(_OSX_)
 #include <sys/time.h>
 #endif
 
@@ -199,7 +198,7 @@ namespace dso
 	extern int staticPattern[10][40][2];
 	extern int staticPatternNum[10];
 	extern int staticPatternPadding[10];
-	
+
 	extern std::string input_gtPath;
 	extern std::string input_imuPath;
 	extern std::string input_vignette;
@@ -244,13 +243,13 @@ namespace dso
 	extern Sim3 T_WD_l;
 	extern Sim3 T_WD_l_half;
 	extern Sim3 T_WD_change;
-	
+
 	extern int index_align;
 	extern SE3 T_WR_align;
 	extern double run_time;
 	extern Vec7 step_twd;
 	extern Vec7 state_twd;
-	
+
 	extern bool setting_useImu;
 	extern bool setting_imuTrackFlag;
 	extern bool setting_imuTrackReady;
@@ -258,7 +257,7 @@ namespace dso
 	extern bool setting_useDynamicMargin;
 	extern double setting_gravityNorm;
 	extern double setting_dynamicMin;
-	
+
 	extern int marg_num;
 	extern int marg_num_half;
 	extern bool first_track_flag;

@@ -1,6 +1,6 @@
 /**
 * This file is part of DSO.
-* 
+*
 * Copyright 2016 Technical University of Munich and Intel.
 * Developed by Jakob Engel <engelj at in dot tum dot de>,
 * for more information see <http://vision.in.tum.de/dso>.
@@ -41,7 +41,7 @@ namespace dso
 	/// <param name="rawPtrVec"></param>
 	/// <returns></returns>
 	template<int b, typename T>
-	T* allocAligned(int size, std::vector<T*> &rawPtrVec)
+	T* allocAligned(int size, std::vector<T*>& rawPtrVec)
 	{
 		const int padT = 1 + ((1 << b) / sizeof(T));
 		T* ptr = new T[size + padT];
@@ -288,7 +288,7 @@ namespace dso
 			{
 				for (int x = 0; x < wl; ++x)
 				{
-					int bidx = 2 * x + 2 * y*wlm1;
+					int bidx = 2 * x + 2 * y * wlm1;
 					idepth_l[x + y * wl] = idepth_lm[bidx] +
 						idepth_lm[bidx + 1] +
 						idepth_lm[bidx + wlm1] +
@@ -316,39 +316,39 @@ namespace dso
 				memcpy(weightSumsl_bak, weightSumsl, w[lvl] * h[lvl] * sizeof(float));
 				float* idepthl = idepth[lvl];	// dont need to make a temp copy of depth, since I only
 												// read values with weightSumsl>0, and write ones with weightSumsl<=0.
-				
+
 				for (int i = w[lvl]; i < wh; ++i)
 				{
 					if (weightSumsl_bak[i] <= 0)
 					{
 						float sum = 0, num = 0, numn = 0;
-						if (weightSumsl_bak[i + 1 + wl] > 0) 
-						{ 
-							sum += idepthl[i + 1 + wl]; 
-							num += weightSumsl_bak[i + 1 + wl]; 
-							numn++; 
+						if (weightSumsl_bak[i + 1 + wl] > 0)
+						{
+							sum += idepthl[i + 1 + wl];
+							num += weightSumsl_bak[i + 1 + wl];
+							numn++;
 						}
-						if (weightSumsl_bak[i - 1 - wl] > 0) 
-						{ 
-							sum += idepthl[i - 1 - wl]; 
-							num += weightSumsl_bak[i - 1 - wl]; 
-							numn++; 
+						if (weightSumsl_bak[i - 1 - wl] > 0)
+						{
+							sum += idepthl[i - 1 - wl];
+							num += weightSumsl_bak[i - 1 - wl];
+							numn++;
 						}
-						if (weightSumsl_bak[i + wl - 1] > 0) 
-						{ 
-							sum += idepthl[i + wl - 1]; 
-							num += weightSumsl_bak[i + wl - 1]; 
-							numn++; 
+						if (weightSumsl_bak[i + wl - 1] > 0)
+						{
+							sum += idepthl[i + wl - 1];
+							num += weightSumsl_bak[i + wl - 1];
+							numn++;
 						}
-						if (weightSumsl_bak[i - wl + 1] > 0) 
-						{ 
-							sum += idepthl[i - wl + 1]; 
-							num += weightSumsl_bak[i - wl + 1]; 
-							numn++; 
+						if (weightSumsl_bak[i - wl + 1] > 0)
+						{
+							sum += idepthl[i - wl + 1];
+							num += weightSumsl_bak[i - wl + 1];
+							numn++;
 						}
-						if (numn > 0) 
-						{ 
-							idepthl[i] = sum / numn; 
+						if (numn > 0)
+						{
+							idepthl[i] = sum / numn;
 							weightSumsl[i] = num / numn;
 						}
 					}
@@ -446,7 +446,7 @@ namespace dso
 
 					weightSumsl[i] = 1;
 				}
-			}	
+			}
 
 			pc_n[lvl] = lpc_n;
 		}
@@ -755,7 +755,7 @@ namespace dso
 	/// [4]：考虑平移和旋转时特征在像素坐标下的移动距离；
 	/// [5]：计算总的光度残差时大于设定阈值的特征比例；
 	/// </returns>
-	Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, AffLight aff_g2l, float cutoffTH)
+	Vec6 CoarseTracker::calcRes(int lvl, const SE3& refToNew, AffLight aff_g2l, float cutoffTH)
 	{
 		float E = 0;
 		int numTermsInE = 0;		// 参与统计光度残差的点的个数
@@ -778,7 +778,7 @@ namespace dso
 		float sumSquaredShiftRT = 0;
 		float sumSquaredShiftNum = 0;
 
-		float maxEnergy = 2 * setting_huberTH*cutoffTH - setting_huberTH * setting_huberTH;	// energy for r=setting_coarseCutoffTH.
+		float maxEnergy = 2 * setting_huberTH * cutoffTH - setting_huberTH * setting_huberTH;	// energy for r=setting_coarseCutoffTH.
 
 		MinimalImageB3* resImage = NULL;
 		if (debugPlot)
@@ -909,7 +909,7 @@ namespace dso
 	/// 设置跟踪的参考帧：将滑窗中的最后一帧关键帧设置为参考帧
 	/// </summary>
 	/// <param name="frameHessians">滑窗中所有关键帧</param>
-	void CoarseTracker::setCTRefForFirstFrame(std::vector<FrameHessian *> frameHessians)
+	void CoarseTracker::setCTRefForFirstFrame(std::vector<FrameHessian*> frameHessians)
 	{
 		assert(frameHessians.size() > 0);
 		lastRef = frameHessians.back();
@@ -950,7 +950,7 @@ namespace dso
 	/// <param name="minResForAbort">每层金字塔设置的光度残差阈值</param>
 	/// <param name="wrap">pangolin显示窗口</param>
 	/// <returns>是否成功跟踪最新帧的标值</returns>
-	bool CoarseTracker::trackNewestCoarse(FrameHessian* newFrameHessian, SE3 &lastToNew_out, AffLight &aff_g2l_out,
+	bool CoarseTracker::trackNewestCoarse(FrameHessian* newFrameHessian, SE3& lastToNew_out, AffLight& aff_g2l_out,
 		int coarsestLvl, Vec5 minResForAbort, IOWrap::Output3DWrapper* wrap)
 	{
 		debugPlot = setting_render_displayCoarseTrackingFull;
@@ -973,7 +973,7 @@ namespace dso
 		IMUPreintegrator IMU_preintegrator;
 		double time_start = pic_time_stamp[lastRef->shell->incomingId];
 		double time_end = pic_time_stamp[newFrame->shell->incomingId];
-		
+
 		// 获取参考帧与最新帧之间的惯导数据并进行预积分
 		int index;
 		for (int it = 0; it < imu_time_stamp.size(); ++it)
@@ -1008,7 +1008,7 @@ namespace dso
 		imuTrackWeight[2] = imuTrackWeight[1] / 1.5;
 		imuTrackWeight[3] = imuTrackWeight[2] / 2;
 		imuTrackWeight[4] = imuTrackWeight[3] / 3;
-		
+
 		// 自顶层向金字塔底层的视觉跟踪
 		for (int lvl = coarsestLvl; lvl >= 0; lvl--)
 		{
@@ -1022,7 +1022,7 @@ namespace dso
 				resOld = calcRes(lvl, refToNew_current, aff_g2l_current, setting_coarseCutoffTH * levelCutoffRepeat);
 
 				if (!setting_debugout_runquiet)
-					printf("INCREASING cutoff to %f (ratio is %f)!\n", setting_coarseCutoffTH*levelCutoffRepeat, resOld[5]);
+					printf("INCREASING cutoff to %f (ratio is %f)!\n", setting_coarseCutoffTH * levelCutoffRepeat, resOld[5]);
 			}
 			calcGSSSE(lvl, H, b, refToNew_current, aff_g2l_current);
 
@@ -1061,7 +1061,7 @@ namespace dso
 				Vec8 inc = Hl.ldlt().solve(-b);
 
 				// 固定光度参数a21以及b21不进行优化
-				if (setting_affineOptModeA < 0 && setting_affineOptModeB < 0) 
+				if (setting_affineOptModeA < 0 && setting_affineOptModeB < 0)
 				{
 					inc.head<6>() = Hl.topLeftCorner<6, 6>().ldlt().solve(-b.head<6>());
 					inc.tail<2>().setZero();
@@ -1070,7 +1070,7 @@ namespace dso
 				if (!(setting_affineOptModeA < 0) && setting_affineOptModeB < 0)	// fix b
 				{
 					inc.head<7>() = Hl.topLeftCorner<7, 7>().ldlt().solve(-b.head<7>());
-					inc.tail<1>().setZero(); 
+					inc.tail<1>().setZero();
 				}
 				// 固定光度参数a21但是参数b21不固定
 				if (setting_affineOptModeA < 0 && !(setting_affineOptModeB < 0))	// fix a
@@ -1155,7 +1155,7 @@ namespace dso
 			// set last residual for that level, as well as flow indicators.
 			lastResiduals[lvl] = sqrtf((float)(resOld[0] / resOld[1]));
 			lastFlowIndicators = resOld.segment<3>(2);
-			if (lastResiduals[lvl] > 1.5*minResForAbort[lvl]) return false;
+			if (lastResiduals[lvl] > 1.5 * minResForAbort[lvl]) return false;
 
 			// 单个特征光度误差阈值放大了，那么这一层金字塔需要再按照流程计算一遍
 			if (levelCutoffRepeat > 1 && !haveRepeated)
@@ -1200,7 +1200,7 @@ namespace dso
 	/// <param name="minID_pt">最小逆深度</param>
 	/// <param name="maxID_pt">最大逆深度</param>
 	/// <param name="wraps">pangolin显示窗口</param>
-	void CoarseTracker::debugPlotIDepthMap(float* minID_pt, float* maxID_pt, std::vector<IOWrap::Output3DWrapper*> &wraps)
+	void CoarseTracker::debugPlotIDepthMap(float* minID_pt, float* maxID_pt, std::vector<IOWrap::Output3DWrapper*>& wraps)
 	{
 		if (w[1] == 0) return;
 		int lvl = 0;
@@ -1222,8 +1222,8 @@ namespace dso
 				return;
 			}
 
-			float minID_new = allID[(int)(n*0.05)];
-			float maxID_new = allID[(int)(n*0.95)];
+			float minID_new = allID[(int)(n * 0.05)];
+			float maxID_new = allID[(int)(n * 0.95)];
 
 			float minID, maxID;
 			minID = minID_new;
@@ -1238,7 +1238,7 @@ namespace dso
 				else
 				{
 					// slowly adapt: change by maximum 10% of old span.
-					float maxChange = 0.3*(*maxID_pt - *minID_pt);
+					float maxChange = 0.3 * (*maxID_pt - *minID_pt);
 
 					if (minID < *minID_pt - maxChange)
 						minID = *minID_pt - maxChange;
@@ -1305,7 +1305,7 @@ namespace dso
 	/// 跟踪调试时输出参考帧逆深度的热力图
 	/// </summary>
 	/// <param name="wraps">pangolin显示窗口</param>
-	void CoarseTracker::debugPlotIDepthMapFloat(std::vector<IOWrap::Output3DWrapper*> &wraps)
+	void CoarseTracker::debugPlotIDepthMapFloat(std::vector<IOWrap::Output3DWrapper*>& wraps)
 	{
 		if (w[1] == 0) return;
 		int lvl = 0;
@@ -1347,7 +1347,7 @@ namespace dso
 		int wh1 = w1 * h1;
 		int numItems = 0;
 
-		memset(fwdWarpedIDDistFinal, 255, sizeof(unsigned char) * wh1); 
+		memset(fwdWarpedIDDistFinal, 255, sizeof(unsigned char) * wh1);
 
 		// 滑窗关键帧中管理的特征都投影到最新关键帧frame中
 		for (FrameHessian* fh : frameHessians)

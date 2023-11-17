@@ -1,6 +1,6 @@
 /**
 * This file is part of DSO.
-* 
+*
 * Copyright 2016 Technical University of Munich and Intel.
 * Developed by Jakob Engel <engelj at in dot tum dot de>,
 * for more information see <http://vision.in.tum.de/dso>.
@@ -59,10 +59,10 @@ namespace dso
 	CoarseInitializer::~CoarseInitializer()
 	{
 		for (int lvl = 0; lvl < pyrLevelsUsed; ++lvl)
-			SAFE_DELETE(points[lvl],true);
+			SAFE_DELETE(points[lvl], true);
 
-		SAFE_DELETE(JbBuffer,true);
-		SAFE_DELETE(JbBuffer_new,true);
+		SAFE_DELETE(JbBuffer, true);
+		SAFE_DELETE(JbBuffer_new, true);
 	}
 
 	/// <summary>
@@ -71,7 +71,7 @@ namespace dso
 	/// <param name="newFrame">最新帧数据</param>
 	/// <param name="wraps">显示模块handle</param>
 	/// <returns></returns>
-	bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IOWrap::Output3DWrapper*> &wraps)
+	bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IOWrap::Output3DWrapper*>& wraps)
 	{
 		newFrame = newFrameHessian;
 
@@ -82,7 +82,7 @@ namespace dso
 		int maxIterations[] = { 5,5,10,30,50 };
 
 		// 设置正则项相关参数
-		alphaK = 2.5*2.5;	//*freeDebugParam1*freeDebugParam1;
+		alphaK = 2.5 * 2.5;	//*freeDebugParam1*freeDebugParam1;
 		alphaW = 150 * 150;	//*freeDebugParam2*freeDebugParam2;
 		regWeight = 0.8;	//*freeDebugParam4;
 		couplingWeight = 1;	//*freeDebugParam5;
@@ -108,7 +108,7 @@ namespace dso
 		Vec3f latestRes = Vec3f::Zero();
 		SE3 refToNew_current = thisToNext;
 		AffLight refToNew_aff_current = thisToNext_aff;
-		
+
 		if (firstFrame->ab_exposure > 0 && newFrame->ab_exposure > 0)
 			refToNew_aff_current = AffLight(logf(newFrame->ab_exposure / firstFrame->ab_exposure), 0);
 
@@ -205,7 +205,7 @@ namespace dso
 				{
 					// 位移比较大的时候，这此初始化比较可信
 					if (resNew[1] == alphaK * numPoints[lvl])
-						snapped = true; 
+						snapped = true;
 
 					H = H_new;
 					b = b_new;
@@ -327,7 +327,7 @@ namespace dso
 		bool stepFrameFlag = !setting_useInitStep;
 		if (setting_useInitStep)
 			stepFrameFlag = frameID > snappedAt + setting_initStepFrames ? true : false;
-			
+
 		return snapped && stepFrameFlag;
 	}
 
@@ -336,7 +336,7 @@ namespace dso
 	/// </summary>
 	/// <param name="lvl">图像金字塔层级</param>
 	/// <param name="wraps">显示线程handle</param>
-	void CoarseInitializer::debugPlotDepth(int lvl, std::vector<IOWrap::Output3DWrapper*> &wraps)
+	void CoarseInitializer::debugPlotDepth(int lvl, std::vector<IOWrap::Output3DWrapper*>& wraps)
 	{
 		bool needCall = false;
 		for (IOWrap::Output3DWrapper* ow : wraps)
@@ -372,7 +372,7 @@ namespace dso
 			if (!point->isGood)
 				iRImg.setPixel9(point->u + 0.5f, point->v + 0.5f, Vec3b(0, 0, 0));
 			else
-				iRImg.setPixel9(point->u + 0.5f, point->v + 0.5f, makeRainbow3B(point->iR*fac));
+				iRImg.setPixel9(point->u + 0.5f, point->v + 0.5f, makeRainbow3B(point->iR * fac));
 		}
 
 		for (IOWrap::Output3DWrapper* ow : wraps)
@@ -391,8 +391,8 @@ namespace dso
 	/// <param name="refToNew_aff">参考帧到关键帧的光度变换</param>
 	/// <param name="plot">是否绘制中间结果</param>
 	/// <returns></returns>
-	Vec3f CoarseInitializer::calcResAndGS(int lvl, Mat88f &H_out, Vec8f &b_out,
-		Mat88f &H_out_sc, Vec8f &b_out_sc, const SE3 &refToNew, AffLight refToNew_aff, bool plot)
+	Vec3f CoarseInitializer::calcResAndGS(int lvl, Mat88f& H_out, Vec8f& b_out,
+		Mat88f& H_out_sc, Vec8f& b_out_sc, const SE3& refToNew, AffLight refToNew_aff, bool plot)
 	{
 		int wl = w[lvl], hl = h[lvl];
 		Eigen::Vector3f* colorRef = firstFrame->dIp[lvl];
@@ -434,7 +434,7 @@ namespace dso
 			VecNRf dp6, dp7;			// 光度参数雅可比
 			VecNRf dd, r;				// 逆深度雅可比和残差
 			JbBuffer_new[itPt].setZero();
-			 
+
 			bool isGood = true;
 			float energy = 0;
 
@@ -553,7 +553,7 @@ namespace dso
 
 		// 添加L2正则项避免优化问题出现过拟合或欠拟合的情况
 		Accumulator11 EAlpha;
-		EAlpha.initialize();  
+		EAlpha.initialize();
 		for (int it = 0; it < npts; ++it)
 		{
 			Pnt* point = ptsl + it;
@@ -572,7 +572,7 @@ namespace dso
 		float alphaEnergy = alphaW * (EAlpha.A + refToNew.translation().squaredNorm() * npts);		// 平移越大初始化效果越好
 
 		// 位移过大时添加的L2正则项
-		if (alphaEnergy > alphaK*npts)
+		if (alphaEnergy > alphaK * npts)
 		{
 			alphaOpt = 0;
 			alphaEnergy = alphaK * npts;
@@ -595,7 +595,7 @@ namespace dso
 
 			JbBuffer_new[it][8] += alphaOpt * (point->idepth_new - 1);
 			JbBuffer_new[it][9] += alphaOpt;
-			
+
 			// 当位移比较大的时候添加的正则项在Jacobian中也需要加上对应偏导
 			if (alphaOpt == 0)
 			{
@@ -661,7 +661,7 @@ namespace dso
 	/// </returns>
 	Vec3f CoarseInitializer::calcEC(int lvl)
 	{
-		if (!snapped) 
+		if (!snapped)
 			return Vec3f(0, 0, numPoints[lvl]);
 
 		AccumulatorX<2> E;
@@ -786,7 +786,7 @@ namespace dso
 			}
 			else
 			{
-				float newiR = (point->iR*point->lastHessian * 2 + parent->iR*parent->lastHessian) / (point->lastHessian * 2 + parent->lastHessian);
+				float newiR = (point->iR * point->lastHessian * 2 + parent->iR * parent->lastHessian) / (point->lastHessian * 2 + parent->lastHessian);
 				point->iR = point->idepth = point->idepth_new = newiR;
 			}
 		}
@@ -809,12 +809,12 @@ namespace dso
 
 			for (int y = 0; y < hl; ++y)
 				for (int x = 0; x < wl; ++x)
-					dINew_l[x + y * wl][0] = 0.25f * (dINew_lm[2 * x + 2 * y*wlm1][0] +
-						dINew_lm[2 * x + 1 + 2 * y*wlm1][0] +
-						dINew_lm[2 * x + 2 * y*wlm1 + wlm1][0] +
-						dINew_lm[2 * x + 1 + 2 * y*wlm1 + wlm1][0]);
+					dINew_l[x + y * wl][0] = 0.25f * (dINew_lm[2 * x + 2 * y * wlm1][0] +
+						dINew_lm[2 * x + 1 + 2 * y * wlm1][0] +
+						dINew_lm[2 * x + 2 * y * wlm1 + wlm1][0] +
+						dINew_lm[2 * x + 1 + 2 * y * wlm1 + wlm1][0]);
 
-			for (int idx = wl; idx < wl*(hl - 1); ++idx)
+			for (int idx = wl; idx < wl * (hl - 1); ++idx)
 			{
 				dINew_l[idx][1] = 0.5f * (dINew_l[idx + 1][0] - dINew_l[idx - 1][0]);
 				dINew_l[idx][2] = 0.5f * (dINew_l[idx + wl][0] - dINew_l[idx - wl][0]);
@@ -844,7 +844,7 @@ namespace dso
 		{
 			int npts = 0;
 			sel.currentPotential = 3;
-			
+
 			// 第零层金字塔按照PixelSelector类去选特征其他层金字塔按照另外的函数makePixelStatus选择特征
 			if (lvl == 0)
 				npts = sel.makeMaps(firstFrame, statusMap, densities[lvl] * w[0] * h[0], 1, true, 2);
@@ -861,13 +861,13 @@ namespace dso
 			Pnt* pl = points[lvl];
 			int wl = w[lvl], hl = h[lvl];
 			int pixelIndex = 0, nl = 0;
-		
+
 			for (int y = patternPadding + 1; y < hl - patternPadding - 2; ++y)
 			{
 				for (int x = patternPadding + 1; x < wl - patternPadding - 2; ++x)
 				{
 					pixelIndex = x + y * wl;
-					if ((lvl != 0 && statusMapB[pixelIndex]) || 
+					if ((lvl != 0 && statusMapB[pixelIndex]) ||
 						(lvl == 0 && statusMap[pixelIndex] != 0))
 					{
 						pl[nl].u = x + 0.1;
@@ -879,11 +879,11 @@ namespace dso
 						pl[nl].lastHessian = 0;
 						pl[nl].lastHessian_new = 0;
 						pl[nl].my_type = (lvl != 0) ? 1 : statusMap[pixelIndex];
-						
+
 						int dx = 0, dy = 0;
 						float sumGrad2 = 0, absgrad = 0;
 						Eigen::Vector3f* cpt = firstFrame->dIp[lvl] + pixelIndex;
-						
+
 						// 计算所选特征点与周围点的梯度值和用于计算特征光度阈值
 						for (int idx = 0; idx < patternNum; idx++)
 						{
@@ -902,8 +902,8 @@ namespace dso
 			numPoints[lvl] = nl;
 		}
 
-		SAFE_DELETE(statusMap,true);
-		SAFE_DELETE(statusMapB,true);
+		SAFE_DELETE(statusMap, true);
+		SAFE_DELETE(statusMapB, true);
 
 		// 构造金字塔中所提取特征的空间拓扑结构
 		makeNN();
@@ -990,8 +990,8 @@ namespace dso
 
 			numPoints[lvl] = nl;
 		}
-		SAFE_DELETE(statusMap,true);
-		SAFE_DELETE(statusMapB,true);
+		SAFE_DELETE(statusMap, true);
+		SAFE_DELETE(statusMapB, true);
 
 		makeNN();
 
@@ -1169,7 +1169,7 @@ namespace dso
 				resultSet.init(ret_index, ret_dist);
 				Vec2f pt = Vec2f(pts[it].u, pts[it].v);
 				indexes[lvl]->findNeighbors(resultSet, (float*)&pt, nanoflann::SearchParams());
-				
+
 				// 同层金字塔中搜索10个最邻近点并计算反距离权重值
 				int idx = 0;
 				float sumDF = 0, df = 0;

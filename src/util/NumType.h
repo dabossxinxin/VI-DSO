@@ -26,8 +26,6 @@
 #include "sophus/sim3.hpp"
 #include "sophus/se3.hpp"
 
-#include <glog/logging.h>
-
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>

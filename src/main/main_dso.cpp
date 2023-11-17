@@ -1,6 +1,6 @@
 /**
 * This file is part of DSO.
-* 
+*
 * Copyright 2016 Technical University of Munich and Intel.
 * Developed by Jakob Engel <engelj at in dot tum dot de>,
 * for more information see <http://vision.in.tum.de/dso>.
@@ -81,8 +81,12 @@ void setArgument(const std::string folder)
 
 int main(int argc, char** argv)
 {
-	//loadArgument(argc, argv); 
-	setArgument("/Users/liuxianxian/Desktop");
+	//loadArgument(argc, argv);
+#if defined(_WIN_)
+    setArgument("E:/TumData");
+#elif defined(_OSX_)
+    setArgument("/Users/liuxianxian/Desktop");
+#endif
 
 	dso::getTstereo();
 	dso::getIMUinfo();
@@ -160,10 +164,10 @@ int main(int argc, char** argv)
 					timesToPlayAtRight.emplace_back(timesToPlayAtRight.back());
 			}
 
-#ifdef _WIN_
+#if defined(_WIN_)
 			timedso tv_start;
-#elifdef _OSX_
-            timeval tv_start;
+#elif defined(_OSX_)
+			timeval tv_start;
 #endif
 			gettimeofday(&tv_start, NULL);
 			double sInitializerOffset = 0;
@@ -242,10 +246,10 @@ int main(int argc, char** argv)
 			}
 
 			fullSystem->blockUntilMappingIsFinished();
-#ifdef _WIN_
+#if defined(_WIN_)
 			timedso tv_end;
-#elifdef _OSX_
-            timeval tv_end;
+#elif defined(_OSX_)
+			timeval tv_end;
 #endif
 			gettimeofday(&tv_end, NULL);
 			fullSystem->printResult("result.txt");

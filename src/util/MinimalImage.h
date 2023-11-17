@@ -1,6 +1,6 @@
 /**
 * This file is part of DSO.
-* 
+*
 * Copyright 2016 Technical University of Munich and Intel.
 * Developed by Jakob Engel <engelj at in dot tum dot de>,
 * for more information see <http://vision.in.tum.de/dso>.
@@ -32,13 +32,13 @@ namespace dso
 	{
 	public:
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-		int w;
+			int w;
 		int h;
 		T* data;
 
 		inline MinimalImage(int w_, int h_) : w(w_), h(h_)
 		{
-			data = new T[w*h];
+			data = new T[w * h];
 			ownData = true;
 		}
 
@@ -57,29 +57,29 @@ namespace dso
 		inline MinimalImage* getClone()
 		{
 			MinimalImage* clone = new MinimalImage(w, h);
-			memcpy(clone->data, data, sizeof(T)*w*h);
+			memcpy(clone->data, data, sizeof(T) * w * h);
 			return clone;
 		}
 
-		inline T& at(int x, int y) { return data[(int)x + ((int)y)*w]; }
+		inline T& at(int x, int y) { return data[(int)x + ((int)y) * w]; }
 		inline T& at(int i) { return data[i]; }
 
 		inline void setBlack()
 		{
-			memset(data, 0, sizeof(T)*w*h);
+			memset(data, 0, sizeof(T) * w * h);
 		}
 
 		inline void setConst(T val)
 		{
-			for (int i = 0; i < w*h; i++) data[i] = val;
+			for (int i = 0; i < w * h; i++) data[i] = val;
 		}
 
-		inline void setPixel1(const float &u, const float &v, T val)
+		inline void setPixel1(const float& u, const float& v, T val)
 		{
 			at(u + 0.5f, v + 0.5f) = val;
 		}
 
-		inline void setPixel4(const float &u, const float &v, T val)
+		inline void setPixel4(const float& u, const float& v, T val)
 		{
 			at(u + 1.0f, v + 1.0f) = val;
 			at(u + 1.0f, v) = val;
@@ -87,7 +87,7 @@ namespace dso
 			at(u, v) = val;
 		}
 
-		inline void setPixel9(const int &u, const int &v, T val)
+		inline void setPixel9(const int& u, const int& v, T val)
 		{
 			at(u + 1, v - 1) = val;
 			at(u + 1, v) = val;
@@ -100,7 +100,7 @@ namespace dso
 			at(u - 1, v + 1) = val;
 		}
 
-		inline void setPixelCirc(const int &u, const int &v, T val)
+		inline void setPixelCirc(const int& u, const int& v, T val)
 		{
 			for (int i = -3; i <= 3; ++i)
 			{
