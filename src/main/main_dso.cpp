@@ -81,8 +81,12 @@ void setArgument(const std::string folder)
 
 int main(int argc, char** argv)
 {
-	//loadArgument(argc, argv); 
-	setArgument("/Users/liuxianxian/Desktop");
+	//loadArgument(argc, argv);
+#if defined(_WIN_)
+    setArgument("E:/TumData");
+#elif defined(_OSX_)
+    setArgument("/Users/liuxianxian/Desktop");
+#endif
 
 	dso::getTstereo();
 	dso::getIMUinfo();

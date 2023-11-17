@@ -14,6 +14,7 @@ ENDIF()
 ## Platform configuration
 IF(WIN32 OR WIN64)
     SET(_WIN_ 1)
+	MESSAGE(STATUS "_WIN_: ${_WIN_}")
 ENDIF()
 
 IF(UNIX)
@@ -22,6 +23,7 @@ ENDIF()
 
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     SET(_OSX_ 1)
+	MESSAGE(STATUS "_OSX_: ${_OSX_}")
 ENDIF()
 
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
