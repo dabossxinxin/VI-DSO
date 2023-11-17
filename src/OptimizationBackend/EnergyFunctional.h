@@ -28,7 +28,6 @@
 
 #include "util/NumType.h"
 #include "util/IndexThreadReduce.h"
-#include "util/threading.h"
 
 #include "FullSystem/Residuals.h"
 #include "FullSystem/HessianBlocks.h"
@@ -40,9 +39,6 @@
 
 namespace dso
 {
-	//class AccumulatedTopHessian;
-	//class AccumulatedSCHessian;
-
 	extern bool EFAdjointsValid;		// 优化函数中参数相对量对绝对量的雅可比是否求解完成
 	extern bool EFIndicesValid;			// 优化函数中滑窗关键帧以及管理特征的序号是否编好
 	extern bool EFDeltaValid;			// 优化函数中滑窗关键帧以及管理特征的增量是否设置好

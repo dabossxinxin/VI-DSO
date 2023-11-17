@@ -24,15 +24,12 @@
 
 #include <stdexcept>
 
-// fix log1p not being found on Android in Eigen
-#if defined( ANDROID )
-#include <cmath>
-namespace std {
-  using ::log1p;
-}
+#ifdef _WIN_
+#include <corecrt_math_defines.h>
+#elifdef _OSX_
+#include <math.h>
 #endif
 
-#include <corecrt_math_defines.h>
 #include <Eigen/Eigen>
 #include <Eigen/Geometry>
 

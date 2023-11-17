@@ -113,10 +113,13 @@ namespace dso
 			int settings_pointCloudMode;
 			float settings_minRelBS;
 			int settings_sparsity;
-
-			// timings
+#ifdef _WIN_
 			timedso last_track;
 			timedso last_map;
+#elifdef _OSX_
+            timeval last_track;
+            timeval last_map;
+#endif
 
 			std::deque<float> lastNTrackingMs;
 			std::deque<float> lastNMappingMs;

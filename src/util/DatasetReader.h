@@ -119,13 +119,14 @@ public:
 			}
 
 			files.clear();
+            std::string nstr, substr;
 			int numEntries = zip_get_num_entries(ziparchive, 0);
 			for (int k = 0; k < numEntries; k++)
 			{
-				const char* name = zip_get_name(ziparchive, k, ZIP_FL_ENC_STRICT);
-				std::string nstr = std::string(name);
-				if (nstr == "." || nstr == "..") continue;
-				files.push_back(name);
+				nstr = std::string(zip_get_name(ziparchive, k, ZIP_FL_ENC_STRICT));
+                substr = nstr.substr(0,8);
+				if (nstr == "." || nstr == ".." || substr == "__MACOSX") continue;
+				files.emplace_back(nstr);
 			}
 
 			files.erase(files.begin());

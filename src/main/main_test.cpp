@@ -1,4 +1,3 @@
-#include "util/threading.h"
 #include "util/IndexThreadReduce.h"
 
 #include <opencv2/opencv.hpp>
@@ -33,35 +32,7 @@ void test_boost_thread_pool()
 	printf("single thread time %d, result %d\n", te_single_thread - ts_single_thread, result);
 }
 
-/// <summary>
-/// 测试所实现的线程池的加速效果
-/// </summary>
-/// <param name=""></param>
-void test_std_thread_pool(void)
-{
-	int NUM_TASKS = 100;
-	dso::ThreadPool threadPool(NUM_THREADS);
-	std::vector<std::future<void>> futures;
-	futures.resize(NUM_TASKS);
-
-	clock_t ts_multi_thread = clock();
-	for (int it = 0; it < NUM_TASKS; ++it)
-		futures[it] = threadPool.AddTask(
-			[]() {std::this_thread::sleep_for(std::chrono::milliseconds(10)); });
-	
-	threadPool.Wait();
-	clock_t te_multi_thread = clock();
-
-	clock_t ts_single_thread = clock();
-	for (int it = 0; it < NUM_TASKS; ++it)
-		std::this_thread::sleep_for(std::chrono::milliseconds(10));
-	clock_t te_single_thread = clock();
-
-	printf("multi thread time %dms\n", te_multi_thread - ts_multi_thread);
-	printf("single thread time %dms\n", te_single_thread - ts_single_thread);
-}
-
-int main(int argc, char* argv)
+int main(int argc, char** argv)
 {
 	std::cout << std::atan2(1.0000, 0.0000) / M_PI * 180 << std::endl;
 	std::cout << std::atan2(0.9239, 0.3827) / M_PI * 180 << std::endl;

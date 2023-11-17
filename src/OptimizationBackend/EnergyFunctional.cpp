@@ -617,12 +617,16 @@ namespace dso
 			p->data->step = -b * p->HdiF;
 			if (!std::isfinite(p->data->step))
 			{
-				LOG(INFO) << "b: " << b;
-				LOG(INFO) << "p->HdiF: " << p->HdiF;
-				LOG(INFO) << "p->bdSumF: " << p->bdSumF;
-				LOG(INFO) << "xc: " << xc.transpose();
-				LOG(INFO) << "p->Hcd_accAF: " << p->Hcd_accAF.transpose() << " p->Hcd_accLF: " << p->Hcd_accLF.transpose();
-				LOG(INFO) << "ngoodres: " << ngoodres;
+                printf("INFO: b: %f\n", b);
+                printf("INFO: p->HdiF: %f\n", p->HdiF);
+                printf("INFO: p->bdSumF: %f\n", p->bdSumF);
+                printf("INFO: ngoodres: %d\n", ngoodres);
+
+                printf("INFO: xc: %f,%f,%f,%f\n", xc[0],xc[1],xc[2],xc[3]);
+                printf("INFO: p->Hcd_accAF: %f,%f,%f,%f\n", p->Hcd_accAF[0],
+                       p->Hcd_accAF[1],p->Hcd_accAF[2],p->Hcd_accAF[3]);
+                printf("INFO: p->Hcd_accLF: %f,%f,%f,%f\n", p->Hcd_accLF[0],
+                       p->Hcd_accLF[1],p->Hcd_accLF[2],p->Hcd_accLF[3]);
 			}
 			assert(std::isfinite(p->data->step));
 		}
@@ -1107,8 +1111,9 @@ namespace dso
 		if (di > d_now) d_now = di;
 		if (d_now > setting_dynamicMin) d_now = setting_dynamicMin;
 
-		LOG(INFO) << "s_now: " << s_now << " s_middle: " << s_middle << " d_now: " << d_now << " scale_l: " << T_WD_l.scale();
-		
+		printf("INFO: s_now: %f, s_middle: %f\n",s_now,s_middle);
+        printf("INFO: d_now: %f, scale_l: %f\n",d_now, T_WD_l.scale());
+
 		if (di > d_half) d_half = di;
 		if (d_half > setting_dynamicMin) d_half = setting_dynamicMin;
 		bool side = s_now > s_middle;
@@ -1831,11 +1836,7 @@ namespace dso
 
 				if (!std::isfinite(x_visual[0]))
 				{
-					LOG(INFO) << "H_imu: " << H_imu;
-					LOG(INFO) << "H_visual: " << HFinal_visual;
-					LOG(INFO) << "b_imu: " << b_imu;
-					LOG(INFO) << "bFinal_visual: " << bFinal_visual;
-					LOG(INFO) << "x_visualAndImu: " << x_visualAndImu;
+                    printf("ERROR: catch a error in build hessian!\n");
 				}
 			}
 		}

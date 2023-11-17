@@ -491,8 +491,8 @@ namespace dso
 			GyrRandomWalkNoise = Mat33::Identity() * noise(2) * noise(2);
 			AccRandomWalkNoise = Mat33::Identity() * noise(3) * noise(3);
 
-			LOG(INFO) << "T_BC: \n" << T_BC.matrix();
-			LOG(INFO) << "noise: " << noise.transpose();
+            std::cout << "INFO: T_BC: " << std::endl << T_BC.matrix() << std::endl;
+            std::cout << "INFO: Noise: " << std::endl << noise.transpose() << std::endl;
 			inf.close();
 		}
 		else

@@ -1,23 +1,28 @@
+
+cmake_minimum_required(VERSION 3.18)
 set(PROJECT_NAME DSO)
 project(${PROJECT_NAME})
-cmake_minimum_required(VERSION 3.14)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /bigobj")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
-
+set(CMAKE_CXX_STANDARD 17)
 set(EXECUTABLE_OUTPUT_PATH bin)
 set(LIBRARY_OUTPUT_PATH lib)
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
-include(FindSuiteParse)
-include(FindEigen3)
-include(FindLibZip)
-include(FindGlog)
-#include(FindBoost)
-include(FindOpenCV)
-include(FindPangolin)
+include(SetPlatformVarsInternal)
+include(FindSuiteParseInternal)
+include(FindEigen3Internal)
+include(FindLibZipInternal)
+include(FindOpenCVInternal)
+include(FindPangolinInternal)
 
-add_definitions("-DWIN32")
+if(_WIN_)
+    add_definitions("-D_WIN_")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /bigobj")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
+elseif(_OSX_)
+    add_definitions("-D_OSX_")
+endif()
+
 add_definitions("-D__SSE2__")
 add_definitions("-DNOMINMAX")
 add_definitions("-DENABLE_SSE")
@@ -45,7 +50,6 @@ set(dso_SOURCE_FILES
   ${PROJECT_SOURCE_DIR}/src/util/settings.cpp
   ${PROJECT_SOURCE_DIR}/src/util/Undistort.cpp
   ${PROJECT_SOURCE_DIR}/src/util/globalCalib.cpp
-  ${PROJECT_SOURCE_DIR}/src/util/threading.cpp
   ${PROJECT_SOURCE_DIR}/src/util/systemInput.cpp
 )
 
@@ -64,9 +68,8 @@ include_directories(${PROJECT_SOURCE_DIR}/src)
 include_directories(${PROJECT_SOURCE_DIR}/thirdparty/Sophus)
 include_directories(${PROJECT_SOURCE_DIR}/thirdparty/sse2neon)
 
-add_library(dso ${dso_SOURCE_FILES} ${opencv_SOURCE_FILES} ${pangolin_SOURCE_FILES})
-target_link_libraries(dso Google::glog Pangolin::pangolin SuiteSparse OpenCV LibZip)
-#target_link_libraries(dso Boost::system Boost::thread Boost::date_time Boost::chrono)
+add_library(dso SHARED ${dso_SOURCE_FILES} ${opencv_SOURCE_FILES} ${pangolin_SOURCE_FILES})
+target_link_libraries(dso pangolin SuiteSparse OpenCV LibZip)
 
 add_executable(dso_dataset ${PROJECT_SOURCE_DIR}/src/main/main_dso.cpp)
 target_link_libraries(dso_dataset dso)

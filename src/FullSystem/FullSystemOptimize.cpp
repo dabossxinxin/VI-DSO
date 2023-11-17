@@ -584,10 +584,16 @@ namespace dso
 		// 	if(s_new<1/d_min)s_new = 1/d_min;
 		// 	T_WD = Sim3(RxSO3(s_new*s_wd,T_WD_temp.rotationMatrix()),Vec3::Zero());
 
-		LOG(INFO) << "T_WD.scale(): " << T_WD.scale();
-		LOG(INFO) << "frameHessians.back()->bias_a: " << (frameHessians.back()->bias_a + frameHessians.back()->delta_bias_a).transpose();
-		LOG(INFO) << "frameHessians.back()->bias_g: " << (frameHessians.back()->bias_g + frameHessians.back()->delta_bias_g).transpose();
-		
+		printf("INFO: T_WD.scale(): %f\n",T_WD.scale());
+        printf("INFO: frameHessian.back()->bias_a: %f,%f,%f\n",
+               (frameHessians.back()->bias_a + frameHessians.back()->delta_bias_a)[0],
+               (frameHessians.back()->bias_a + frameHessians.back()->delta_bias_a)[1],
+               (frameHessians.back()->bias_a + frameHessians.back()->delta_bias_a)[2]);
+        printf("INFO: frameHessian.back()->bias_g: %f,%f,%f\n",
+               (frameHessians.back()->bias_g + frameHessians.back()->delta_bias_g)[0],
+               (frameHessians.back()->bias_g + frameHessians.back()->delta_bias_g)[1],
+               (frameHessians.back()->bias_g + frameHessians.back()->delta_bias_g)[2]);
+        
 		EFDeltaValid = false;
 		EFAdjointsValid = false;
 		ef->setAdjointsF(&Hcalib);

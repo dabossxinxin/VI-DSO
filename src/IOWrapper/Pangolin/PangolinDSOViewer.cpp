@@ -481,7 +481,11 @@ namespace dso
 			if (setting_disableAllDisplay) return;
 
 			std::unique_lock<std::mutex> lk(model3DMutex);
+#ifdef _WIN_
 			timedso time_now;
+#elifdef _OSX_
+            timeval time_now;
+#endif
 			gettimeofday(&time_now, NULL);
 			lastNTrackingMs.push_back(((time_now.tv_sec - last_track.tv_sec)*1000.0f + (time_now.tv_usec - last_track.tv_usec) / 1000.0f));
 			if (lastNTrackingMs.size() > 10) lastNTrackingMs.pop_front();
@@ -530,7 +534,11 @@ namespace dso
 
 			std::unique_lock<std::mutex> lk(openImagesMutex);
 
+#ifdef _WIN_
 			timedso time_now;
+#elifdef _OSX_
+            timeval time_now;
+#endif
 			gettimeofday(&time_now, NULL);
 			lastNMappingMs.emplace_back(((time_now.tv_sec - last_map.tv_sec)*1000.0f + (time_now.tv_usec - last_map.tv_usec) / 1000.0f));
 			if (lastNMappingMs.size() > 10) lastNMappingMs.pop_front();

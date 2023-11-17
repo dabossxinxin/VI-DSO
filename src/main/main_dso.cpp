@@ -82,7 +82,7 @@ void setArgument(const std::string folder)
 int main(int argc, char** argv)
 {
 	//loadArgument(argc, argv); 
-	setArgument("E:/TumData");
+	setArgument("/Users/liuxianxian/Desktop");
 
 	dso::getTstereo();
 	dso::getIMUinfo();
@@ -160,7 +160,11 @@ int main(int argc, char** argv)
 					timesToPlayAtRight.emplace_back(timesToPlayAtRight.back());
 			}
 
+#ifdef _WIN_
 			timedso tv_start;
+#elifdef _OSX_
+            timeval tv_start;
+#endif
 			gettimeofday(&tv_start, NULL);
 			double sInitializerOffset = 0;
 
@@ -238,7 +242,11 @@ int main(int argc, char** argv)
 			}
 
 			fullSystem->blockUntilMappingIsFinished();
+#ifdef _WIN_
 			timedso tv_end;
+#elifdef _OSX_
+            timeval tv_end;
+#endif
 			gettimeofday(&tv_end, NULL);
 			fullSystem->printResult("result.txt");
 
