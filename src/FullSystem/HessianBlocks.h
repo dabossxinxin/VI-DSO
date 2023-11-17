@@ -1,6 +1,6 @@
 /**
 * This file is part of DSO.
-* 
+*
 * Copyright 2016 Technical University of Munich and Intel.
 * Developed by Jakob Engel <engelj at in dot tum dot de>,
 * for more information see <http://vision.in.tum.de/dso>.
@@ -37,7 +37,7 @@
 
 namespace dso
 {
-	inline Vec2 affFromTo(const Vec2 &from, const Vec2 &to)	// contains affine parameters as XtoWorld.
+	inline Vec2 affFromTo(const Vec2& from, const Vec2& to)	// contains affine parameters as XtoWorld.
 	{
 		return Vec2(from[0] / to[0], (from[1] - to[1]) / to[0]);
 	}
@@ -169,7 +169,7 @@ namespace dso
 		inline Vec6 w2c_leftEps() const { return get_state_scaled().head<6>(); }
 		inline AffLight aff_g2l() const { return AffLight(get_state_scaled()[6], get_state_scaled()[7]); }
 		inline AffLight aff_g2l_0() const { return AffLight(get_state_zero()[6] * SCALE_A, get_state_zero()[7] * SCALE_B); }
-		void setStateZero(const Vec10 &state_zero);
+		void setStateZero(const Vec10& state_zero);
 
 		inline void setState(const Vec10& state)
 		{
@@ -186,7 +186,7 @@ namespace dso
 			//setCurrentNullspace();
 		};
 
-		inline void setStateScaled(const Vec10 &state_scaled)
+		inline void setStateScaled(const Vec10& state_scaled)
 		{
 			this->state_scaled = state_scaled;
 			state.segment<3>(0) = SCALE_XI_TRANS_INVERSE * state_scaled.segment<3>(0);
@@ -201,14 +201,14 @@ namespace dso
 			//setCurrentNullspace();
 		};
 
-		inline void setEvalPT(const SE3 &worldToCam_evalPT, const Vec10 &state)
+		inline void setEvalPT(const SE3& worldToCam_evalPT, const Vec10& state)
 		{
 			this->worldToCam_evalPT = worldToCam_evalPT;
 			setState(state);
 			setStateZero(state);
 		};
 
-		inline void setEvalPT_scaled(const SE3 &worldToCam_evalPT, const AffLight &aff_g2l)
+		inline void setEvalPT_scaled(const SE3& worldToCam_evalPT, const AffLight& aff_g2l)
 		{
 			Vec10 initial_state = Vec10::Zero();
 			initial_state[6] = aff_g2l.a;
@@ -330,7 +330,7 @@ namespace dso
 		inline float& cxli() { return value_scaledi[2]; }
 		inline float& cyli() { return value_scaledi[3]; }
 
-		inline void setValue(const VecC &value)
+		inline void setValue(const VecC& value)
 		{
 			// [0-3: Kl, 4-7: Kr, 8-12: l2r]
 			this->value = value;
@@ -347,7 +347,7 @@ namespace dso
 			this->value_minus_value_zero = this->value - this->value_zero;
 		};
 
-		inline void setValueScaled(const VecC &value_scaled)
+		inline void setValueScaled(const VecC& value_scaled)
 		{
 			this->value_scaled = value_scaled;
 			this->value_scaledf = this->value_scaled.cast<float>();
@@ -394,7 +394,7 @@ namespace dso
 		float weights[MAX_RES_PER_POINT];		// host-weights for respective residuals.
 
 		float u, v;					// 特征在host帧中的像素坐标
-		int idx;		
+		int idx;
 		float energyTH;
 		FrameHessian* host;			// 当前特征对应的主帧
 		bool hasDepthPrior;
@@ -403,12 +403,12 @@ namespace dso
 
 		float idepth_scaled;
 		float idepth_zero_scaled;
-		float idepth_zero;			
+		float idepth_zero;
 		float idepth;				// 特征最新一次迭代得到的逆深度
 		float idepth_backup;		// 特征上一次迭代得到的更新量
 		float step;					// 特征逆深度最新一次迭代更新量
 		float step_backup;			// 特征逆深度上一次迭代更新量
-			
+
 		float nullspaces_scale;		// 该特征的尺度信息零空间
 		float idepth_hessian;		// 当前特征观测残差构造的特征逆深度Hessian
 		float maxRelBaseline;		// 系统中观测到该特征的最大基线

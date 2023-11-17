@@ -1,6 +1,6 @@
 /**
 * This file is part of DSO.
-* 
+*
 * Copyright 2016 Technical University of Munich and Intel.
 * Developed by Jakob Engel <engelj at in dot tum dot de>,
 * for more information see <http://vision.in.tum.de/dso>.
@@ -129,7 +129,7 @@ namespace dso
 						rowInImg = rowInRoi + 32 * y;
 						if (colInImg > w - 2 || rowInImg > h - 2 ||
 							colInImg < 1 || rowInImg < 1) continue;
-						
+
 						gradient = std::sqrtf(map0[colInRoi + rowInRoi * w]);
 						if (gradient > 48) gradient = 48;
 						hist0[gradient + 1]++;
@@ -149,7 +149,7 @@ namespace dso
 			{
 				float sum = 0;
 				float num = 0;
-				
+
 				if (x > 0)
 				{
 					if (y > 0) { num++; sum += ths[x - 1 + (y - 1) * w32]; }
@@ -275,7 +275,7 @@ namespace dso
 				img.at(it) = Vec3b(color, color, color);
 			}
 			IOWrap::displayImage("Selector Image", &img);
-			
+
 #ifdef SAVE_INITIALIZER_DATA
 			cv::Mat selImage = cv::Mat(img.h, img.w, CV_8UC3, img.data);
 			std::string path0 = "./SelectorImage_lvl[0].png";
@@ -304,7 +304,7 @@ namespace dso
 					{
 						img.setPixelCirc(x, y, Vec3b(0, 0, 255));
 						featureNum++;
-					}   
+					}
 				}
 			}
 			IOWrap::displayImage("Selector Pixels", &img);
@@ -341,7 +341,7 @@ namespace dso
 		int w1 = wG[1];
 		int w2 = wG[2];
 		int h = hG[0];
-		
+
 		// 0~PI等分为16等份，每份角度间隔为11.5度
 		const Vec2f directions[16] = {
 				 Vec2f(0,		  1.0000),
@@ -412,9 +412,9 @@ namespace dso
 
 							if (dirNorm > bestVal2)
 							{
-								bestVal2 = dirNorm; 
-								bestIdx2 = idx; 
-								bestIdx3 = -2; 
+								bestVal2 = dirNorm;
+								bestIdx2 = idx;
+								bestIdx3 = -2;
 								bestIdx4 = -2;
 							}
 						}
@@ -429,8 +429,8 @@ namespace dso
 
 							if (dirNorm > bestVal3)
 							{
-								bestVal3 = dirNorm; 
-								bestIdx3 = idx; 
+								bestVal3 = dirNorm;
+								bestIdx3 = idx;
 								bestIdx4 = -2;
 							}
 						}
@@ -445,7 +445,7 @@ namespace dso
 
 							if (dirNorm > bestVal4)
 							{
-								bestVal4 = dirNorm; 
+								bestVal4 = dirNorm;
 								bestIdx4 = idx;
 							}
 						}

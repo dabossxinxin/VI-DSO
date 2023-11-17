@@ -1,6 +1,6 @@
 /**
 * This file is part of DSO.
-* 
+*
 * Copyright 2016 Technical University of Munich and Intel.
 * Developed by Jakob Engel <engelj at in dot tum dot de>,
 * for more information see <http://vision.in.tum.de/dso>.
@@ -310,7 +310,7 @@ namespace dso
 			coarseTracker->setCTRefForFirstFrame(frameHessians);
 			lastF = coarseTracker->lastRef;
 		}
-		else if (allFrameHistory.size() == 2) 
+		else if (allFrameHistory.size() == 2)
 		{
 			for (unsigned int it = 0; it < lastF_2_fh_tries.size(); ++it)
 				lastF_2_fh_tries.emplace_back(SE3());
@@ -332,7 +332,7 @@ namespace dso
 
 			lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * lastF_2_slast);						// 匀速模型
 			lastF_2_fh_tries.emplace_back(fh_2_slast.inverse() * fh_2_slast.inverse() * lastF_2_slast);	// 倍速模型
-			lastF_2_fh_tries.emplace_back(SE3::exp(fh_2_slast.log()*0.5).inverse() * lastF_2_slast);	// 半速模型
+			lastF_2_fh_tries.emplace_back(SE3::exp(fh_2_slast.log() * 0.5).inverse() * lastF_2_slast);	// 半速模型
 			lastF_2_fh_tries.emplace_back(lastF_2_slast);												// 零速模型
 			lastF_2_fh_tries.emplace_back(SE3());														// 静止模型
 
@@ -468,7 +468,7 @@ namespace dso
 		fh->shell->trackingRef = lastF->shell;
 		fh->shell->aff_g2l = aff_g2l;
 		fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef;
-		
+
 		Vec6f state = fh->shell->camToWorld.log().cast<float>();
 		printf("CoarseTrack RESULT POSE[%f, %f, %f, %f, %f, %f]; IMAGE ID: %d\n",
 			state[0], state[1], state[2], state[3], state[4], state[5], newFrameID);
@@ -538,7 +538,7 @@ namespace dso
 	}
 
 	// process nonkey frame to refine key frame idepth
-	void FullSystem::traceNewCoarseNonKey(FrameHessian *fh, FrameHessian *fhRight)
+	void FullSystem::traceNewCoarseNonKey(FrameHessian* fh, FrameHessian* fhRight)
 	{
 		std::unique_lock<std::mutex> lock(mapMutex);
 
@@ -552,7 +552,7 @@ namespace dso
 		K(1, 2) = Hcalib.cyl();
 		Mat33f Ki = K.inverse();
 
-		for (FrameHessian *host : frameHessians)
+		for (FrameHessian* host : frameHessians)
 		{
 			int trace_total = 0;
 			int	trace_good = 0;
@@ -570,13 +570,13 @@ namespace dso
 
 			Vec2f aff = AffLight::fromToVecExposure(host->ab_exposure, fh->ab_exposure, host->aff_g2l(), fh->aff_g2l()).cast<float>();
 
-			for (ImmaturePoint *ph : host->immaturePoints)
+			for (ImmaturePoint* ph : host->immaturePoints)
 			{
 				// do temperol stereo match
 				auto phTrackStatus = ph->traceOn(fh, KRKi, Kt, aff, &Hcalib, false);
 				if (phTrackStatus == ImmaturePointStatus::IPS_GOOD)
 				{
-					ImmaturePoint *phNonKey = new ImmaturePoint(ph->lastTraceUV(0), ph->lastTraceUV(1), fh, &Hcalib);
+					ImmaturePoint* phNonKey = new ImmaturePoint(ph->lastTraceUV(0), ph->lastTraceUV(1), fh, &Hcalib);
 
 					Vec3f ptpMin = KRKi * (Vec3f(ph->u, ph->v, 1) / ph->idepth_min) + Kt;
 					float idepth_min_project = 1.0f / ptpMin[2];
@@ -719,20 +719,20 @@ namespace dso
 	/// </summary>
 	void FullSystem::activatePointsMT()
 	{
-		if (ef->nPoints < setting_desiredPointDensity*0.66)
+		if (ef->nPoints < setting_desiredPointDensity * 0.66)
 			currentMinActDist -= 0.8;
-		if (ef->nPoints < setting_desiredPointDensity*0.8)
+		if (ef->nPoints < setting_desiredPointDensity * 0.8)
 			currentMinActDist -= 0.5;
-		else if (ef->nPoints < setting_desiredPointDensity*0.9)
+		else if (ef->nPoints < setting_desiredPointDensity * 0.9)
 			currentMinActDist -= 0.2;
 		else if (ef->nPoints < setting_desiredPointDensity)
 			currentMinActDist -= 0.1;
 
-		if (ef->nPoints > setting_desiredPointDensity*1.5)
+		if (ef->nPoints > setting_desiredPointDensity * 1.5)
 			currentMinActDist += 0.8;
-		if (ef->nPoints > setting_desiredPointDensity*1.3)
+		if (ef->nPoints > setting_desiredPointDensity * 1.3)
 			currentMinActDist += 0.5;
-		if (ef->nPoints > setting_desiredPointDensity*1.15)
+		if (ef->nPoints > setting_desiredPointDensity * 1.15)
 			currentMinActDist += 0.2;
 		if (ef->nPoints > setting_desiredPointDensity)
 			currentMinActDist += 0.1;
@@ -749,7 +749,7 @@ namespace dso
 		// 1、以滑窗中的最新帧构造距离地图，便于均匀选取未激活点进行优化激活操作
 		coarseDistanceMap->makeK(&Hcalib);
 		coarseDistanceMap->makeDistanceMap(frameHessians, newestHs);
-		
+
 #ifdef XINXIN_DEBUG
 		// 绘制距离地图，查看距离地图状态
 		coarseDistanceMap->debugPlotDistanceMap();
@@ -757,7 +757,7 @@ namespace dso
 		cv::Mat disMap = cv::Mat(distMapData->h, distMapData->w, CV_8UC1, distMapData->data);
 #endif
 
-		std::vector<ImmaturePoint*> toOptimize; 
+		std::vector<ImmaturePoint*> toOptimize;
 		toOptimize.reserve(20000);
 
 		// 2、遍历滑窗中所有关键帧，选择能被激活的特征加入toOptimized中准备进行优化激活
@@ -799,7 +799,7 @@ namespace dso
 					continue;
 				}
 
-				Vec3f ptp = KRKi * Vec3f(ph->u, ph->v, 1) + Kt * (0.5f*(ph->idepth_max + ph->idepth_min));
+				Vec3f ptp = KRKi * Vec3f(ph->u, ph->v, 1) + Kt * (0.5f * (ph->idepth_max + ph->idepth_min));
 				int u = ptp[0] / ptp[2] + 0.5f;
 				int v = ptp[1] / ptp[2] + 0.5f;
 
@@ -820,12 +820,12 @@ namespace dso
 					SAFE_DELETE(ph);
 					host->immaturePoints[it] = NULL;
 				}
-					
+
 			}
 		}
 
 		// 3、特征根据多帧观测以及观测的光度残差进行优化，并将优化结果写入滑窗关键帧中
-		std::vector<PointHessian*> optimized; 
+		std::vector<PointHessian*> optimized;
 		optimized.resize(toOptimize.size());
 
 		if (setting_multiThreading)
@@ -1048,13 +1048,13 @@ namespace dso
 				}
 
 				PointHessian* ph = new PointHessian(pt, &Hcalib);
-				if (pt != NULL) 
-				{ 
+				if (pt != NULL)
+				{
 					SAFE_DELETE(pt);
-					pt = NULL; 
+					pt = NULL;
 				}
-				if (!std::isfinite(ph->energyTH)) 
-				{ 
+				if (!std::isfinite(ph->energyTH))
+				{
 					SAFE_DELETE(ph);
 					continue;
 				}
@@ -1086,8 +1086,8 @@ namespace dso
 				ImmaturePoint* pt = new ImmaturePoint(point->u + 0.5f, point->v + 0.5f,
 					coarseInitializer->firstFrame, point->my_type, &Hcalib);
 
-				if (!std::isfinite(pt->energyTH)) 
-				{ 
+				if (!std::isfinite(pt->energyTH))
+				{
 					SAFE_DELETE(pt);
 					continue;
 				}
@@ -1096,12 +1096,12 @@ namespace dso
 				PointHessian* ph = new PointHessian(pt, &Hcalib);
 				SAFE_DELETE(pt);
 
-				if (!std::isfinite(ph->energyTH)) 
-				{ 
+				if (!std::isfinite(ph->energyTH))
+				{
 					SAFE_DELETE(ph);
 					continue;
 				}
-				 
+
 				// 设置特征的逆深度为初始化器中计算得到的逆深度
 				ph->setIdepthScaled(point->iR * rescaleFactor);
 				ph->setIdepthZero(ph->idepth);
@@ -1357,7 +1357,7 @@ namespace dso
 			<< T(2, 0) << " " << T(2, 1) << " " << T(2, 2) << " " << T(2, 3) << std::endl;
 		fs.close();
 	}
-	
+
 	void FullSystem::savetrajectoryTum(const SE3& T, const double time)
 	{
 		std::ofstream fs;
@@ -1560,7 +1560,7 @@ namespace dso
 	/// <param name="fh">最新跟踪的帧</param>
 	/// <param name="fhRight">最新跟踪的帧的右目帧</param>
 	void FullSystem::makeKeyFrame(FrameHessian* fh, FrameHessian* fhRight)
-	{	
+	{
 		// 1、设置最新帧的位姿以及光度参数，并在最新帧中跟踪滑窗关键帧管理的未成熟点，提升其精度
 		{
 			std::unique_lock<std::mutex> crlock(shellPoseMutex);
@@ -1844,7 +1844,7 @@ namespace dso
 			variancesLog->flush();
 		}
 
-		std::vector<VecX> &nsp = ef->lastNullspaces_forLogging;
+		std::vector<VecX>& nsp = ef->lastNullspaces_forLogging;
 		(*nullspacesLog) << allKeyFramesHistory.back()->id << " ";
 		for (unsigned int i = 0; i < nsp.size(); i++)
 			(*nullspacesLog) << nsp[i].dot(ef->lastHS * nsp[i]) << " " << nsp[i].dot(ef->lastbS) << " ";

@@ -1,6 +1,6 @@
 /**
 * This file is part of DSO.
-* 
+*
 * Copyright 2016 Technical University of Munich and Intel.
 * Developed by Jakob Engel <engelj at in dot tum dot de>,
 * for more information see <http://vision.in.tum.de/dso>.
@@ -411,8 +411,8 @@ namespace dso
 		SAFE_DELETE(accSSE_bot);
 
 		// 释放参数相对量对绝对量的雅可比
-		SAFE_DELETE(adHost,true);
-		SAFE_DELETE(adTarget,true);
+		SAFE_DELETE(adHost, true);
+		SAFE_DELETE(adTarget, true);
 		SAFE_DELETE(adHostF, true);
 		SAFE_DELETE(adTargetF, true);
 
@@ -461,7 +461,7 @@ namespace dso
 	/// <param name="H">输出Hessian</param>
 	/// <param name="b">输出b</param>
 	/// <param name="MT">是否多线程操作</param>
-	void EnergyFunctional::accumulateAF_MT(MatXX &H, VecX &b, bool MT)
+	void EnergyFunctional::accumulateAF_MT(MatXX& H, VecX& b, bool MT)
 	{
 		if (MT)
 		{
@@ -489,11 +489,11 @@ namespace dso
 	/// <param name="H">输出Hessian</param>
 	/// <param name="b">输出b</param>
 	/// <param name="MT">是否多线程操作</param>
-	void EnergyFunctional::accumulateLF_MT(MatXX &H, VecX &b, bool MT)
+	void EnergyFunctional::accumulateLF_MT(MatXX& H, VecX& b, bool MT)
 	{
 		if (MT)
 		{
-			red->reduce(std::bind(&AccumulatedTopHessianSSE::setZero, accSSE_top_L, nFrames, 
+			red->reduce(std::bind(&AccumulatedTopHessianSSE::setZero, accSSE_top_L, nFrames,
 				std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, 0, 0);
 			red->reduce(std::bind(&AccumulatedTopHessianSSE::addPointsInternal<1>, accSSE_top_L, &allPoints, this,
 				std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, allPoints.size(), 50);
@@ -517,19 +517,19 @@ namespace dso
 	/// <param name="H">舒尔补Hessian</param>
 	/// <param name="b">舒尔补b</param>
 	/// <param name="MT">是否多线程操作</param>
-	void EnergyFunctional::accumulateSCF_MT(MatXX &H, VecX &b, bool MT)
+	void EnergyFunctional::accumulateSCF_MT(MatXX& H, VecX& b, bool MT)
 	{
 		if (MT)
 		{
-			red->reduce(std::bind(&AccumulatedSCHessianSSE::setZero, accSSE_bot, nFrames, 
+			red->reduce(std::bind(&AccumulatedSCHessianSSE::setZero, accSSE_bot, nFrames,
 				std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, 0, 0);
-			red->reduce(std::bind(&AccumulatedSCHessianSSE::addPointsInternal, accSSE_bot, &allPoints, true, 
+			red->reduce(std::bind(&AccumulatedSCHessianSSE::addPointsInternal, accSSE_bot, &allPoints, true,
 				std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, allPoints.size(), 50);
 			accSSE_bot->stitchDoubleMT(red, H, b, this, true);
 		}
 		else
 		{
-			accSSE_bot->setZero(nFrames); 
+			accSSE_bot->setZero(nFrames);
 			for (EFFrame* f : frames)
 				for (EFPoint* p : f->points)
 					accSSE_bot->addPoint(p, true);
@@ -570,14 +570,14 @@ namespace dso
 
 		// 根据关键帧位姿增量以及相机内参增量计算特征逆深度增量
 		if (MT)
-			red->reduce(std::bind(&EnergyFunctional::resubstituteFPt, this, cstep, xAd, 
+			red->reduce(std::bind(&EnergyFunctional::resubstituteFPt, this, cstep, xAd,
 				std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, allPoints.size(), 50);
 		else
 			resubstituteFPt(cstep, xAd, 0, allPoints.size(), 0, 0);
 
 		SAFE_DELETE(xAd);
 	}
-	
+
 	/// <summary>
 	/// 根据滑窗关键帧位姿、光度参数增量以及相机内参增量计算特征逆深度增量
 	/// </summary>
@@ -587,7 +587,7 @@ namespace dso
 	/// <param name="max">用于索引优化中的路标点</param>
 	/// <param name="stats">状态量信息、当前函数中不使用</param>
 	/// <param name="tid">线程ID信息、只有在多线程时调用</param>
-	void EnergyFunctional::resubstituteFPt(const VecCf &xc, Mat18f* xAd, int min, int max, Vec10* stats, int tid)
+	void EnergyFunctional::resubstituteFPt(const VecCf& xc, Mat18f* xAd, int min, int max, Vec10* stats, int tid)
 	{
 		for (int k = min; k < max; k++)
 		{
@@ -617,16 +617,16 @@ namespace dso
 			p->data->step = -b * p->HdiF;
 			if (!std::isfinite(p->data->step))
 			{
-                printf("INFO: b: %f\n", b);
-                printf("INFO: p->HdiF: %f\n", p->HdiF);
-                printf("INFO: p->bdSumF: %f\n", p->bdSumF);
-                printf("INFO: ngoodres: %d\n", ngoodres);
+				printf("INFO: b: %f\n", b);
+				printf("INFO: p->HdiF: %f\n", p->HdiF);
+				printf("INFO: p->bdSumF: %f\n", p->bdSumF);
+				printf("INFO: ngoodres: %d\n", ngoodres);
 
-                printf("INFO: xc: %f,%f,%f,%f\n", xc[0],xc[1],xc[2],xc[3]);
-                printf("INFO: p->Hcd_accAF: %f,%f,%f,%f\n", p->Hcd_accAF[0],
-                       p->Hcd_accAF[1],p->Hcd_accAF[2],p->Hcd_accAF[3]);
-                printf("INFO: p->Hcd_accLF: %f,%f,%f,%f\n", p->Hcd_accLF[0],
-                       p->Hcd_accLF[1],p->Hcd_accLF[2],p->Hcd_accLF[3]);
+				printf("INFO: xc: %f,%f,%f,%f\n", xc[0], xc[1], xc[2], xc[3]);
+				printf("INFO: p->Hcd_accAF: %f,%f,%f,%f\n", p->Hcd_accAF[0],
+					p->Hcd_accAF[1], p->Hcd_accAF[2], p->Hcd_accAF[3]);
+				printf("INFO: p->Hcd_accLF: %f,%f,%f,%f\n", p->Hcd_accLF[0],
+					p->Hcd_accLF[1], p->Hcd_accLF[2], p->Hcd_accLF[3]);
 			}
 			assert(std::isfinite(p->data->step));
 		}
@@ -732,7 +732,7 @@ namespace dso
 		E += cDeltaF.cwiseProduct(cPriorF).dot(cDeltaF);
 
 		// 3、计算滑窗中管理的特征的能量值
-		red->reduce(std::bind(&EnergyFunctional::calcLEnergyPt, this, 
+		red->reduce(std::bind(&EnergyFunctional::calcLEnergyPt, this,
 			std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 0, allPoints.size(), 50);
 
 		return E + red->stats[0];
@@ -895,12 +895,12 @@ namespace dso
 			imuStartIdx = findNearestIdx(imu_time_stamp, time_start);
 			assert(imuStartIdx != -1);
 
-			while (true) 
+			while (true)
 			{
 				double delta_t;
 				if (imu_time_stamp[imuStartIdx + 1] < time_end)
 					delta_t = imu_time_stamp[imuStartIdx + 1] - imu_time_stamp[imuStartIdx];
-				else 
+				else
 				{
 					delta_t = time_end - imu_time_stamp[imuStartIdx];
 					if (delta_t < 0.000001) break;
@@ -1111,15 +1111,15 @@ namespace dso
 		if (di > d_now) d_now = di;
 		if (d_now > setting_dynamicMin) d_now = setting_dynamicMin;
 
-		printf("INFO: s_now: %f, s_middle: %f\n",s_now,s_middle);
-        printf("INFO: d_now: %f, scale_l: %f\n",d_now, T_WD_l.scale());
+		printf("INFO: s_now: %f, s_middle: %f\n", s_now, s_middle);
+		printf("INFO: d_now: %f, scale_l: %f\n", d_now, T_WD_l.scale());
 
 		if (di > d_half) d_half = di;
 		if (d_half > setting_dynamicMin) d_half = setting_dynamicMin;
 		bool side = s_now > s_middle;
-		
+
 		// 对应论文中if upper != lastUpper
-		if (side != side_last || marg_num_half == 0) 
+		if (side != side_last || marg_num_half == 0)
 		{
 			// 清空尺度相关的信息量
 			HM_imu_half.block(CPARS + 6, 0, 1, HM_imu_half.cols()) = MatXX::Zero(1, HM_imu_half.cols());
@@ -1219,9 +1219,9 @@ namespace dso
 			VecX bMScaled = SVecI.asDiagonal() * bM_bias;
 
 			Mat1717 hpi = HMScaled.bottomRightCorner<17, 17>();
-			hpi = 0.5f*(hpi + hpi);
+			hpi = 0.5f * (hpi + hpi);
 			hpi = hpi.inverse();
-			hpi = 0.5f*(hpi + hpi);
+			hpi = 0.5f * (hpi + hpi);
 			if (!std::isfinite(hpi(0, 0))) hpi = Mat1717::Zero();
 
 			MatXX bli = HMScaled.bottomLeftCorner(17, ndim).transpose() * hpi;
@@ -1231,7 +1231,7 @@ namespace dso
 			HMScaled = SVec.asDiagonal() * HMScaled * SVec.asDiagonal();
 			bMScaled = SVec.asDiagonal() * bMScaled;
 
-			HM_bias = 0.5*(HMScaled.topLeftCorner(ndim, ndim) + HMScaled.topLeftCorner(ndim, ndim).transpose());
+			HM_bias = 0.5 * (HMScaled.topLeftCorner(ndim, ndim) + HMScaled.topLeftCorner(ndim, ndim).transpose());
 			bM_bias = bMScaled.head(ndim);
 		}
 
@@ -1269,7 +1269,7 @@ namespace dso
 		// 	    if(d_half>d_min)d_half = d_min;
 		// 	    M_num = 0;
 		// 	}else
-		if ((s_now > s_middle*d_now || s_now < s_middle / d_now) && setting_useDynamicMargin) 
+		if ((s_now > s_middle * d_now || s_now < s_middle / d_now) && setting_useDynamicMargin)
 		{
 			HM_imu = HM_imu_half;
 			bM_imu = bM_imu_half;
@@ -1288,9 +1288,9 @@ namespace dso
 			if (d_half > setting_dynamicMin) d_half = setting_dynamicMin;
 			marg_num_half = 0;
 			T_WD_l = T_WD_l_half;
-			state_twd = Sim3(T_WD_l.inverse()*T_WD).log();
+			state_twd = Sim3(T_WD_l.inverse() * T_WD).log();
 		}
-		else 
+		else
 		{
 			HM_imu += HM_change;
 			bM_imu += bM_change;
@@ -1324,9 +1324,9 @@ namespace dso
 			VecX bMScaled = SVecI.asDiagonal() * bM_imu;
 
 			Mat1717 hpi = HMScaled.bottomRightCorner<17, 17>();
-			hpi = 0.5f*(hpi + hpi);
+			hpi = 0.5f * (hpi + hpi);
 			hpi = hpi.inverse();
-			hpi = 0.5f*(hpi + hpi);
+			hpi = 0.5f * (hpi + hpi);
 			if (!std::isfinite(hpi(0, 0))) hpi = Mat1717::Zero();
 
 			MatXX bli = HMScaled.bottomLeftCorner(17, ndim).transpose() * hpi;
@@ -1336,7 +1336,7 @@ namespace dso
 			HMScaled = SVec.asDiagonal() * HMScaled * SVec.asDiagonal();
 			bMScaled = SVec.asDiagonal() * bMScaled;
 
-			HM_imu = 0.5*(HMScaled.topLeftCorner(ndim, ndim) + HMScaled.topLeftCorner(ndim, ndim).transpose());
+			HM_imu = 0.5 * (HMScaled.topLeftCorner(ndim, ndim) + HMScaled.topLeftCorner(ndim, ndim).transpose());
 			bM_imu = bMScaled.head(ndim);
 		}
 	}
@@ -1591,10 +1591,10 @@ namespace dso
 		std::vector<VecX> ns;
 		ns.insert(ns.end(), lastNullspaces_pose.begin(), lastNullspaces_pose.end());
 		ns.insert(ns.end(), lastNullspaces_scale.begin(), lastNullspaces_scale.end());
-			/*if(setting_affineOptModeA <= 0)
-				ns.insert(ns.end(), lastNullspaces_affA.begin(), lastNullspaces_affA.end());
-			if(setting_affineOptModeB <= 0)
-				ns.insert(ns.end(), lastNullspaces_affB.begin(), lastNullspaces_affB.end());*/
+		/*if(setting_affineOptModeA <= 0)
+			ns.insert(ns.end(), lastNullspaces_affA.begin(), lastNullspaces_affA.end());
+		if(setting_affineOptModeB <= 0)
+			ns.insert(ns.end(), lastNullspaces_affB.begin(), lastNullspaces_affB.end());*/
 
 		MatXX N(ns[0].rows(), ns.size());
 		for (unsigned int it = 0; it < ns.size(); ++it)
@@ -1618,13 +1618,13 @@ namespace dso
 
 		MatXX Npi = svdNN.matrixU() * SNN.asDiagonal() * svdNN.matrixV().transpose(); 	// [dim] x 9.
 		MatXX NNpiT = N * Npi.transpose(); 	// [dim] x [dim].
-		MatXX NNpiTS = 0.5*(NNpiT + NNpiT.transpose());	// = N * (N' * N)^-1 * N'.
+		MatXX NNpiTS = 0.5 * (NNpiT + NNpiT.transpose());	// = N * (N' * N)^-1 * N'.
 
 		// 3、将信息量向零空间投影，并减掉投影在零空间的信息量
 		if (b != NULL) *b -= NNpiTS * *b;
 		if (H != NULL) *H -= NNpiTS * *H * NNpiTS;
 	}
-	
+
 	/// <summary>
 	/// 滑窗优化执行函数，求解滑窗关键帧优化后状态量
 	/// </summary>
@@ -1836,7 +1836,7 @@ namespace dso
 
 				if (!std::isfinite(x_visual[0]))
 				{
-                    printf("ERROR: catch a error in build hessian!\n");
+					printf("ERROR: catch a error in build hessian!\n");
 				}
 			}
 		}

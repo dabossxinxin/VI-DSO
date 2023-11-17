@@ -1,6 +1,6 @@
 /**
 * This file is part of DSO.
-* 
+*
 * Copyright 2016 Technical University of Munich and Intel.
 * Developed by Jakob Engel <engelj at in dot tum dot de>,
 * for more information see <http://vision.in.tum.de/dso>.
@@ -115,12 +115,12 @@ namespace dso
 
 		void displayImage(const char* windowName, const MinimalImageF* img, bool autoSize)
 		{
-			displayImage(windowName, cv::Mat(img->h, img->w, CV_32F, img->data)*(1 / 254.0f), autoSize);
+			displayImage(windowName, cv::Mat(img->h, img->w, CV_32F, img->data) * (1 / 254.0f), autoSize);
 		}
 
 		void displayImage(const char* windowName, const MinimalImageF3* img, bool autoSize)
 		{
-			displayImage(windowName, cv::Mat(img->h, img->w, CV_32FC3, img->data)*(1 / 254.0f), autoSize);
+			displayImage(windowName, cv::Mat(img->h, img->w, CV_32FC3, img->data) * (1 / 254.0f), autoSize);
 		}
 
 		void displayImage(const char* windowName, const MinimalImageB16* img, bool autoSize)

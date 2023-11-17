@@ -18,10 +18,9 @@ dataname="MH_01_easy"
 	  imu_info=./calib/euroc/IMU_info.txt \
 	  groundtruth=../../Data/${dataname}/mav0/state_groundtruth_estimate0/data.csv \
 	  imudata=../../Data/${dataname}/mav0/imu0/data.csv \
-	  pic_timestamp=../../Data/${dataname}/mav0/cam0/data.csv \
+	  pic_timestamp0=../../Data/${dataname}/mav0/cam0/data.csv \
  	  preset=0 mode=1 \
 	  quiet=1 nomt=1 \
-      savefile_tail=nt_${dataname}\
 	  use_stereo=0\
 	  imu_weight=6 imu_weight_tracker=0.6 stereo_weight=0
 

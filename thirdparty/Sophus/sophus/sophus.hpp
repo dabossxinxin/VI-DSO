@@ -26,7 +26,7 @@
 
 #ifdef _WIN_
 #include <corecrt_math_defines.h>
-#elifdef _OSX_
+#else _OSX_
 #include <math.h>
 #endif
 

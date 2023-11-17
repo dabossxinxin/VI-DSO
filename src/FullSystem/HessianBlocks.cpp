@@ -1,6 +1,6 @@
 /**
 * This file is part of DSO.
-* 
+*
 * Copyright 2016 Technical University of Munich and Intel.
 * Developed by Jakob Engel <engelj at in dot tum dot de>,
 * for more information see <http://vision.in.tum.de/dso>.
@@ -43,7 +43,7 @@ namespace dso
 
 		my_type = rawPoint->my_type;
 
-		setIdepthScaled((rawPoint->idepth_max + rawPoint->idepth_min)*0.5);
+		setIdepthScaled((rawPoint->idepth_max + rawPoint->idepth_min) * 0.5);
 		setPointStatus(PointHessian::INACTIVE);
 
 		memcpy(color, rawPoint->color, sizeof(float) * patternNum);
