@@ -109,14 +109,14 @@ namespace dso
 		}
 		else
 		{
-			nullspacesLog = NULL;
-			variancesLog = NULL;
-			DiagonalLog = NULL;
-			eigenALog = NULL;
-			eigenPLog = NULL;
-			eigenAllLog = NULL;
-			numsLog = NULL;
-			calibLog = NULL;
+			nullspacesLog = nullptr;
+			variancesLog = nullptr;
+			DiagonalLog = nullptr;
+			eigenALog = nullptr;
+			eigenPLog = nullptr;
+			eigenAllLog = nullptr;
+			numsLog = nullptr;
+			calibLog = nullptr;
 		}
 
 		assert(retstat != 293847);
@@ -202,7 +202,7 @@ namespace dso
 
 	void FullSystem::setGammaFunction(float* BInv)
 	{
-		if (BInv == NULL) return;
+		if (BInv == nullptr) return;
 		memcpy(Hcalib.Binv, BInv, sizeof(float) * 256);
 
 		// invert
@@ -777,7 +777,7 @@ namespace dso
 				if (!std::isfinite(ph->idepth_max) || ph->lastTraceStatus == IPS_OUTLIER)
 				{
 					SAFE_DELETE(ph);
-					host->immaturePoints[it] = NULL;
+					host->immaturePoints[it] = nullptr;
 					continue;
 				}
 
@@ -794,7 +794,7 @@ namespace dso
 					if (ph->host->flaggedForMarginalization || ph->lastTraceStatus == IPS_OOB)
 					{
 						SAFE_DELETE(ph);
-						host->immaturePoints[it] = NULL;
+						host->immaturePoints[it] = nullptr;
 					}
 					continue;
 				}
@@ -818,7 +818,7 @@ namespace dso
 				else
 				{
 					SAFE_DELETE(ph);
-					host->immaturePoints[it] = NULL;
+					host->immaturePoints[it] = nullptr;
 				}
 
 			}
@@ -841,18 +841,18 @@ namespace dso
 
 			if (opt != 0 && opt != (PointHessian*)((long)(-1)))
 			{
-				opt->host->immaturePoints[ph->idxInImmaturePoints] = NULL;
+				opt->host->immaturePoints[ph->idxInImmaturePoints] = nullptr;
 				opt->host->pointHessians.emplace_back(opt);
 				ef->insertPoint(opt);
 				for (PointFrameResidual* r : opt->residuals)
 					ef->insertResidual(r);
 
-				assert(opt->efPoint != NULL);
+				assert(opt->efPoint != nullptr);
 				SAFE_DELETE(ph);
 			}
 			else if (opt == (PointHessian*)((long)(-1)) || ph->lastTraceStatus == IPS_OOB)
 			{
-				ph->host->immaturePoints[ph->idxInImmaturePoints] = NULL;
+				ph->host->immaturePoints[ph->idxInImmaturePoints] = nullptr;
 				delete ph;
 			}
 			else
@@ -866,7 +866,7 @@ namespace dso
 		{
 			for (int it = 0; it < (int)host->immaturePoints.size(); ++it)
 			{
-				if (host->immaturePoints[it] == NULL)
+				if (host->immaturePoints[it] == nullptr)
 				{
 					host->immaturePoints[it] = host->immaturePoints.back();
 					host->immaturePoints.pop_back();
@@ -907,12 +907,12 @@ namespace dso
 			for (unsigned int it = 0; it < host->pointHessians.size(); ++it)
 			{
 				auto ph = host->pointHessians[it];
-				if (ph == NULL) continue;
+				if (ph == nullptr) continue;
 
 				if (ph->idepth_scaled < 0 || ph->residuals.empty())
 				{
 					host->pointHessiansOut.emplace_back(ph);
-					host->pointHessians[it] = NULL;
+					host->pointHessians[it] = nullptr;
 					ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
 					flag_ignores++;
 				}
@@ -958,14 +958,14 @@ namespace dso
 						ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
 					}
 
-					host->pointHessians[it] = NULL;
+					host->pointHessians[it] = nullptr;
 				}
 			}
 
 			// 去掉pointHessians中被声明为空指针的特征数据
 			for (int it = 0; it < (int)host->pointHessians.size(); ++it)
 			{
-				if (host->pointHessians[it] == NULL)
+				if (host->pointHessians[it] == nullptr)
 				{
 					host->pointHessians[it] = host->pointHessians.back();
 					host->pointHessians.pop_back();
@@ -1048,11 +1048,8 @@ namespace dso
 				}
 
 				PointHessian* ph = new PointHessian(pt, &Hcalib);
-				if (pt != NULL)
-				{
-					SAFE_DELETE(pt);
-					pt = NULL;
-				}
+                SAFE_DELETE(pt);
+
 				if (!std::isfinite(ph->energyTH))
 				{
 					SAFE_DELETE(ph);
@@ -1120,7 +1117,7 @@ namespace dso
 		// 实际上这里不用加上互斥锁，在初始化过程中建图线程不会启动
 		{
 			std::unique_lock<std::mutex> crlock(shellPoseMutex);
-			coarseInitializer->firstFrame->shell->trackingRef = NULL;
+			coarseInitializer->firstFrame->shell->trackingRef = nullptr;
 			coarseInitializer->firstFrame->shell->camToTrackingRef = SE3();
 
 			newFrame->shell->camToWorld = coarseInitializer->firstFrame->shell->camToWorld * firstToNew.inverse();
@@ -1146,7 +1143,7 @@ namespace dso
 	void FullSystem::addActiveFrame(ImageAndExposure* image, ImageAndExposure* imageRight, int id)
 	{
 		printf("image id-stamp: %d-%.12f, marginalization total-half: %d-%d\n",
-			id, pic_time_stamp[id], marg_num, marg_num_half);
+			id, input_picTimestampLeftList[id], marg_num, marg_num_half);
 
 		newFrameID = id;
 		if (isLost) return;
@@ -1276,7 +1273,7 @@ namespace dso
 					setting_kfGlobalWeight * setting_maxShiftWeightR * sqrtf((double)tres[2]) / (wG[0] + hG[0]) +
 					setting_kfGlobalWeight * setting_maxShiftWeightRT * sqrtf((double)tres[3]) / (wG[0] + hG[0]) +
 					setting_kfGlobalWeight * setting_maxAffineWeight * fabs(logf((float)refToFh[0]));
-				interval = pic_time_stamp[fh->shell->incomingId] - pic_time_stamp[coarseTracker->lastRef->shell->incomingId];
+				interval = input_picTimestampLeftList[fh->shell->incomingId] - input_picTimestampLeftList[coarseTracker->lastRef->shell->incomingId];
 
 				if (interval >= 0.45 && delta > 0.5f) needToMakeKF = true;
 			}
@@ -1299,10 +1296,10 @@ namespace dso
 	{
 		int imuStartIdx = -1;
 		int imuStartIdxGT = -1;
-		double fhTime = pic_time_stamp[fh->shell->incomingId];
+		double fhTime = input_picTimestampLeftList[fh->shell->incomingId];
 
-		imuStartIdx = findNearestIdx(imu_time_stamp, fhTime);
-		imuStartIdxGT = findNearestIdx(gt_time_stamp, fhTime);
+		imuStartIdx = findNearestIdx(input_imuTimestampList, fhTime);
+		imuStartIdxGT = findNearestIdx(input_gtTimestampList, fhTime);
 
 		if (imuStartIdx == -1) printf("ERROR: timestamp error, check it\n");
 		if (imuStartIdxGT == -1) printf("ERROR: timestamp error, check it\n");
@@ -1333,7 +1330,7 @@ namespace dso
 		// 这个参数的作用为将GroundTruth坐标转换到当前系统坐标系下
 		SE3 T_wc(R_wc, Vec3::Zero());
 		if (input_gtPath.empty()) T_WR_align = SE3();
-		else T_WR_align = T_wc * T_BC.inverse() * input_gtPose[imuStartIdxGT].inverse();
+		else T_WR_align = T_wc * T_BC.inverse() * input_gtPoseList[imuStartIdxGT].inverse();
 
 		fh->shell->camToWorld = T_wc;
 		fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(), fh->shell->aff_g2l);
@@ -1373,18 +1370,18 @@ namespace dso
 		fs.close();
 
 		int idxStart = -1;
-		findNearestIdx(gt_time_stamp, time);
+		findNearestIdx(input_gtTimestampList, time);
 		assert(idxStart != -1);
 
 		std::ofstream fsGT;
 		std::string gtfile = "./data/trajectory_tum_gt.txt";
 		fsGT.open(gtfile, std::ios::out | std::ios::app);
 
-		SE3 gt_C = T_WR_align * input_gtPose[idxStart] * T_BC;
+		SE3 gt_C = T_WR_align * input_gtPoseList[idxStart] * T_BC;
 		t = gt_C.translation();
 		q = Eigen::Quaterniond(gt_C.rotationMatrix()).coeffs();
 
-		fsGT << std::fixed << std::setprecision(9) << gt_time_stamp[idxStart] << " "
+		fsGT << std::fixed << std::setprecision(9) << input_gtTimestampList[idxStart] << " "
 			<< t(0) << " " << t(1) << " " << t(2) << " "
 			<< q(0) << " " << q(1) << " " << q(2) << " " << q(3) << std::endl;
 		fsGT.close();
@@ -1544,10 +1541,8 @@ namespace dso
 		traceNewCoarse(fh);
 
 		// 3、帧fh不能成为关键帧，那么在用完fh后需要将其内存空间释放掉
-		delete fh;
-		fh = NULL;
-		delete fhRight;
-		fhRight = NULL;
+        SAFE_DELETE(fh);
+        SAFE_DELETE(fhRight);
 	}
 
 	/// <summary>
@@ -1661,7 +1656,7 @@ namespace dso
 		ef->marginalizePointsF();
 
 		// 在最新滑窗关键帧中提取更多的特征，避免特征随着跟踪进行越来越少
-		makeNewTraces(fh, NULL);
+		makeNewTraces(fh, nullptr);
 
 		for (IOWrap::Output3DWrapper* ow : outputWrapper)
 		{

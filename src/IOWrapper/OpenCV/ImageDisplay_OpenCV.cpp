@@ -28,7 +28,9 @@
 
 #include "util/settings.h"
 #include "IOWrapper/ImageDisplay.h"
-#include <opencv2/highgui/highgui.hpp>
+
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgcodecs.hpp>
 
 namespace dso
 {
@@ -42,6 +44,7 @@ namespace dso
 			if (setting_disableAllDisplay) return;
 
 			std::unique_lock<std::mutex> lock(openCVdisplayMutex);
+#if defined(_WIN_)
 			if (!autoSize)
 			{
 				if (openWindows.find(windowName) == openWindows.end())
@@ -52,6 +55,10 @@ namespace dso
 				}
 			}
 			cv::imshow(windowName, image);
+#elif defined(_OSX_)
+            std::string filename = std::string(windowName)+".png";
+            cv::imwrite(filename, image);
+#endif
 		}
 
 		void displayImageStitch(const char* windowName, const std::vector<cv::Mat*> images, int cc, int rc)

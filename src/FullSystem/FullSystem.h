@@ -60,8 +60,7 @@ namespace dso
 	template<typename T>
 	inline void deleteOut(std::vector<T*>& v, const int i)
 	{
-		if (v[i] != NULL)
-			delete v[i];
+        SAFE_DELETE(v[i]);
 		v[i] = v.back();
 		v.pop_back();
 	}
@@ -75,7 +74,7 @@ namespace dso
 	template<typename T>
 	inline void deleteOutPt(std::vector<T*>& v, const T* i)
 	{
-		if (i != NULL) delete i;
+		if (i != nullptr) delete i;
 		for (unsigned int k = 0; k < v.size(); ++k)
 		{
 			if (v[k] == i)
@@ -95,7 +94,7 @@ namespace dso
 	template<typename T>
 	inline void deleteOutOrder(std::vector<T*>& v, const int i)
 	{
-		if (v[i] != NULL) delete v[i];
+		SAFE_DELETE(v[i]);
 		for (unsigned int k = i + 1; k < v.size(); k++)
 			v[k - 1] = v[k];
 		v.pop_back();

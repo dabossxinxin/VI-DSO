@@ -169,9 +169,9 @@ namespace dso
 					if (r->target == frame)
 					{
 						if (ph->lastResiduals[0].first == r)
-							ph->lastResiduals[0].first = NULL;
+							ph->lastResiduals[0].first = nullptr;
 						else if (ph->lastResiduals[1].first == r)
-							ph->lastResiduals[1].first = NULL;
+							ph->lastResiduals[1].first = nullptr;
 
 						if (r->host->frameID < r->target->frameID)
 							statistics_numForceDroppedResFwd++;

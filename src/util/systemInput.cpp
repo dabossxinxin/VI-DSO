@@ -319,7 +319,7 @@ namespace dso
 					ss >> t(i);
 				}
 				SE3 temp(R, t);
-				input_gtPose.emplace_back(temp);
+				input_gtPoseList.emplace_back(temp);
 			}
 			inf.close();
 		}
@@ -377,11 +377,11 @@ namespace dso
 				Eigen::Matrix3d R_wb = quaternionToRotation(q4);
 				SE3 pose0(R_wb, t);
 
-				input_gtPose.emplace_back(pose0);
-				input_gtVelocity.emplace_back(v);
-				input_gtBiasG.emplace_back(bias_g);
-				input_gtBiasA.emplace_back(bias_a);
-				gt_time_stamp.emplace_back(time);
+				input_gtPoseList.emplace_back(pose0);
+				input_gtVelocityList.emplace_back(v);
+				input_gtBiasGList.emplace_back(bias_g);
+				input_gtBiasAList.emplace_back(bias_a);
+                input_gtTimestampList.emplace_back(time);
 			}
 			inf.close();
 		}
@@ -417,7 +417,7 @@ namespace dso
 				}
 				input_gryList.emplace_back(gyro);
 				input_accList.emplace_back(acc);
-				imu_time_stamp.emplace_back(time);
+                input_imuTimestampList.emplace_back(time);
 			}
 			inf.close();
 		}
@@ -514,7 +514,7 @@ namespace dso
 				double time;
 				ss >> time;
 				time = time / 1e9;
-				pic_time_stamp.emplace_back(time);
+                input_picTimestampLeftList.emplace_back(time);
 			}
 			inf.close();
 		}
@@ -533,7 +533,7 @@ namespace dso
 				double time;
 				ss >> time;
 				time = time / 1e9;
-				pic_time_stamp_r.emplace_back(time);
+                input_picTimestampRightList.emplace_back(time);
 			}
 			inf.close();
 		}

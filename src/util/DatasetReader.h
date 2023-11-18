@@ -46,12 +46,12 @@ inline int getdir (std::string dir, std::vector<std::string> &files)
 {
     DIR *dp;
     struct dirent *dirp;
-    if((dp  = opendir(dir.c_str())) == NULL)
+    if((dp  = opendir(dir.c_str())) == nullptr)
     {
         return -1;
     }
 
-    while ((dirp = readdir(dp)) != NULL) {
+    while ((dirp = readdir(dp)) != nullptr) {
     	std::string name = std::string(dirp->d_name);
 
     	if(name != "." && name != "..")

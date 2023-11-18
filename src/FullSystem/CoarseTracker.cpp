@@ -36,10 +36,10 @@ namespace dso
 	/// <summary>
 	/// 内存对齐函数
 	/// </summary>
-	/// <typeparam name="T"></typeparam>
-	/// <param name="size"></param>
-	/// <param name="rawPtrVec"></param>
-	/// <returns></returns>
+	/// <typeparam name="T">申请指针类型</typeparam>
+	/// <param name="size">申请内存空间长度</param>
+	/// <param name="rawPtrVec">内存空间原始地址</param>
+	/// <returns>内存对齐后的地址</returns>
 	template<int b, typename T>
 	T* allocAligned(int size, std::vector<T*>& rawPtrVec)
 	{
@@ -186,8 +186,8 @@ namespace dso
 		buf_warped_weight = allocAligned<4, float>(ww * hh, ptrToDelete);
 		buf_warped_refColor = allocAligned<4, float>(ww * hh, ptrToDelete);
 
-		newFrame = 0;
-		lastRef = 0;
+		newFrame = nullptr;
+		lastRef = nullptr;
 		debugPlot = true;
 		debugPrint = true;
 		w[0] = h[0] = 0;
@@ -780,7 +780,7 @@ namespace dso
 
 		float maxEnergy = 2 * setting_huberTH * cutoffTH - setting_huberTH * setting_huberTH;	// energy for r=setting_coarseCutoffTH.
 
-		MinimalImageB3* resImage = NULL;
+		MinimalImageB3* resImage = nullptr;
 		if (debugPlot)
 		{
 			resImage = new MinimalImageB3(wl, hl);
@@ -971,14 +971,14 @@ namespace dso
 		bool haveRepeated = false;
 
 		IMUPreintegrator IMU_preintegrator;
-		double time_start = pic_time_stamp[lastRef->shell->incomingId];
-		double time_end = pic_time_stamp[newFrame->shell->incomingId];
+		double time_start = input_picTimestampLeftList[lastRef->shell->incomingId];
+		double time_end = input_picTimestampLeftList[newFrame->shell->incomingId];
 
 		// 获取参考帧与最新帧之间的惯导数据并进行预积分
 		int index;
-		for (int it = 0; it < imu_time_stamp.size(); ++it)
+		for (int it = 0; it < input_imuTimestampList.size(); ++it)
 		{
-			if (imu_time_stamp[it] > time_start || std::fabs(time_start - imu_time_stamp[it]) < 0.001)
+			if (input_imuTimestampList[it] > time_start || std::fabs(time_start - input_imuTimestampList[it]) < 0.001)
 			{
 				index = it;
 				break;
@@ -988,16 +988,16 @@ namespace dso
 		while (1)
 		{
 			double delta_t;
-			if (imu_time_stamp[index + 1] < time_end)
-				delta_t = imu_time_stamp[index + 1] - imu_time_stamp[index];
+			if (input_imuTimestampList[index + 1] < time_end)
+				delta_t = input_imuTimestampList[index + 1] - input_imuTimestampList[index];
 			else
 			{
-				delta_t = time_end - imu_time_stamp[index];
+				delta_t = time_end - input_imuTimestampList[index];
 				if (delta_t < 1e-6) break;
 			}
 
 			IMU_preintegrator.update(input_gryList[index] - lastRef->bias_g, input_accList[index] - lastRef->bias_a, delta_t);
-			if (imu_time_stamp[index + 1] >= time_end) break;
+			if (input_imuTimestampList[index + 1] >= time_end) break;
 			index++;
 		}
 
@@ -1170,21 +1170,21 @@ namespace dso
 		aff_g2l_out = aff_g2l_current;
 
 		// 4、检查得到的参数是否异常，若存在异常直接返回跟踪失败
-		if ((setting_affineOptModeA != 0 && (std::fabsf(aff_g2l_out.a) > 1.2))
-			|| (setting_affineOptModeB != 0 && (std::fabsf(aff_g2l_out.b) > 200)))
+		if ((setting_affineOptModeA != 0 && (std::abs(aff_g2l_out.a) > 1.2))
+			|| (setting_affineOptModeB != 0 && (std::abs(aff_g2l_out.b) > 200)))
 		{
 			printf("affine parameter error: %.3f, %.3f\n",
-				std::fabsf(aff_g2l_out.a), std::fabsf(aff_g2l_out.b));
+				std::abs(aff_g2l_out.a), std::abs(aff_g2l_out.b));
 			return false;
 		}
 
 		Vec2f relAff = AffLight::fromToVecExposure(lastRef->ab_exposure, newFrame->ab_exposure, lastRef_aff_g2l, aff_g2l_out).cast<float>();
 
-		if ((setting_affineOptModeA == 0 && (std::fabsf(logf((float)relAff[0])) > 1.5))
-			|| (setting_affineOptModeB == 0 && (std::fabsf((float)relAff[1]) > 200)))
+		if ((setting_affineOptModeA == 0 && (std::abs(logf((float)relAff[0])) > 1.5))
+			|| (setting_affineOptModeB == 0 && (std::abs((float)relAff[1]) > 200)))
 		{
 			printf("relative affine parameter error: %.3f, %.3f\n",
-				std::fabsf(logf((float)relAff[0])), std::fabsf((float)relAff[1]));
+				std::abs(logf((float)relAff[0])), std::abs((float)relAff[1]));
 			return false;
 		}
 
@@ -1333,6 +1333,7 @@ namespace dso
 		coarseProjectionGridNum = new int[ww * hh / (fac * fac)];
 
 		w[0] = h[0] = 0;
+        debugImage = nullptr;
 	}
 
 	/// <summary>
@@ -1378,10 +1379,6 @@ namespace dso
 		}
 
 		growDistBFS(numItems);
-	}
-
-	void CoarseDistanceMap::makeInlierVotes(std::vector<FrameHessian*> frameHessians)
-	{
 	}
 
 	void CoarseDistanceMap::debugPlotDistanceMap()

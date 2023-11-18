@@ -157,9 +157,7 @@ namespace dso
 	bool setting_render_displayResidual = true;
 	bool setting_render_displayVideo = true;
 	bool setting_render_displayDepth = true;
-
 	bool setting_fullResetRequested = false;
-
 	bool setting_debugout_runquiet = false;
 
 	int sparsityFactor = 5;
@@ -178,6 +176,7 @@ namespace dso
 	std::string input_picTimestampLeft = "";
 	std::string input_picTimestampRight = "";
 
+    double setting_gravityNorm = 9.81;
 	double setting_baseline = 0;
 	double setting_margWeightFacImu = 1;
 	double setting_imuWeightNoise = 1;
@@ -186,20 +185,21 @@ namespace dso
 	bool setting_useStereo = true;
 	
 	// 输入数据序列
-	std::vector<SE3> input_gtPose;
-	std::vector<Vec3> input_gtVelocity;
-	std::vector<Vec3> input_gtBiasG;
-	std::vector<Vec3> input_gtBiasA;
+	std::vector<SE3> input_gtPoseList;
+	std::vector<Vec3> input_gtVelocityList;
+	std::vector<Vec3> input_gtBiasGList;
+	std::vector<Vec3> input_gtBiasAList;
 	std::vector<Vec3> input_gryList;
 	std::vector<Vec3> input_accList;
+
+    std::vector<double> input_gtTimestampList;
+    std::vector<double> input_imuTimestampList;
+    std::vector<double> input_picTimestampLeftList;
+    std::vector<double> input_picTimestampRightList;
 	
 	SE3 T_C0C1;
 	SE3 T_C1C0;
 	Mat33f K_right;
-	std::vector<double> gt_time_stamp;
-	std::vector<double> imu_time_stamp;
-	std::vector<double> pic_time_stamp;
-	std::vector<double> pic_time_stamp_r;
 	SE3 T_BC;
 	Mat33 GyrCov;
 	Mat33 AccCov;
@@ -209,7 +209,7 @@ namespace dso
 	Sim3 T_WD_l;			// 视觉估计坐标基准与IMU基准之间的变换-上一估计值
 	Sim3 T_WD_l_half;		// 视觉估计坐标基准与IMU基准之间的变换-上一估计值并采用部分IMU信息
 	Sim3 T_WD_change;
-	double setting_gravityNorm;
+
 	int index_align;
 	SE3 T_WR_align = SE3();
 	double run_time = 0;

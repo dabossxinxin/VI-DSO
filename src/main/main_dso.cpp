@@ -21,17 +21,13 @@
 * along with DSO. If not, see <http://www.gnu.org/licenses/>.
 */
 #include <thread>
-#include <locale.h>
 #include <stdlib.h>
 #include <stdio.h>
 
 #include "IOWrapper/Output3DWrapper.h"
-#include "IOWrapper/ImageDisplay.h"
 #include "IOWrapper/Pangolin/PangolinDSOViewer.h"
-#include "IOWrapper/OutputWrapper/SampleOutputWrapper.h"
 
 #include "util/settings.h"
-#include "util/globalFuncs.h"
 #include "util/DatasetReader.h"
 #include "util/globalCalib.h"
 #include "util/NumType.h"
@@ -39,9 +35,6 @@
 
 #include "FullSystem/FullSystem.h"
 #include "FullSystem/PixelSelector2.h"
-#include "FullSystem/CoarseTracker.h"
-
-#include "OptimizationBackend/MatrixAccumulators.h"
 
 /// <summary>
 /// 加载命令行参数
@@ -113,7 +106,7 @@ int main(int argc, char** argv)
 	setting_dynamicMin = sqrt(1.1);
 	setting_margWeightFacImu = 0.25;
 
-	ImageFolderReader* readerLeft = NULL, * readerRight = NULL;
+	ImageFolderReader* readerLeft = nullptr, * readerRight = nullptr;
 	readerLeft = new ImageFolderReader(input_sourceLeft, input_calibLeft, input_gammaCalib, input_vignette);
 	if (setting_useStereo)
 		readerRight = new ImageFolderReader(input_sourceRight, input_calibRight, input_gammaCalib, input_vignette);
@@ -123,7 +116,7 @@ int main(int argc, char** argv)
 	readerLeft->setGlobalCalibration();
 	readerRight->setGlobalCalibration();
 
-	if (setting_photometricCalibration > 0 && readerLeft->getPhotometricGamma() == NULL)
+	if (setting_photometricCalibration > 0 && readerLeft->getPhotometricGamma() == nullptr)
 	{
 		printf("ERROR: dont't have photometric calibation. Need to use commandline options mode=1 or mode=2 ");
 		exit(1);
@@ -132,7 +125,7 @@ int main(int argc, char** argv)
 	FullSystem* fullSystem = new FullSystem();
 	fullSystem->setGammaFunction(readerLeft->getPhotometricGamma());
 
-	IOWrap::PangolinDSOViewer* viewer = NULL;
+	IOWrap::PangolinDSOViewer* viewer = nullptr;
 	if (!setting_disableAllDisplay)
 	{
 		viewer = new IOWrap::PangolinDSOViewer(wG[0], hG[0], false);
@@ -169,14 +162,14 @@ int main(int argc, char** argv)
 #elif defined(_OSX_)
 			timeval tv_start;
 #endif
-			gettimeofday(&tv_start, NULL);
+			gettimeofday(&tv_start, nullptr);
 			double sInitializerOffset = 0;
 
 			for (int idx = 0; idx < (int)idsToPlayLeft.size(); ++idx)
 			{
 				if (!fullSystem->initialized)
 				{
-					gettimeofday(&tv_start, NULL);
+					gettimeofday(&tv_start, nullptr);
 					sInitializerOffset = timesToPlayAtLeft[idx];
 				}
 
@@ -184,27 +177,27 @@ int main(int argc, char** argv)
 				int idRight = -1;
 				int idLeft = idsToPlayLeft[idx];
 				double timestampRight = 0;
-				double timestampLeft = pic_time_stamp[idLeft];
+				double timestampLeft = input_picTimestampLeftList[idLeft];
 
 				if (setting_useStereo)
 				{
-					if (pic_time_stamp_r.size() > 0)
+					if (!input_picTimestampRightList.empty())
 					{
-						for (int id = 0; id < pic_time_stamp_r.size(); ++id)
+						for (int id = 0; id < input_picTimestampRightList.size(); ++id)
 						{
-							timestampRight = pic_time_stamp_r[id];
+							timestampRight = input_picTimestampRightList[id];
 							if (timestampRight >= timestampLeft ||
-								std::fabs(timestampRight - timestampLeft) < 0.01)
+								std::abs(timestampRight - timestampLeft) < 0.01)
 							{
 								idRight = id;
 								break;
 							}
 						}
 					}
-					if (std::fabs(timestampRight - timestampLeft) > 0.01) continue;
+					if (std::abs(timestampRight - timestampLeft) > 0.01) continue;
 				}
 
-				ImageAndExposure* imgLeft = NULL, * imgRight = NULL;
+				ImageAndExposure* imgLeft = nullptr, * imgRight = nullptr;
 				imgLeft = readerLeft->getImage(idLeft);
 				if (!setting_useStereo) imgRight = imgLeft;
 				else imgRight = readerRight->getImage(idRight);
@@ -213,7 +206,7 @@ int main(int argc, char** argv)
 
 				delete imgLeft;
 				if (imgLeft != imgRight) delete imgRight;
-				imgLeft = imgRight = NULL;
+				imgLeft = imgRight = nullptr;
 
 				// 1、系统初始化失败并且系统刚刚工作不久，需重新初始化
 				// 2、在界面中手动设置了重置当前系统，需重新初始化
@@ -223,7 +216,7 @@ int main(int argc, char** argv)
 					{
 						printf("- DSO RESETTING!\n");
 
-						auto& wraps = fullSystem->outputWrapper;
+						auto wraps = fullSystem->outputWrapper;
 						SAFE_DELETE(fullSystem);
 
 						for (IOWrap::Output3DWrapper* ow : wraps) ow->reset();
@@ -240,7 +233,7 @@ int main(int argc, char** argv)
 
 				if (fullSystem->isLost)
 				{
-					printf("- DSO LOST!\n");
+					printf("INFO: DSO LOST!\n");
 					break;
 				}
 			}
@@ -251,7 +244,7 @@ int main(int argc, char** argv)
 #elif defined(_OSX_)
 			timeval tv_end;
 #endif
-			gettimeofday(&tv_end, NULL);
+			gettimeofday(&tv_end, nullptr);
 			fullSystem->printResult("result.txt");
 
 			int numFramesProcessed = std::abs(idsToPlayLeft[0] - idsToPlayLeft.back());
@@ -267,7 +260,7 @@ int main(int argc, char** argv)
 				1000 / (MilliSecondsTakenMT / numSecondsProcessed));
 		});
 
-	if (viewer != NULL)
+	if (viewer != nullptr)
 		viewer->run();
 	runthread.join();
 
@@ -277,13 +270,13 @@ int main(int argc, char** argv)
 		SAFE_DELETE(ow);
 	}
 
-	printf("- DELETE FULLSYSTEM!\n");
+	printf("INFO: DELETE FULLSYSTEM!\n");
 	SAFE_DELETE(fullSystem);
 
-	printf("- DELETE READER!\n");
+	printf("INFO: DELETE READER!\n");
 	delete readerLeft;
 	if (readerLeft != readerRight) delete readerRight;
-	readerLeft = readerRight = NULL;
+	readerLeft = readerRight = nullptr;
 
 	printf("- EXIT NOW!\n");
 	return 0;

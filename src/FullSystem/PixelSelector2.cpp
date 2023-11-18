@@ -59,7 +59,7 @@ namespace dso
 		memset(thsSmoothed, 0, sizeof(float) * (wh32 + 100));
 
 		allowFast = false;
-		gradHistFrame = NULL;
+		gradHistFrame = nullptr;
 	}
 
 	/// <summary>

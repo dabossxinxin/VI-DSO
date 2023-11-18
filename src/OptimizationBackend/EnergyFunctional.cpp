@@ -73,8 +73,8 @@ namespace dso
 			IMUPreintegrator IMU_preintegrator;
 			IMU_preintegrator.reset();
 
-			timeStart = pic_time_stamp[frames[fhIdxS]->data->shell->incomingId];
-			timeEnd = pic_time_stamp[frames[fhIdxE]->data->shell->incomingId];
+			timeStart = input_picTimestampLeftList[frames[fhIdxS]->data->shell->incomingId];
+			timeEnd = input_picTimestampLeftList[frames[fhIdxE]->data->shell->incomingId];
 			dt = timeEnd - timeStart;
 
 			imuResCounter++;
@@ -106,22 +106,22 @@ namespace dso
 			if (dt > 0.5) continue;
 
 			imuStartStamp = -1;
-			imuStartStamp = findNearestIdx(imu_time_stamp, timeStart);
+			imuStartStamp = findNearestIdx(input_imuTimestampList, timeStart);
 			assert(imuStartStamp != -1);
 
 			// 从当前帧时刻到下一帧时刻内的IMU测量值预积分
 			while (true)
 			{
-				if (imu_time_stamp[imuStartStamp + 1] < timeEnd)
-					delta_t = imu_time_stamp[imuStartStamp + 1] - imu_time_stamp[imuStartStamp];
+				if (input_imuTimestampList[imuStartStamp + 1] < timeEnd)
+					delta_t = input_imuTimestampList[imuStartStamp + 1] - input_imuTimestampList[imuStartStamp];
 				else
 				{
-					delta_t = timeEnd - imu_time_stamp[imuStartStamp];
+					delta_t = timeEnd - input_imuTimestampList[imuStartStamp];
 					if (delta_t < 0.000001) break;
 				}
 
 				IMU_preintegrator.update(input_gryList[imuStartStamp] - Framei->bias_g, input_accList[imuStartStamp] - Framei->bias_a, delta_t);
-				if (imu_time_stamp[imuStartStamp + 1] >= timeEnd) break;
+				if (input_imuTimestampList[imuStartStamp + 1] >= timeEnd) break;
 				imuStartStamp++;
 			}
 
@@ -352,14 +352,14 @@ namespace dso
 	/// </summary>
 	EnergyFunctional::EnergyFunctional()
 	{
-		adHost = NULL;
-		adTarget = NULL;
+		adHost = nullptr;
+		adTarget = nullptr;
 
-		red = NULL;
+		red = nullptr;
 
-		adHostF = NULL;
-		adTargetF = NULL;
-		adHTdeltaF = NULL;
+		adHostF = nullptr;
+		adTargetF = nullptr;
+		adHTdeltaF = nullptr;
 
 		nFrames = nResiduals = nPoints = 0;
 
@@ -395,13 +395,13 @@ namespace dso
 			{
 				for (EFResidual* r : p->residualsAll)
 				{
-					r->data->efResidual = NULL;
+					r->data->efResidual = nullptr;
 					SAFE_DELETE(r);
 				}
-				p->data->efPoint = NULL;
+				p->data->efPoint = nullptr;
 				SAFE_DELETE(p);
 			}
-			f->data->efFrame = NULL;
+			f->data->efFrame = nullptr;
 			SAFE_DELETE(f);
 		}
 
@@ -877,8 +877,8 @@ namespace dso
 			IMUPreintegrator IMU_preintegrator;
 			IMU_preintegrator.reset();
 
-			time_start = pic_time_stamp[frames[fhIdx]->data->shell->incomingId];
-			time_end = pic_time_stamp[frames[fhIdx + 1]->data->shell->incomingId];
+			time_start = input_picTimestampLeftList[frames[fhIdx]->data->shell->incomingId];
+			time_end = input_picTimestampLeftList[frames[fhIdx + 1]->data->shell->incomingId];
 			dt = time_end - time_start;
 
 			if (dt > 0.5) continue;
@@ -892,21 +892,21 @@ namespace dso
 			SE3 worldToCam_j = Framej->PRE_worldToCam;
 
 			imuStartIdx = -1;
-			imuStartIdx = findNearestIdx(imu_time_stamp, time_start);
+			imuStartIdx = findNearestIdx(input_imuTimestampList, time_start);
 			assert(imuStartIdx != -1);
 
 			while (true)
 			{
 				double delta_t;
-				if (imu_time_stamp[imuStartIdx + 1] < time_end)
-					delta_t = imu_time_stamp[imuStartIdx + 1] - imu_time_stamp[imuStartIdx];
+				if (input_imuTimestampList[imuStartIdx + 1] < time_end)
+					delta_t = input_imuTimestampList[imuStartIdx + 1] - input_imuTimestampList[imuStartIdx];
 				else
 				{
-					delta_t = time_end - imu_time_stamp[imuStartIdx];
+					delta_t = time_end - input_imuTimestampList[imuStartIdx];
 					if (delta_t < 0.000001) break;
 				}
 				IMU_preintegrator.update(input_gryList[imuStartIdx] - Framei->bias_g, input_accList[imuStartIdx] - Framei->bias_a, delta_t);
-				if (imu_time_stamp[imuStartIdx + 1] >= time_end)
+				if (input_imuTimestampList[imuStartIdx + 1] >= time_end)
 					break;
 				imuStartIdx++;
 			}
@@ -1077,8 +1077,8 @@ namespace dso
 		{
 			if (fhIdx < 0) continue;
 
-			time_start = pic_time_stamp[frames[fhIdx]->data->shell->incomingId];
-			time_end = pic_time_stamp[frames[fhIdx + 1]->data->shell->incomingId];
+			time_start = input_picTimestampLeftList[frames[fhIdx]->data->shell->incomingId];
+			time_end = input_picTimestampLeftList[frames[fhIdx + 1]->data->shell->incomingId];
 			dt = time_end - time_start;
 
 			if (dt > 0.5) continue;
@@ -1420,7 +1420,7 @@ namespace dso
 
 		nFrames--;
 		frames.pop_back();
-		fh->data->efFrame = NULL;
+		fh->data->efFrame = nullptr;
 
 		EFIndicesValid = false;
 		EFAdjointsValid = false;
@@ -1531,7 +1531,7 @@ namespace dso
 			connectivityMap[(((uint64_t)r->host->frameID) << 32) + ((uint64_t)r->target->frameID)][0]--;
 
 		nResiduals--;
-		r->data->efResidual = NULL;
+		r->data->efResidual = nullptr;
 		SAFE_DELETE(r);
 	}
 
@@ -1574,7 +1574,7 @@ namespace dso
 		h->points.pop_back();
 
 		nPoints--;
-		p->data->efPoint = NULL;
+		p->data->efPoint = nullptr;
 
 		EFIndicesValid = false;
 		SAFE_DELETE(p);
@@ -1621,8 +1621,8 @@ namespace dso
 		MatXX NNpiTS = 0.5 * (NNpiT + NNpiT.transpose());	// = N * (N' * N)^-1 * N'.
 
 		// 3、将信息量向零空间投影，并减掉投影在零空间的信息量
-		if (b != NULL) *b -= NNpiTS * *b;
-		if (H != NULL) *H -= NNpiTS * *H * NNpiTS;
+		if (b != nullptr) *b -= NNpiTS * *b;
+		if (H != nullptr) *H -= NNpiTS * *H * NNpiTS;
 	}
 
 	/// <summary>

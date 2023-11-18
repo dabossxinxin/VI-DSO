@@ -57,7 +57,7 @@ namespace dso
 			std::vector<MinimalImageB3*> images;
 
 			for (FrameHessian* f2 : frameHessians)
-				if (f2->debugImage == NULL)
+				if (f2->debugImage == nullptr)
 					f2->debugImage = new MinimalImageB3(wG[0], hG[0]);
 
 			// 绘制关键帧的图像信息

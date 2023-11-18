@@ -222,7 +222,7 @@ namespace dso
 
 		inline ~FrameHessian()
 		{
-			assert(efFrame == NULL);
+			assert(efFrame == nullptr);
 			release();
 			instanceCounter--;
 			for (int it = 0; it < pyrLevelsUsed; ++it)

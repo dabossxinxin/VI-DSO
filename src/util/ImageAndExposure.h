@@ -40,9 +40,10 @@ namespace dso
 			image = new float[w*h];
 			exposure_time = 1;
 		}
+
 		inline ~ImageAndExposure()
 		{
-			delete[] image;
+			SAFE_DELETE(image);
 		}
 
 		inline void copyMetaTo(ImageAndExposure &other)
@@ -51,11 +52,11 @@ namespace dso
 		}
 
 		inline ImageAndExposure* getDeepCopy()
-		{
-			ImageAndExposure* img = new ImageAndExposure(w, h, timestamp);
-			img->exposure_time = exposure_time;
-			memcpy(img->image, image, w*h * sizeof(float));
-			return img;
-		}
+        {
+            ImageAndExposure *img = new ImageAndExposure(w, h, timestamp);
+            img->exposure_time = exposure_time;
+            memcpy(img->image, image, w * h * sizeof(float));
+            return img;
+        }
 	};
 }

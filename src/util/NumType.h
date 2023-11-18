@@ -216,15 +216,15 @@ namespace dso
 	template <typename T>
 	void SAFE_DELETE(T* data, bool flag = false)
 	{
-		if (flag && data != NULL)
+		if (flag && data != nullptr)
 		{
 			delete[] data;
-			data = NULL;
+			data = nullptr;
 		}
-		else if (!flag && data != NULL)
+		else if (!flag && data != nullptr)
 		{
 			delete data;
-			data = NULL;
+			data = nullptr;
 		}
 	}
 }

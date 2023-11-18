@@ -200,9 +200,9 @@ namespace dso
 					PointHessian* ph = r->point;
 
 					if (ph->lastResiduals[0].first == r)
-						ph->lastResiduals[0].first = NULL;
+						ph->lastResiduals[0].first = nullptr;
 					else if (ph->lastResiduals[1].first == r)
-						ph->lastResiduals[1].first = NULL;
+						ph->lastResiduals[1].first = nullptr;
 
 					for (unsigned int k = 0; k < ph->residuals.size(); ++k)
 					{
@@ -494,7 +494,7 @@ namespace dso
 			printOptRes(lastEnergy, lastEnergyL, lastEnergyM, 0, 0, frameHessians.back()->aff_g2l().a, frameHessians.back()->aff_g2l().b);
 		}
 
-		debugPlotTracking();
+		//debugPlotTracking();
 
 		double lambda = 1e-1;
 		float stepsize = 1;
@@ -627,7 +627,7 @@ namespace dso
 			}
 		}
 
-		debugPlotTracking();
+		//debugPlotTracking();
 
 		// 滑窗优化后的平均光度观测残差
 		return sqrtf((float)(lastEnergy[0] / (patternNum * ef->resInA)));
@@ -685,7 +685,7 @@ namespace dso
 			for (unsigned int it = 0; it < fh->pointHessians.size(); ++it)
 			{
 				auto ph = fh->pointHessians[it];
-				if (ph == NULL) continue;
+				if (ph == nullptr) continue;
 
 				if (ph->residuals.empty())
 				{

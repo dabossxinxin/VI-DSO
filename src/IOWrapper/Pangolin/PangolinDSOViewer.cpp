@@ -399,10 +399,10 @@ namespace dso
 				glLineWidth(3);
 
 				glBegin(GL_LINE_STRIP);
-				for (unsigned int i = 0; i < input_gtPose.size(); i++)
+				for (unsigned int it = 0; it < input_gtPoseList.size(); ++it)
 				{
-					if (gt_time_stamp[i] > run_time)break;
-					SE3 pose_show = T_WR_align * input_gtPose[i] * T_BC;
+					if (input_gtTimestampList[it] > run_time)break;
+					SE3 pose_show = T_WR_align * input_gtPoseList[it] * T_BC;
 					glVertex3f((float)(pose_show.translation()[0]),
 						(float)(pose_show.translation()[1]),
 						(float)(pose_show.translation()[2]));
@@ -470,6 +470,7 @@ namespace dso
 					KeyFrameDisplay* kfd = new KeyFrameDisplay();
 					keyframesByKFID[fh->frameID] = kfd;
 					keyframes.emplace_back(kfd);
+                    printf("INFO: KeyFrame's size is %d in pangolin thread\n",keyframes.size());
 				}
 				keyframesByKFID[fh->frameID]->setFromKF(fh, HCalib);
 			}
@@ -486,7 +487,7 @@ namespace dso
 #elif defined(_OSX_)
 			timeval time_now;
 #endif
-			gettimeofday(&time_now, NULL);
+			gettimeofday(&time_now, nullptr);
 			lastNTrackingMs.push_back(((time_now.tv_sec - last_track.tv_sec) * 1000.0f + (time_now.tv_usec - last_track.tv_usec) / 1000.0f));
 			if (lastNTrackingMs.size() > 10) lastNTrackingMs.pop_front();
 			last_track = time_now;
@@ -539,7 +540,7 @@ namespace dso
 #elif defined(_OSX_)
 			timeval time_now;
 #endif
-			gettimeofday(&time_now, NULL);
+			gettimeofday(&time_now, nullptr);
 			lastNMappingMs.emplace_back(((time_now.tv_sec - last_map.tv_sec) * 1000.0f + (time_now.tv_usec - last_map.tv_usec) / 1000.0f));
 			if (lastNMappingMs.size() > 10) lastNMappingMs.pop_front();
 			last_map = time_now;

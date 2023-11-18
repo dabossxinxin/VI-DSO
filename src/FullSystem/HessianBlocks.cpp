@@ -50,7 +50,7 @@ namespace dso
 		memcpy(weights, rawPoint->weights, sizeof(float) * patternNum);
 		energyTH = rawPoint->energyTH;
 
-		efPoint = NULL;
+		efPoint = nullptr;
 	}
 
 	void PointHessian::release()

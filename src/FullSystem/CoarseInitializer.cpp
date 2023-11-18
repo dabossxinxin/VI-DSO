@@ -39,7 +39,7 @@ namespace dso
 	{
 		for (int lvl = 0; lvl < pyrLevelsUsed; ++lvl)
 		{
-			points[lvl] = NULL;
+			points[lvl] = nullptr;
 			numPoints[lvl] = 0;
 		}
 
@@ -1209,7 +1209,7 @@ namespace dso
 		for (int it = 0; it < pyrLevelsUsed; ++it)
 		{
 			delete indexes[it];
-			indexes[it] = NULL;
+			indexes[it] = nullptr;
 		}
 	}
 }

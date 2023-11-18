@@ -219,20 +219,21 @@ namespace dso
 	extern bool setting_useStereo;
 	extern double setting_margWeightFacImu;
 
-	extern std::vector<SE3> input_gtPose;
-	extern std::vector<Vec3> input_gtVelocity;
-	extern std::vector<Vec3> input_gtBiasG;
-	extern std::vector<Vec3> input_gtBiasA;
+	extern std::vector<SE3> input_gtPoseList;
+	extern std::vector<Vec3> input_gtVelocityList;
+	extern std::vector<Vec3> input_gtBiasGList;
+	extern std::vector<Vec3> input_gtBiasAList;
 	extern std::vector<Vec3> input_gryList;
 	extern std::vector<Vec3> input_accList;
+
+    extern std::vector<double> input_gtTimestampList;
+    extern std::vector<double> input_imuTimestampList;
+    extern std::vector<double> input_picTimestampLeftList;
+    extern std::vector<double> input_picTimestampRightList;
 
 	extern SE3 T_C0C1;
 	extern SE3 T_C1C0;
 	extern Mat33f K_right;
-	extern std::vector<double> gt_time_stamp;
-	extern std::vector<double> imu_time_stamp;
-	extern std::vector<double> pic_time_stamp;
-	extern std::vector<double> pic_time_stamp_r;
 	extern SE3 T_BC;
 	extern Mat33 GyrCov;
 	extern Mat33 AccCov;

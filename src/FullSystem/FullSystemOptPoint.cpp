@@ -74,7 +74,7 @@ namespace dso
 			if (print)
 				printf("OptPoint: Not well-constrained (%d res, H=%.1f). E=%f. SKIP!\n",
 					nres, lastHdd, lastEnergy);
-			return NULL;
+			return nullptr;
 		}
 
 		if (print) printf("Activate point. %d residuals. H=%f. Initial Energy: %f. Initial Id=%f\n",
@@ -98,7 +98,7 @@ namespace dso
 					nres,
 					newHdd,
 					lastEnergy);
-				return NULL;
+				return nullptr;
 			}
 
 			if (print) printf("%s %d (L %.2f) %s: %f -> %f (idepth %f)!\n",
