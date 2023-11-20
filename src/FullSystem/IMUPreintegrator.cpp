@@ -21,7 +21,7 @@ namespace dso
 		_J_P_Biasa.setZero();     // position / acc
 		_J_V_Biasg.setZero();     // velocity / gyro
 		_J_V_Biasa.setZero();     // velocity / acc
-		_J_R_Biasg.setZero();   // rotation / gyro
+		_J_R_Biasg.setZero();	  // rotation / gyro
 
 		// noise covariance propagation of delta measurements
 		_cov_P_V_Phi.setZero();
@@ -47,7 +47,6 @@ namespace dso
 		_cov_P_V_Phi.setZero();
 
 		_delta_time = 0;
-
 	}
 
 	// incrementally update 1)delta measurements, 2)jacobians, 3)covariance matrix

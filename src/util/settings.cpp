@@ -205,10 +205,10 @@ namespace dso
 	Mat33 AccCov;
 	Mat33 GyrRandomWalkNoise;
 	Mat33 AccRandomWalkNoise;
-	Sim3 T_WD;				// 视觉估计坐标基准与IMU基准之间的变换-最新估计值
-	Sim3 T_WD_l;			// 视觉估计坐标基准与IMU基准之间的变换-上一估计值
-	Sim3 T_WD_l_half;		// 视觉估计坐标基准与IMU基准之间的变换-上一估计值并采用部分IMU信息
-	Sim3 T_WD_change;
+	Sim3 T_WD = Sim3(Eigen::Matrix4d::Identity());				// 视觉估计坐标基准与IMU基准之间的变换-最新估计值
+	Sim3 T_WD_l = Sim3(Eigen::Matrix4d::Identity()); 			// 视觉估计坐标基准与IMU基准之间的变换-上一估计值
+	Sim3 T_WD_l_half = Sim3(Eigen::Matrix4d::Identity()); 		// 视觉估计坐标基准与IMU基准之间的变换-上一估计值并采用部分IMU信息
+	Sim3 T_WD_change = Sim3(Eigen::Matrix4d::Identity());
 
 	int index_align;
 	SE3 T_WR_align = SE3();

@@ -112,6 +112,7 @@ namespace dso
 
 			pangolin::Var<int> settings_pointCloudMode("ui.PC_mode", 1, 1, 4, false);
 
+            pangolin::Var<bool> settings_followCamera("ui.FollowCamera", false, true);
 			pangolin::Var<bool> settings_showKFCameras("ui.KFCam", false, true);
 			pangolin::Var<bool> settings_showCurrentCamera("ui.CurrCam", true, true);
 			pangolin::Var<bool> settings_showTrajectory("ui.Trajectory", true, true);
@@ -135,6 +136,7 @@ namespace dso
 			pangolin::Var<double> settings_minRelBS("ui.minRelativeBS", 0.1, 0, 1, false);
 
 			pangolin::Var<bool> settings_resetButton("ui.Reset", false, false);
+            pangolin::Var<bool> settings_saveButton("ui.Save",false,false);
 
 			pangolin::Var<int> settings_nPts("ui.activePoints", setting_desiredPointDensity, 200, 5000, false);
 			pangolin::Var<int> settings_nCandidates("ui.pointCandidates", setting_desiredImmatureDensity, 50, 5000, false);
@@ -152,6 +154,13 @@ namespace dso
 				// Clear entire screen
 				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 				glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+
+                if (settings_followCamera)
+                {
+                    Eigen::Matrix4f Twc = currentCam->camToWorld.matrix().cast<float>();
+					pangolin::OpenGlMatrix TwcGL = convertEigenToGL(Twc);
+					Visualization3D_camera.Follow(TwcGL);
+                }
 
 				if (setting_render_display3D)
 				{
@@ -264,6 +273,13 @@ namespace dso
 					setting_fullResetRequested = true;
 				}
 
+                if (settings_saveButton.Get())
+                {
+                    printf("Save PointCloud!\n");
+                    settings_saveButton.Reset();
+                    savepc_internal();
+                }
+
 				// Swap frames and Process Events
 				pangolin::FinishFrame();
 
@@ -291,6 +307,39 @@ namespace dso
 		{
 			needReset = true;
 		}
+
+		pangolin::OpenGlMatrix PangolinDSOViewer::convertEigenToGL(const Eigen::Matrix4f& mat)
+		{
+			pangolin::OpenGlMatrix matGL;
+			memcpy(matGL.m, mat.data(), sizeof(float) * 16);
+			return matGL;
+		}
+
+        void PangolinDSOViewer::savepc_internal()
+        {
+            model3DMutex.lock();
+
+            std::string filename = "./PointCloud.txt";
+            std::ofstream fout(filename.c_str());
+
+            int status = 0;
+            int process = 0;
+            int total = int(keyframes.size());
+            char bar[102] = {0};
+            char symbol[4]={'|','/','-','\\'};
+
+            for (auto fh : keyframes)
+            {
+                fh->save_pointcloud(fout);
+                process++;
+                status = int((float(process)/float(total))*100);
+                memset(bar,'#',sizeof(char)*status);
+                printf("[%s][%d%%][%c]\r",bar,status,symbol[status%4]);
+                fflush(stdout);
+            }
+            printf("\n");
+            model3DMutex.unlock();
+        }
 
 		void PangolinDSOViewer::reset_internal()
 		{
@@ -470,7 +519,7 @@ namespace dso
 					KeyFrameDisplay* kfd = new KeyFrameDisplay();
 					keyframesByKFID[fh->frameID] = kfd;
 					keyframes.emplace_back(kfd);
-                    printf("INFO: KeyFrame's size is %d in pangolin thread\n",keyframes.size());
+                    printf("INFO: KeyFrame's size is %lu in pangolin thread\n",keyframes.size());
 				}
 				keyframesByKFID[fh->frameID]->setFromKF(fh, HCalib);
 			}

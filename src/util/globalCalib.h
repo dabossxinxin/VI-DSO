@@ -24,6 +24,7 @@
 
 #include "util/settings.h"
 #include "util/NumType.h"
+#include "FullSystem/IMUPreintegrator.h"
 
 namespace dso
 {
@@ -39,5 +40,22 @@ namespace dso
 	extern float wM3G;
 	extern float hM3G;
 
-	void setGlobalCalib(int w, int h, const Eigen::Matrix3f &K);
+	/// <summary>
+	/// DSO系统设置全局相机内参数
+	/// </summary>
+	/// <param name="w">相机图像宽度</param>
+	/// <param name="h">相机图像高度</param>
+	/// <param name="K">相机内参</param>
+	void setGlobalCalib(int w, int h, const Eigen::Matrix3f& K);
+	
+	/// <summary>
+	/// DSO系统两图像帧之间惯导数据预积分
+	/// </summary>
+	/// <param name="handle">预积分handle</param>
+	/// <param name="bg">惯导数据陀螺仪偏置</param>
+	/// <param name="ba">惯导数据加速度偏置</param>
+	/// <param name="timeStart">惯导数据开始时间</param>
+	/// <param name="timeEnd">惯导数据结束时间</param>
+	void preintergrate(IMUPreintegrator& handle, const Vec3& bg, const Vec3& ba,
+		const double timeStart, const double timeEnd);
 }

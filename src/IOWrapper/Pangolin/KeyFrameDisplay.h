@@ -94,6 +94,8 @@ namespace dso
 			void drawCam(float lineWidth = 1, float* color = 0, float sizeFactor = 1);
 			void drawPC(float pointSize);
 
+            void save_pointcloud(std::ostream& out);
+
 			int validDisplayPts() { return numGLBufferGoodPoints; }
 
 			int id;										// µ±Ç°Ö¡ID

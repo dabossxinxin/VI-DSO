@@ -143,16 +143,16 @@ namespace dso
 		Vec10 step_backup;			// 相机姿态、光度参数上一迭代步骤结果备份
 		Vec10 state_backup;			// 相机姿态、光度参数上一迭代步骤状态备份
 
-		Vec9 step_imu = Vec9::Zero();
+		Vec9 step_imu = Vec9::Zero();		// 惯导数据部分得到的p/v/q的增量
 
-		std::vector<Vec3> gyr_data;
-		std::vector<Vec3> acc_data;
+		std::vector<Vec3> gyr_data;			// 惯导陀螺仪数据，目前没有用上这个结构
+		std::vector<Vec3> acc_data;			// 惯导加速度数据，目前没有用上这个结构
 
-		Vec3 velocity = Vec3::Zero();
-		Vec3 delta_bias_g = Vec3::Zero();
-		Vec3 delta_bias_a = Vec3::Zero();
-		Vec3 bias_g = Vec3::Zero();
-		Vec3 bias_a = Vec3::Zero();
+		Vec3 velocity = Vec3::Zero();		// 当前帧速度
+		Vec3 delta_bias_g = Vec3::Zero();	// 当前帧陀螺仪偏置量
+		Vec3 delta_bias_a = Vec3::Zero();	// 当前帧加速计偏置量
+		Vec3 bias_g = Vec3::Zero();			// 当前帧陀螺仪偏置量
+		Vec3 bias_a = Vec3::Zero();			// 当前帧加速度偏置量
 
 		EIGEN_STRONG_INLINE const SE3& get_worldToCam_evalPT() const { return worldToCam_evalPT; }
 		EIGEN_STRONG_INLINE const Vec10& get_state_zero() const { return state_zero; }

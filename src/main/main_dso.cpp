@@ -53,12 +53,12 @@ void loadArgument(int argc, char** argv)
 /// <param name="folder">数据集文件夹路径</param>
 void setArgument(const std::string folder)
 {
-	input_sourceLeft = folder + "/MH_01_easy/mav0/cam0/data.zip";
-	input_calibLeft = folder + "/MH_01_easy/mav0/cam0/cam0.txt";
-	input_calibImu = folder + "/MH_01_easy/mav0/imu0/imu0.txt";
-	input_gtPath = folder + "/MH_01_easy/mav0/state_groundtruth_estimate0/data.csv";
-	input_imuPath = folder + "/MH_01_easy/mav0/imu0/data.csv";
-	input_picTimestampLeft = folder + "/MH_01_easy/mav0/cam0/data.csv";
+	input_sourceLeft = folder + "/mav0/cam0/data.zip";
+	input_calibLeft = folder + "/mav0/cam0/cam0.txt";
+	input_calibImu = folder + "/mav0/imu0/imu0.txt";
+	input_gtPath = folder + "/mav0/state_groundtruth_estimate0/data.csv";
+	input_imuPath = folder + "/mav0/imu0/data.csv";
+	input_picTimestampLeft = folder + "/mav0/cam0/data.csv";
 
 	setting_debugout_runquiet = true;
 	setting_photometricCalibration = 0;
@@ -68,6 +68,12 @@ void setArgument(const std::string folder)
 	setting_imuWeightNoise = 6;
 	setting_imuWeightTracker = 0.6;
 	setting_stereoWeight = 0;
+    
+	setting_gravityNorm = 9.81;
+	setting_useImu = true;
+	setting_imuTrackFlag = true;
+	setting_imuTrackReady = true;
+	setting_useDynamicMargin = true;
 
 	dso::settingsDefault(0);
 }
@@ -76,9 +82,9 @@ int main(int argc, char** argv)
 {
 	//loadArgument(argc, argv);
 #if defined(_WIN_)
-    setArgument("E:/TumData");
+	setArgument("E:/TumData/MH_01_easy");
 #elif defined(_OSX_)
-    setArgument("/Users/liuxianxian/Desktop");
+    setArgument("/Users/liuxianxian/Desktop/Dataset/MH_05_difficult");
 #endif
 
 	dso::getTstereo();
@@ -90,11 +96,6 @@ int main(int argc, char** argv)
 	setting_imuWeightNoise = 3;
 	setting_imuWeightTracker = 0.1;
 	setting_stereoWeight = 2;
-
-	setting_gravityNorm = 9.81;
-	setting_useImu = false;
-	setting_imuTrackFlag = true;
-	setting_imuTrackReady = false;
 
 	setting_useOptimize = true;
 	setting_useDynamicMargin = true;

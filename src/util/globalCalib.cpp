@@ -26,7 +26,6 @@
 
 namespace dso
 {
-	// 成员变量中的G表示global
 	int wG[PYR_LEVELS], hG[PYR_LEVELS];
 	float fxG[PYR_LEVELS], fyG[PYR_LEVELS],
 		cxG[PYR_LEVELS], cyG[PYR_LEVELS];
@@ -99,6 +98,31 @@ namespace dso
 			fyiG[level] = KiG[level](1, 1);
 			cxiG[level] = KiG[level](0, 2);
 			cyiG[level] = KiG[level](1, 2);
+		}
+	}
+
+	void preintergrate(IMUPreintegrator& handle, const Vec3& bg, const Vec3& ba, 
+		const double timeStart, const double timeEnd)
+	{
+		double delta_t = 0;
+		int imuStartStamp = -1;
+		imuStartStamp = findNearestIdx(input_imuTimestampList, timeStart);
+		assert(imuStartStamp != -1);
+
+		// 从当前帧时刻到下一帧时刻内的IMU测量值预积分
+		while (true)
+		{
+			if (input_imuTimestampList[imuStartStamp + 1] < timeEnd)
+				delta_t = input_imuTimestampList[imuStartStamp + 1] - input_imuTimestampList[imuStartStamp];
+			else
+			{
+				delta_t = timeEnd - input_imuTimestampList[imuStartStamp];
+				if (delta_t < 1e-6) break;
+			}
+
+			handle.update(input_gryList[imuStartStamp] - bg, input_accList[imuStartStamp] - ba, delta_t);
+			if (input_imuTimestampList[imuStartStamp + 1] >= timeEnd) break;
+			imuStartStamp++;
 		}
 	}
 }

@@ -336,6 +336,32 @@ namespace dso
 			return true;
 		}
 
+        void KeyFrameDisplay::save_pointcloud(std::ostream &out)
+        {
+            if (!bufferValid || numGLBufferGoodPoints == 0)
+                return;
+
+            float* vertex = new float[numGLBufferGoodPoints*3];
+            unsigned char* color = new unsigned char[numGLBufferGoodPoints*3];
+
+            vertexBuffer.Download(vertex,sizeof(float)*numGLBufferGoodPoints*3,0);
+            colorBuffer.Download(color,sizeof(unsigned char)*numGLBufferGoodPoints*3,0);
+
+            for (int it = 0; it < numGLBufferGoodPoints; ++it)
+            {
+                out << vertex[it*3+0] << " "
+                        << vertex[it*3+1] << " "
+                        << vertex[it*3+2] << " "
+                        << (int)color[it*3+0] << " "
+                        << (int)color[it*3+1] << " "
+                        << (int)color[it*3+2] << " "
+                        << std::endl;
+            }
+
+            SAFE_DELETE(vertex);
+            SAFE_DELETE(color);
+        }
+
 		/// <summary>
 		/// 绘制关键帧的位姿
 		/// </summary>

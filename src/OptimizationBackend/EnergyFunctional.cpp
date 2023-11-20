@@ -54,13 +54,12 @@ namespace dso
 		if (nFrames == 1) return;
 
 		int imuResCounter = 0;
-		int imuStartStamp = 0;
 		double Energy = 0;
-		double timeStart = 0, timeEnd = 0;
-		double dt = 0, delta_t = 0;
+		double timeStart = 0, timeEnd = 0, dt = 0;
 		int fhIdxS = 0, fhIdxE = 0;
 		Vec3 g_w(0, 0, -setting_gravityNorm);
 
+		// TODO：在前端跟踪中已经计算了滑窗关键帧之间的预积分数据，这里可以不用再重复计算一遍
 		for (int fhIdx = 0; fhIdx < frames.size() - 1; ++fhIdx)
 		{
 			fhIdxS = fhIdx;
@@ -70,28 +69,25 @@ namespace dso
 			VecX r_pvq = VecX::Zero(9);
 			MatXX J_pvq = MatXX::Zero(9, 7 + nFrames * 15);
 
-			IMUPreintegrator IMU_preintegrator;
-			IMU_preintegrator.reset();
-
 			timeStart = input_picTimestampLeftList[frames[fhIdxS]->data->shell->incomingId];
 			timeEnd = input_picTimestampLeftList[frames[fhIdxE]->data->shell->incomingId];
 			dt = timeEnd - timeStart;
 
 			imuResCounter++;
-			FrameHessian* Framei = frames[fhIdxS]->data;
-			FrameHessian* Framej = frames[fhIdxE]->data;
+			auto Framei = frames[fhIdxS]->data;
+			auto Framej = frames[fhIdxE]->data;
 
-			// 计算两帧之间IMU偏置相对残差相对于偏置的Jacobian
+			// 计算两帧之间IMU偏置相对残差相对于偏置的Jacobian(陀螺仪偏置和加速度计偏置)
 			VecX r_bias = VecX::Zero(6);
 			MatXX J_bias = MatXX::Zero(6, 7 + nFrames * 15);
 
 			r_bias.block(0, 0, 3, 1) = Framej->bias_g + Framej->delta_bias_g - (Framei->bias_g + Framei->delta_bias_g);
 			r_bias.block(3, 0, 3, 1) = Framej->bias_a + Framej->delta_bias_a - (Framei->bias_a + Framei->delta_bias_a);
 
-			J_bias.block(0, 7 + fhIdxS * 15 + 9, 3, 3) = -Mat33::Identity();
-			J_bias.block(0, 7 + fhIdxE * 15 + 9, 3, 3) = Mat33::Identity();
-			J_bias.block(3, 7 + fhIdxS * 15 + 12, 3, 3) = -Mat33::Identity();
-			J_bias.block(3, 7 + fhIdxE * 15 + 12, 3, 3) = Mat33::Identity();
+			J_bias.block(0, 7 + fhIdxS * 15 + 9, 3, 3) = -Mat33::Identity();	// 偏置残差相对于第i帧陀螺仪偏置的导数
+			J_bias.block(0, 7 + fhIdxE * 15 + 9, 3, 3) = Mat33::Identity();		// 偏置残差相对于第j帧陀螺仪偏置的导数
+			J_bias.block(3, 7 + fhIdxS * 15 + 12, 3, 3) = -Mat33::Identity();	// 偏置残差相对于第i帧加速度偏置的导数
+			J_bias.block(3, 7 + fhIdxE * 15 + 12, 3, 3) = Mat33::Identity();	// 偏置残差相对于第j帧加速度偏置的导数
 
 			// 陀螺仪偏置建模为随机游走,以随机游走的方差的逆作为偏置的权重
 			Mat66 covBias = Mat66::Zero();
@@ -101,36 +97,19 @@ namespace dso
 			H += J_bias.transpose() * weightBias * J_bias;
 			b += J_bias.transpose() * weightBias * r_bias;
 
-			// 如果两帧之间的时间间隔大于0.5s了放弃此次预积分
-			// 原因是IMU测量在较短时间内可保证一定精度
+			// 如果两帧之间的时间间隔大于0.5s了放弃此次预积分，长时间的惯导数据保证不了精度
 			if (dt > 0.5) continue;
 
-			imuStartStamp = -1;
-			imuStartStamp = findNearestIdx(input_imuTimestampList, timeStart);
-			assert(imuStartStamp != -1);
-
-			// 从当前帧时刻到下一帧时刻内的IMU测量值预积分
-			while (true)
-			{
-				if (input_imuTimestampList[imuStartStamp + 1] < timeEnd)
-					delta_t = input_imuTimestampList[imuStartStamp + 1] - input_imuTimestampList[imuStartStamp];
-				else
-				{
-					delta_t = timeEnd - input_imuTimestampList[imuStartStamp];
-					if (delta_t < 0.000001) break;
-				}
-
-				IMU_preintegrator.update(input_gryList[imuStartStamp] - Framei->bias_g, input_accList[imuStartStamp] - Framei->bias_a, delta_t);
-				if (input_imuTimestampList[imuStartStamp + 1] >= timeEnd) break;
-				imuStartStamp++;
-			}
+			IMUPreintegrator IMU_preintegrator;
+			IMU_preintegrator.reset();
+			preintergrate(IMU_preintegrator, Framei->bias_g, Framei->bias_a, timeStart, timeEnd);
 
 			SE3 worldToCam_i = Framei->PRE_worldToCam;
 			SE3 worldToCam_j = Framej->PRE_worldToCam;
 			SE3 worldToCam_i_evalPT = Framei->get_worldToCam_evalPT();
 			SE3 worldToCam_j_evalPT = Framej->get_worldToCam_evalPT();
 
-			//利用伴随性质将坐标系转换到世界系中 
+			// 线性化点上的数据
 			Mat44 M_WC_I_PT = T_WD.matrix() * worldToCam_i_evalPT.inverse().matrix() * T_WD.inverse().matrix();
 			SE3 T_WB_I_PT(M_WC_I_PT * T_BC.inverse().matrix());
 			Mat33 R_WB_I_PT = T_WB_I_PT.rotationMatrix();
@@ -161,7 +140,8 @@ namespace dso
 			Vec3 res_p = R_WB_I.transpose() * (t_WB_J - t_WB_I - Framei->velocity * dt - 0.5 * g_w * dt * dt) - pre_p;
 
 			Mat99 Cov = IMU_preintegrator.getCovPVPhi();
-
+			
+			// 计算惯导数据中残差关于状态量的雅可比
 			Mat33 RightJacobianInv_ResR = IMU_preintegrator.JacobianRInv(res_q);
 			Mat33 J_resPhi_phi_i = -RightJacobianInv_ResR * R_WB_J.transpose() * R_WB_I;
 			Mat33 J_resPhi_phi_j = RightJacobianInv_ResR;
@@ -196,7 +176,7 @@ namespace dso
 			J_imui.block(6, 9, 3, 3) = J_resV_bg;
 			J_imui.block(6, 12, 3, 3) = J_resV_ba;
 
-			Mat915 J_imuj = Mat915::Zero();
+			Mat915 J_imuj = Mat915::Zero();//p,q,v,bg,ba;
 			J_imuj.block(0, 0, 3, 3) = J_resP_p_j;
 			J_imuj.block(3, 3, 3, 3) = J_resPhi_phi_j;
 			J_imuj.block(6, 6, 3, 3) = J_resV_v_j;
@@ -223,6 +203,7 @@ namespace dso
 			// 	J_poseb_wd_j.block(0,3,7,3) = Mat73::Zero();
 			// 	J_poseb_wd_i.block(0,6,7,1) = Vec7::Zero();
 			// 	J_poseb_wd_j.block(0,6,7,1) = Vec7::Zero();
+
 			if (frames.size() < setting_maxFrames)
 			{
 				J_poseb_wd_i.block(0, 0, 7, 3) = Mat73::Zero();
@@ -238,6 +219,7 @@ namespace dso
 			J_res_posebi.block(0, 0, 9, 6) = J_imui.block(0, 0, 9, 6);
 			J_res_posebj.block(0, 0, 9, 6) = J_imuj.block(0, 0, 9, 6);
 
+			// 惯导积分计算时使用右雅可比，视觉计算时使用左雅可比，
 			Mat66 J_xi_r_l_i = worldToCam_i.Adj().inverse();
 			Mat66 J_xi_r_l_j = worldToCam_j.Adj().inverse();
 			Mat1515 J_r_l_i = Mat1515::Identity();
@@ -245,7 +227,7 @@ namespace dso
 			J_r_l_i.block(0, 0, 6, 6) = J_xi_r_l_i;
 			J_r_l_j.block(0, 0, 6, 6) = J_xi_r_l_j;
 
-			// 这里将位置部分置为零那么雅可比只对尺度部分有影响
+			// 计算惯导部分关于世界系与DSO系之间的相似变换的雅可比
 			J_pvq.block(0, 0, 9, 7) += J_res_posebi * J_poseb_wd_i;
 			J_pvq.block(0, 0, 9, 7) += J_res_posebj * J_poseb_wd_j;
 			J_pvq.block(0, 0, 9, 3) = Mat93::Zero();
@@ -260,6 +242,7 @@ namespace dso
 			H += (J_pvq.transpose() * Weight * J_pvq);
 			b += (J_pvq.transpose() * Weight * r_pvq);
 
+			// 惯导部分的能量值为位置、速度、旋转、偏置部分残差的二范数
 			Energy += (r_pvq.transpose() * Weight * r_pvq)[0] + (r_bias.transpose() * weightBias * r_bias)[0];
 		}
 
@@ -1814,6 +1797,7 @@ namespace dso
 		}
 		else
 		{
+			// 判断是否使用惯导数据参与优化计算
 			if (!setting_useImu)
 			{
 				VecX SVecI = (HFinal_visual.diagonal() + VecX::Constant(HFinal_visual.cols(), 10)).cwiseSqrt().cwiseInverse();
@@ -1845,6 +1829,13 @@ namespace dso
 		{
 			VecX xOld = x_visual;
 			orthogonalize(&x_visual, 0);
+		}
+
+		// 检测数据是否存在异常，若存在异常则把相关数据保存出来
+		if (std::isnan(x_visual[0]) || std::isnan(x_visual[1]) || std::isnan(x_visual[2]) || std::isnan(x_visual[3]))
+		{
+			char buf[1000];
+			
 		}
 
 		lastX = x_visual;

@@ -388,18 +388,13 @@ namespace dso
 		for (unsigned int it = 0; it < lastF_2_fh_tries.size(); ++it)
 		{
 			if (setting_useStereo && frameHessians.size() < setting_maxFrames - 1)
-			{
-				if (it > 0)
-				{
-					initFailed = true;
-					first_track_flag = false;
-				}
-			}
-
-			if (newFrameID == 100)
-			{
-				std::cout << "xinxin" << std::endl;
-			}
+            {
+                if (it > 0)
+                {
+                    initFailed = true;
+                    first_track_flag = false;
+                }
+            }
 
 			// 跟踪系统最新输入的帧
 			AffLight aff_g2l_this = aff_last_2_l;

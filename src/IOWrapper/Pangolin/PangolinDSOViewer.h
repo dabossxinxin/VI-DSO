@@ -59,8 +59,8 @@ namespace dso
 			void run();
 			void close();
 
-			void addImageToDisplay(std::string name, MinimalImageB3* image);
-			void clearAllImagesToDisplay();
+			//void addImageToDisplay(std::string name, MinimalImageB3* image);
+			//void clearAllImagesToDisplay();
 
 			// ==================== Output3DWrapper Functionality ======================
 			virtual void publishGraph(const std::map<uint64_t, Eigen::Vector2i, std::less<uint64_t>, Eigen::aligned_allocator<std::pair<const uint64_t, Eigen::Vector2i>>> &connectivity) override;
@@ -78,7 +78,9 @@ namespace dso
 
 			bool needReset;
 			void reset_internal();
+            void savepc_internal();
 			void drawConstraints();
+			inline pangolin::OpenGlMatrix convertEigenToGL(const Eigen::Matrix4f&);
 
 			std::thread runThread;		// 显示线程handle
 			bool running;				// 显示线程是否运行的标志位
