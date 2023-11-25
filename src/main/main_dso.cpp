@@ -84,7 +84,7 @@ int main(int argc, char** argv)
 #if defined(_WIN_)
 	setArgument("E:/TumData/MH_01_easy");
 #elif defined(_OSX_)
-    setArgument("/Users/liuxianxian/Desktop/Dataset/MH_05_difficult");
+    setArgument("/Users/liuxianxian/Desktop/Dataset/MH_01_easy");
 #endif
 
 	dso::getTstereo();

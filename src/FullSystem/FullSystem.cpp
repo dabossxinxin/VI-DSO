@@ -1288,54 +1288,56 @@ namespace dso
 	}
 
 	void FullSystem::initFirstFrameImu(FrameHessian* fh)
-	{
-		int imuStartIdx = -1;
-		int imuStartIdxGT = -1;
-		double fhTime = input_picTimestampLeftList[fh->shell->incomingId];
+    {
+        int imuStartIdx = -1;
+        int imuStartIdxGT = -1;
+        double fhTime = input_picTimestampLeftList[fh->shell->incomingId];
 
-		imuStartIdx = findNearestIdx(input_imuTimestampList, fhTime);
-		imuStartIdxGT = findNearestIdx(input_gtTimestampList, fhTime);
+        imuStartIdx = findNearestIdx(input_imuTimestampList, fhTime);
+        imuStartIdxGT = findNearestIdx(input_gtTimestampList, fhTime);
 
-		if (imuStartIdx == -1) printf("ERROR: timestamp error, check it\n");
-		if (imuStartIdxGT == -1) printf("ERROR: timestamp error, check it\n");
-		if (imuStartIdx == -1 || imuStartIdxGT == -1) return;
+        if (imuStartIdx == -1) printf("ERROR: timestamp error, check it\n");
+        if (imuStartIdxGT == -1) printf("ERROR: timestamp error, check it\n");
+        if (imuStartIdx == -1 || imuStartIdxGT == -1) return;
 
-		Vec3 g_b = Vec3::Zero();
-		Vec3 g_w(0, 0, -1);
+        Vec3 g_b = Vec3::Zero();
+        Vec3 g_w(0, 0, -1);
 
-		for (int idx = 0; idx < 40; ++idx)
-			g_b = g_b + input_accList[idx];
+        // 一开始IMU为静止状态，使用前40帧静止状态的惯导数据指示IMU本体坐标系Z轴方向
+        for (int idx = 0; idx < 40; ++idx)
+            g_b = g_b + input_accList[idx];
 
-		g_b = -g_b / g_b.norm();
-		Vec3 g_c = T_BC.inverse().rotationMatrix() * g_b;
+        g_b = -g_b / g_b.norm();
+        Vec3 g_c = T_BC.inverse().rotationMatrix() * g_b;
 
-		g_c = g_c / g_c.norm();
-		Vec3 rAxis_wc = Sophus::SO3::hat(g_c) * g_w;
+        g_c = g_c / g_c.norm();
+        Vec3 rAxis_wc = Sophus::SO3d::hat(g_c) * g_w;
 
-		// 罗德里格斯公式计算相机系到世界系的旋转
-		double nNorm = rAxis_wc.norm();
-		rAxis_wc = rAxis_wc / nNorm;
-		double sin_theta = nNorm;
-		double cos_theta = g_c.dot(g_w);
+        // 罗德里格斯公式计算相机系到世界系的旋转
+        double nNorm = rAxis_wc.norm();
+        rAxis_wc = rAxis_wc / nNorm;
+        double sin_theta = nNorm;
+        double cos_theta = g_c.dot(g_w);
 
-		Mat33 R_wc = sin_theta * Sophus::SO3::hat(rAxis_wc) +
-			cos_theta * Mat33::Identity() + (1 - cos_theta) * rAxis_wc * rAxis_wc.transpose();
+        Mat33 R_wc = sin_theta * Sophus::SO3d::hat(rAxis_wc) +
+                     cos_theta * Mat33::Identity() + (1 - cos_theta) * rAxis_wc * rAxis_wc.transpose();
 
-		// T_WR_align为GroundTruth与当前系统坐标系之间的变换
-		// 这个参数的作用为将GroundTruth坐标转换到当前系统坐标系下
-		SE3 T_wc(R_wc, Vec3::Zero());
-		if (input_gtPath.empty()) T_WR_align = SE3();
-		else T_WR_align = T_wc * T_BC.inverse() * input_gtPoseList[imuStartIdxGT].inverse();
+        // T_WR_align为GroundTruth与当前系统坐标系之间的变换
+        // 这个参数的作用为将GroundTruth坐标转换到当前系统坐标系下
+        SE3 T_wc(R_wc, Vec3::Zero());
+        if (input_gtPath.empty()) T_WR_align = SE3();
+        else T_WR_align = T_wc * T_BC.inverse() * input_gtPoseList[imuStartIdxGT].inverse();
 
-		fh->shell->camToWorld = T_wc;
-		fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(), fh->shell->aff_g2l);
+        fh->shell->camToWorld = T_wc;
+        fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(), fh->shell->aff_g2l);
 
-		Mat33 R_wd = Mat33::Identity();
-		T_WD = Sim3(RxSO3(1, R_wd), Vec3::Zero());
-		T_WD_l = T_WD;
-		T_WD_l_half = T_WD;
-		state_twd.setZero();
-	}
+        // 初始化世界坐标系和DSO坐标系之间的变换
+        Mat33 R_wd = Mat33::Identity();
+        T_WD = Sim3(RxSO3(1, R_wd), Vec3::Zero());
+        T_WD_l = Sim3(RxSO3(1, R_wd), Vec3::Zero());
+        T_WD_l_half = Sim3(RxSO3(1, R_wd), Vec3::Zero());
+        state_twd.setZero();
+    }
 
 	void FullSystem::savetrajectory(const Sophus::Matrix4d& T)
 	{

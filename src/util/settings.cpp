@@ -201,8 +201,8 @@ namespace dso
 	SE3 T_C1C0;
 	Mat33f K_right;
 	SE3 T_BC;
-	Mat33 GyrCov;
-	Mat33 AccCov;
+	Mat33 GyrCovariance;
+	Mat33 AccCovariance;
 	Mat33 GyrRandomWalkNoise;
 	Mat33 AccRandomWalkNoise;
 	Sim3 T_WD = Sim3(Eigen::Matrix4d::Identity());				// 视觉估计坐标基准与IMU基准之间的变换-最新估计值

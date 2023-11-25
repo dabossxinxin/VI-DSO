@@ -486,8 +486,8 @@ namespace dso
 			SE3 temp(R, t);
 			T_BC = temp;
 
-			GyrCov = Mat33::Identity() * noise(0) * noise(0) / 0.005;
-			AccCov = Mat33::Identity() * noise(1) * noise(1) / 0.005;
+			GyrCovariance = Mat33::Identity() * noise(0) * noise(0) / 0.005;
+			AccCovariance = Mat33::Identity() * noise(1) * noise(1) / 0.005;
 			GyrRandomWalkNoise = Mat33::Identity() * noise(2) * noise(2);
 			AccRandomWalkNoise = Mat33::Identity() * noise(3) * noise(3);
 

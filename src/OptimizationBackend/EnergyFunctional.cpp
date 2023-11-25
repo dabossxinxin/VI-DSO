@@ -827,14 +827,11 @@ namespace dso
 	}
 
 	/// <summary>
-	/// 边缘化惯导信息 TODO
+	/// 边缘化惯导信息
 	/// </summary>
-	/// <param name="fh"></param>
+	/// <param name="fh">待边缘化的图像帧</param>
 	void EnergyFunctional::marginalizeFrame_imu(EFFrame* fh)
 	{
-		int ndim = nFrames * 17 + CPARS + 7 - 17;	// 新的惯导Hessian矩阵维度
-		int odim = nFrames * 17 + CPARS + 7;		// 旧的惯导Hessian矩阵维度
-
 		if (nFrames >= setting_maxFrames)
 			setting_imuTrackReady = true;
 
@@ -845,11 +842,11 @@ namespace dso
 		MatXX HM_change_half = MatXX::Zero(CPARS + 7 + nFrames * 17, CPARS + 7 + nFrames * 17);
 		VecX bM_change_half = VecX::Zero(CPARS + 7 + nFrames * 17);
 
-		int imuStartIdx = 0;
+        Vec3 g_w(0,0,-setting_gravityNorm);
 		double mar_weight = 0.5;
-		double time_start = 0, time_end = 0, dt = 0;
+		double timeStart = 0, timeEnd = 0, dt = 0;
 
-		// 对于视觉中边缘化的关键帧，在IMU中也需要对其进行边缘化
+		// 对于视觉中边缘化的关键帧，在IMU中也需要对其进行边缘化，并同时维护两种边缘化的惯导信息
 		for (int fhIdx = fh->idx - 1; fhIdx < fh->idx + 1; ++fhIdx)
 		{
 			if (fhIdx < 0) continue;
@@ -857,45 +854,28 @@ namespace dso
 			MatXX J_all = MatXX::Zero(9, CPARS + 7 + nFrames * 17);
 			MatXX J_all_half = MatXX::Zero(9, CPARS + 7 + nFrames * 17);
 			VecX r_all = VecX::Zero(9);
-			IMUPreintegrator IMU_preintegrator;
-			IMU_preintegrator.reset();
 
-			time_start = input_picTimestampLeftList[frames[fhIdx]->data->shell->incomingId];
-			time_end = input_picTimestampLeftList[frames[fhIdx + 1]->data->shell->incomingId];
-			dt = time_end - time_start;
+			timeStart = input_picTimestampLeftList[frames[fhIdx]->data->shell->incomingId];
+			timeEnd = input_picTimestampLeftList[frames[fhIdx + 1]->data->shell->incomingId];
+			dt = timeEnd - timeStart;
 
-			if (dt > 0.5) continue;
+			if (dt > 0.5)
+            {
+                printf("WARNING: integration time > 0.5, continue!\n");
+                continue;
+            }
 
-			FrameHessian* Framei = frames[fhIdx]->data;
-			FrameHessian* Framej = frames[fhIdx + 1]->data;
+			auto Framei = frames[fhIdx]->data;
+			auto Framej = frames[fhIdx + 1]->data;
 
 			SE3 worldToCam_i_evalPT = Framei->get_worldToCam_evalPT();	// 线性化点处的第i帧的位姿
 			SE3 worldToCam_j_evalPT = Framej->get_worldToCam_evalPT();	// 线性化点处的第j帧的位姿
 			SE3 worldToCam_i = Framei->PRE_worldToCam;
 			SE3 worldToCam_j = Framej->PRE_worldToCam;
 
-			imuStartIdx = -1;
-			imuStartIdx = findNearestIdx(input_imuTimestampList, time_start);
-			assert(imuStartIdx != -1);
-
-			while (true)
-			{
-				double delta_t;
-				if (input_imuTimestampList[imuStartIdx + 1] < time_end)
-					delta_t = input_imuTimestampList[imuStartIdx + 1] - input_imuTimestampList[imuStartIdx];
-				else
-				{
-					delta_t = time_end - input_imuTimestampList[imuStartIdx];
-					if (delta_t < 0.000001) break;
-				}
-				IMU_preintegrator.update(input_gryList[imuStartIdx] - Framei->bias_g, input_accList[imuStartIdx] - Framei->bias_a, delta_t);
-				if (input_imuTimestampList[imuStartIdx + 1] >= time_end)
-					break;
-				imuStartIdx++;
-			}
-
-			Vec3 g_w;
-			g_w << 0, 0, -setting_gravityNorm;
+            IMUPreintegrator IMU_preintegrator;
+            IMU_preintegrator.reset();
+            preintergrate(IMU_preintegrator,Framei->bias_g, Framei->bias_a, timeStart, timeEnd);
 
 			Mat44 M_WC_I = T_WD.matrix() * worldToCam_i.inverse().matrix() * T_WD.inverse().matrix();
 			SE3 T_WB_I(M_WC_I * T_BC.inverse().matrix());
@@ -934,6 +914,7 @@ namespace dso
 			Mat33 J_resP_v_i = -R_WB_I.transpose() * dt;
 			Mat33 J_resP_phi_i = SO3::hat(R_WB_I.transpose() * (t_WB_J - t_WB_I - Framei->velocity * dt - 0.5 * g_w * dt * dt));
 
+            // 计算惯导残差对第i帧状态的雅可比
 			Mat915 J_imui = Mat915::Zero(); //p,q,v,bias_g,bias_a;
 			J_imui.block(0, 0, 3, 3) = J_resP_p_i;
 			J_imui.block(0, 3, 3, 3) = J_resP_phi_i;
@@ -949,6 +930,7 @@ namespace dso
 			J_imui.block(6, 9, 3, 3) = J_resV_bg;
 			J_imui.block(6, 12, 3, 3) = J_resV_ba;
 
+            // 计算惯导残差对第j帧状态的雅可比
 			Mat915 J_imuj = Mat915::Zero();
 			J_imuj.block(0, 0, 3, 3) = J_resP_p_j;
 			J_imuj.block(3, 3, 3, 3) = J_resPhi_phi_j;
@@ -959,8 +941,15 @@ namespace dso
 			Weight.block(3, 3, 3, 3) = Cov.block(6, 6, 3, 3);
 			Weight.block(6, 6, 3, 3) = Cov.block(3, 3, 3, 3);
 
-			Weight = Weight.diagonal().asDiagonal();
-			Weight = setting_imuWeightNoise * setting_imuWeightNoise * Weight.inverse();
+            Mat99 weightTmp = Mat99::Zero();
+            for (int idx = 0; idx < 9; ++idx)
+                weightTmp(idx,idx) = Weight(idx,idx);
+			Weight = setting_imuWeightNoise * setting_imuWeightNoise * weightTmp.inverse();
+            if (haveNanData(Weight,9,9))
+            {
+                printf("WARNING: imu data weight is nan!\n");
+                exit(-1);
+            }
 
 			Mat1515 J_reli = Mat1515::Identity();
 			Mat1515 J_relj = Mat1515::Identity();
@@ -1027,6 +1016,7 @@ namespace dso
 			//HM_change_half = HM_change_half * setting_margWeightFacImu;
 			//bM_change_half = bM_change_half * setting_margWeightFacImu;
 
+            // 计算惯导偏置信息对应的雅可比和残差
 			VecX r_all_bias = VecX::Zero(6);
 			MatXX J_all_bias = MatXX::Zero(6, CPARS + 7 + nFrames * 17);
 			r_all_bias.block(0, 0, 3, 1) = Framej->bias_g + Framej->delta_bias_g - (Framei->bias_g + Framei->delta_bias_g);
@@ -1040,9 +1030,9 @@ namespace dso
 			Mat66 Cov_bias = Mat66::Zero();
 			Cov_bias.block(0, 0, 3, 3) = GyrRandomWalkNoise * dt;
 			Cov_bias.block(3, 3, 3, 3) = AccRandomWalkNoise * dt;
-			Mat66 weight_bias = Mat66::Identity() * setting_imuWeightNoise * setting_imuWeightNoise * Cov_bias.inverse();
-			HM_bias += (J_all_bias.transpose() * weight_bias * J_all_bias * setting_margWeightFacImu);
-			bM_bias += (J_all_bias.transpose() * weight_bias * r_all_bias * setting_margWeightFacImu);
+			Mat66 weightBias = Mat66::Identity() * setting_imuWeightNoise * setting_imuWeightNoise * Cov_bias.inverse();
+			HM_bias += (J_all_bias.transpose() * weightBias * J_all_bias * setting_margWeightFacImu);
+			bM_bias += (J_all_bias.transpose() * weightBias * r_all_bias * setting_margWeightFacImu);
 		}
 
 		HM_change = HM_change * setting_margWeightFacImu;
@@ -1060,11 +1050,9 @@ namespace dso
 		{
 			if (fhIdx < 0) continue;
 
-			time_start = input_picTimestampLeftList[frames[fhIdx]->data->shell->incomingId];
-			time_end = input_picTimestampLeftList[frames[fhIdx + 1]->data->shell->incomingId];
-			dt = time_end - time_start;
-
-			if (dt > 0.5) continue;
+			timeStart = input_picTimestampLeftList[frames[fhIdx]->data->shell->incomingId];
+			timeEnd = input_picTimestampLeftList[frames[fhIdx + 1]->data->shell->incomingId];
+			if (timeEnd - timeStart > 0.5) continue;
 
 			if (fhIdx == fh->idx - 1)
 			{
@@ -1083,6 +1071,7 @@ namespace dso
 		VecX delta_b_half = delta_b;
 		delta_b_half.block(CPARS, 0, 7, 1) = Sim3(T_WD_l_half.inverse() * T_WD).log();
 
+        // 去掉视觉部分更新出来的信息量
 		bM_change -= HM_change * delta_b;
 		bM_change_half -= HM_change_half * delta_b_half;
 
@@ -1124,134 +1113,13 @@ namespace dso
 		HM_imu_half += HM_change_half;
 		bM_imu_half += bM_change_half;
 
-		// 边缘化HM_imu_half中待去除的关键帧信息，将待边缘化的信息移动到矩阵的右下角
-		{
-			if ((int)fh->idx != (int)frames.size() - 1)
-			{
-				int io = fh->idx * 17 + CPARS + 7;	// index of frame to move to end
-				int ntail = 17 * (nFrames - fh->idx - 1);
-				assert((io + 17 + ntail) == nFrames * 17 + CPARS + 7);
-
-				Vec17 bTmp = bM_imu_half.segment<17>(io);
-				VecX tailTmp = bM_imu_half.tail(ntail);
-				bM_imu_half.segment(io, ntail) = tailTmp;
-				bM_imu_half.tail<17>() = bTmp;
-
-				MatXX HtmpCol = HM_imu_half.block(0, io, odim, 17);
-				MatXX rightColsTmp = HM_imu_half.rightCols(ntail);
-				HM_imu_half.block(0, io, odim, ntail) = rightColsTmp;
-				HM_imu_half.rightCols(17) = HtmpCol;
-
-				MatXX HtmpRow = HM_imu_half.block(io, 0, 17, odim);
-				MatXX botRowsTmp = HM_imu_half.bottomRows(ntail);
-				HM_imu_half.block(io, 0, ntail, odim) = botRowsTmp;
-				HM_imu_half.bottomRows(17) = HtmpRow;
-			}
-
-			VecX SVec = (HM_imu_half.diagonal().cwiseAbs() + VecX::Constant(HM_imu_half.cols(), 10)).cwiseSqrt();
-			VecX SVecI = SVec.cwiseInverse();
-
-			MatXX HMScaled = SVecI.asDiagonal() * HM_imu_half * SVecI.asDiagonal();
-			VecX bMScaled = SVecI.asDiagonal() * bM_imu_half;
-
-			Mat1717 hpi = HMScaled.bottomRightCorner<17, 17>();
-			hpi = 0.5f * (hpi + hpi);
-			hpi = hpi.inverse();
-			hpi = 0.5f * (hpi + hpi);
-			if (!std::isfinite(hpi(0, 0))) hpi = Mat1717::Zero();
-
-			MatXX bli = HMScaled.bottomLeftCorner(17, ndim).transpose() * hpi;
-			HMScaled.topLeftCorner(ndim, ndim).noalias() -= bli * HMScaled.bottomLeftCorner(17, ndim);
-			bMScaled.head(ndim).noalias() -= bli * bMScaled.tail<17>();
-
-			HMScaled = SVec.asDiagonal() * HMScaled * SVec.asDiagonal();
-			bMScaled = SVec.asDiagonal() * bMScaled;
-
-			HM_imu_half = 0.5 * (HMScaled.topLeftCorner(ndim, ndim) + HMScaled.topLeftCorner(ndim, ndim).transpose());
-			bM_imu_half = bMScaled.head(ndim);
-		}
-
-		// 边缘化惯导信息中的偏置信息
-		// TODO：为什么惯导偏置信息要和IMU的其他信息分开边缘化
-		{
-			if ((int)fh->idx != (int)frames.size() - 1)
-			{
-				int io = fh->idx * 17 + CPARS + 7;	// index of frame to move to end
-				int ntail = 17 * (nFrames - fh->idx - 1);
-				assert((io + 17 + ntail) == nFrames * 17 + CPARS + 7);
-
-				Vec17 bTmp = bM_bias.segment<17>(io);
-				VecX tailTMP = bM_bias.tail(ntail);
-				bM_bias.segment(io, ntail) = tailTMP;
-				bM_bias.tail<17>() = bTmp;
-
-				MatXX HtmpCol = HM_bias.block(0, io, odim, 17);
-				MatXX rightColsTmp = HM_bias.rightCols(ntail);
-				HM_bias.block(0, io, odim, ntail) = rightColsTmp;
-				HM_bias.rightCols(17) = HtmpCol;
-
-				MatXX HtmpRow = HM_bias.block(io, 0, 17, odim);
-				MatXX botRowsTmp = HM_bias.bottomRows(ntail);
-				HM_bias.block(io, 0, ntail, odim) = botRowsTmp;
-				HM_bias.bottomRows(17) = HtmpRow;
-			}
-			VecX SVec = (HM_bias.diagonal().cwiseAbs() + VecX::Constant(HM_bias.cols(), 10)).cwiseSqrt();
-			VecX SVecI = SVec.cwiseInverse();
-
-			MatXX HMScaled = SVecI.asDiagonal() * HM_bias * SVecI.asDiagonal();
-			VecX bMScaled = SVecI.asDiagonal() * bM_bias;
-
-			Mat1717 hpi = HMScaled.bottomRightCorner<17, 17>();
-			hpi = 0.5f * (hpi + hpi);
-			hpi = hpi.inverse();
-			hpi = 0.5f * (hpi + hpi);
-			if (!std::isfinite(hpi(0, 0))) hpi = Mat1717::Zero();
-
-			MatXX bli = HMScaled.bottomLeftCorner(17, ndim).transpose() * hpi;
-			HMScaled.topLeftCorner(ndim, ndim).noalias() -= bli * HMScaled.bottomLeftCorner(17, ndim);
-			bMScaled.head(ndim).noalias() -= bli * bMScaled.tail<17>();
-
-			HMScaled = SVec.asDiagonal() * HMScaled * SVec.asDiagonal();
-			bMScaled = SVec.asDiagonal() * bMScaled;
-
-			HM_bias = 0.5 * (HMScaled.topLeftCorner(ndim, ndim) + HMScaled.topLeftCorner(ndim, ndim).transpose());
-			bM_bias = bMScaled.head(ndim);
-		}
+        // TODO：为什么惯导偏置信息要和IMU的其他信息分开边缘化
+		schurHessianImu(fh, HM_imu_half, bM_imu_half);
+		schurHessianImu(fh, HM_bias, bM_bias);
 
 		// TODO：是否意味着尺度信息已经收敛了
 		if (marg_num > 25) setting_useDynamicMargin = false;
 
-		// 	if(s_now>s_middle*d_now){
-		// 	    HM_imu = HM_imu_half;
-		// 	    bM_imu = bM_imu_half;
-		// // 	    s_middle = s_middle*d_now;
-		// 	    s_middle = s_now;
-		// // 	    d_now = d_half;
-		// 	    M_num2 = M_num;
-		// 	    HM_imu_half.setZero();
-		// 	    bM_imu_half.setZero();
-		// 	    HM_imu_half.block(CPARS+6,0,1,HM_imu_half.cols()) = MatXX::Zero(1,HM_imu_half.cols());
-		// // 	    HM_imu_half.block(0,CPARS+6,HM_imu_half.rows(),1) = MatXX::Zero(HM_imu_half.rows(),1);
-		// // 	    bM_imu_half[CPARS+6] = 0;
-		// 	    d_half = di;
-		// 	    if(d_half>d_min)d_half = d_min;
-		// 	    M_num = 0;
-		// 	}else if(s_now<s_middle/d_now){
-		// 	    HM_imu = HM_imu_half;
-		// 	    bM_imu = bM_imu_half;
-		// // 	    s_middle = s_middle/d_now;
-		// 	    s_middle = s_now;
-		// // 	    d_now = d_half;
-		// 	    M_num2 = M_num;
-		// 	    HM_imu_half.setZero();
-		// 	    bM_imu_half.setZero();
-		// // 	    HM_imu_half.block(CPARS+6,0,1,HM_imu_half.cols()) = MatXX::Zero(1,HM_imu_half.cols());
-		// // 	    HM_imu_half.block(0,CPARS+6,HM_imu_half.rows(),1) = MatXX::Zero(HM_imu_half.rows(),1);
-		// // 	    bM_imu_half[CPARS+6] = 0;
-		// 	    d_half = di;
-		// 	    if(d_half>d_min)d_half = d_min;
-		// 	    M_num = 0;
-		// 	}else
 		if ((s_now > s_middle * d_now || s_now < s_middle / d_now) && setting_useDynamicMargin)
 		{
 			HM_imu = HM_imu_half;
@@ -1274,55 +1142,117 @@ namespace dso
 			state_twd = Sim3(T_WD_l.inverse() * T_WD).log();
 		}
 		else
-		{
-			HM_imu += HM_change;
-			bM_imu += bM_change;
-			marg_num++;
-
-			if ((int)fh->idx != (int)frames.size() - 1)
-			{
-				int io = fh->idx * 17 + CPARS + 7;
-				int ntail = 17 * (nFrames - fh->idx - 1);
-				assert((io + 17 + ntail) == nFrames * 17 + CPARS + 7);
-
-				Vec17 bTmp = bM_imu.segment<17>(io);
-				VecX tailTMP = bM_imu.tail(ntail);
-				bM_imu.segment(io, ntail) = tailTMP;
-				bM_imu.tail<17>() = bTmp;
-
-				MatXX HtmpCol = HM_imu.block(0, io, odim, 17);
-				MatXX rightColsTmp = HM_imu.rightCols(ntail);
-				HM_imu.block(0, io, odim, ntail) = rightColsTmp;
-				HM_imu.rightCols(17) = HtmpCol;
-
-				MatXX HtmpRow = HM_imu.block(io, 0, 17, odim);
-				MatXX botRowsTmp = HM_imu.bottomRows(ntail);
-				HM_imu.block(io, 0, ntail, odim) = botRowsTmp;
-				HM_imu.bottomRows(17) = HtmpRow;
-			}
-			VecX SVec = (HM_imu.diagonal().cwiseAbs() + VecX::Constant(HM_imu.cols(), 10)).cwiseSqrt();
-			VecX SVecI = SVec.cwiseInverse();
-
-			MatXX HMScaled = SVecI.asDiagonal() * HM_imu * SVecI.asDiagonal();
-			VecX bMScaled = SVecI.asDiagonal() * bM_imu;
-
-			Mat1717 hpi = HMScaled.bottomRightCorner<17, 17>();
-			hpi = 0.5f * (hpi + hpi);
-			hpi = hpi.inverse();
-			hpi = 0.5f * (hpi + hpi);
-			if (!std::isfinite(hpi(0, 0))) hpi = Mat1717::Zero();
-
-			MatXX bli = HMScaled.bottomLeftCorner(17, ndim).transpose() * hpi;
-			HMScaled.topLeftCorner(ndim, ndim).noalias() -= bli * HMScaled.bottomLeftCorner(17, ndim);
-			bMScaled.head(ndim).noalias() -= bli * bMScaled.tail<17>();
-
-			HMScaled = SVec.asDiagonal() * HMScaled * SVec.asDiagonal();
-			bMScaled = SVec.asDiagonal() * bMScaled;
-
-			HM_imu = 0.5 * (HMScaled.topLeftCorner(ndim, ndim) + HMScaled.topLeftCorner(ndim, ndim).transpose());
-			bM_imu = bMScaled.head(ndim);
-		}
+        {
+            HM_imu += HM_change;
+            bM_imu += bM_change;
+            marg_num++;
+            schurHessianImu(fh, HM_imu, bM_imu);
+        }
 	}
+
+    void EnergyFunctional::schurHessianImu(EFFrame* fh, MatXX& H, VecX& b)
+    {
+        int ndim = nFrames * 17 + CPARS + 7 - 17;   // new dimension
+        int odim = nFrames * 17 + CPARS + 7;        // old dimension
+
+        if ((int)fh->idx != (int)frames.size() - 1)
+        {
+            int io = fh->idx * 17 + CPARS + 7;
+            int ntail = 17 * (nFrames - fh->idx - 1);
+            assert((io + 17 + ntail) == nFrames * 17 + CPARS + 7);
+
+            Vec17 bTmp = b.segment<17>(io);
+            VecX tailTMP = b.tail(ntail);
+            b.segment(io, ntail) = tailTMP;
+            b.tail<17>() = bTmp;
+
+            MatXX HtmpCol = H.block(0, io, odim, 17);
+            MatXX rightColsTmp = H.rightCols(ntail);
+            H.block(0, io, odim, ntail) = rightColsTmp;
+            H.rightCols(17) = HtmpCol;
+
+            MatXX HtmpRow = H.block(io, 0, 17, odim);
+            MatXX botRowsTmp = H.bottomRows(ntail);
+            H.block(io, 0, ntail, odim) = botRowsTmp;
+            H.bottomRows(17) = HtmpRow;
+        }
+
+        VecX SVec = (H.diagonal().cwiseAbs() + VecX::Constant(H.cols(), 10)).cwiseSqrt();
+        VecX SVecI = SVec.cwiseInverse();
+
+        MatXX HMScaled = SVecI.asDiagonal() * H * SVecI.asDiagonal();
+        VecX bMScaled = SVecI.asDiagonal() * b;
+
+        Mat1717 hpi = HMScaled.bottomRightCorner<17, 17>();
+        hpi = 0.5f * (hpi + hpi);
+        hpi = hpi.inverse();
+        hpi = 0.5f * (hpi + hpi);
+        if (haveNanData(hpi,17,17)) hpi = Mat1717::Zero();
+
+        MatXX bli = HMScaled.bottomLeftCorner(17, ndim).transpose() * hpi;
+        HMScaled.topLeftCorner(ndim, ndim).noalias() -= bli * HMScaled.bottomLeftCorner(17, ndim);
+        bMScaled.head(ndim).noalias() -= bli * bMScaled.tail<17>();
+
+        HMScaled = SVec.asDiagonal() * HMScaled * SVec.asDiagonal();
+        bMScaled = SVec.asDiagonal() * bMScaled;
+
+        H = 0.5 * (HMScaled.topLeftCorner(ndim, ndim) + HMScaled.topLeftCorner(ndim, ndim).transpose());
+        b = bMScaled.head(ndim);
+    }
+
+    void EnergyFunctional::schurHessianVisual(EFFrame* fh, MatXX& H, VecX& b)
+    {
+        int ndim = nFrames * 8 + CPARS - 8;		// new dimension
+        int odim = nFrames * 8 + CPARS;			// old dimension
+
+        if ((int)fh->idx != (int)frames.size() - 1)
+        {
+            int io = fh->idx * 8 + CPARS;
+            int ntail = 8 * (nFrames - fh->idx - 1);
+            assert((io + 8 + ntail) == nFrames * 8 + CPARS);
+
+            Vec8 bTmp = b.segment<8>(io);
+            VecX tailTmp = b.tail(ntail);
+            b.segment(io, ntail) = tailTmp;
+            b.tail<8>() = bTmp;
+
+            MatXX HtmpCol = H.block(0, io, odim, 8);
+            MatXX rightColsTmp = H.rightCols(ntail);
+            H.block(0, io, odim, ntail) = rightColsTmp;
+            H.rightCols(8) = HtmpCol;
+
+            MatXX HtmpRow = H.block(io, 0, 8, odim);
+            MatXX botRowsTmp = H.bottomRows(ntail);
+            H.block(io, 0, ntail, odim) = botRowsTmp;
+            H.bottomRows(8) = HtmpRow;
+        }
+
+        // 边缘化关键帧之前，边缘化帧的先验信息需要加上去，否则后面这个信息就丢失了
+        H.bottomRightCorner<8, 8>().diagonal() += fh->prior;
+        b.tail<8>() += fh->prior.cwiseProduct(fh->delta_prior);
+
+        VecX SVec = (H.diagonal().cwiseAbs() + VecX::Constant(H.cols(), 10)).cwiseSqrt();
+        VecX SVecI = SVec.cwiseInverse();
+
+        MatXX HMScaled = SVecI.asDiagonal() * H * SVecI.asDiagonal();
+        VecX bMScaled = SVecI.asDiagonal() * b;
+
+        Mat88 hpi = HMScaled.bottomRightCorner<8, 8>();
+        hpi = 0.5f * (hpi + hpi);
+        hpi = hpi.inverse();
+        hpi = 0.5f * (hpi + hpi);
+        if (haveNanData(hpi,8,8)) hpi = Mat88::Zero();
+
+        MatXX bli = HMScaled.bottomLeftCorner(8, ndim).transpose() * hpi;
+        HMScaled.topLeftCorner(ndim, ndim).noalias() -= bli * HMScaled.bottomLeftCorner(8, ndim);
+        bMScaled.head(ndim).noalias() -= bli * bMScaled.tail<8>();
+
+        HMScaled = SVec.asDiagonal() * HMScaled * SVec.asDiagonal();
+        bMScaled = SVec.asDiagonal() * bMScaled;
+
+        H = 0.5 * (HMScaled.topLeftCorner(ndim, ndim) + HMScaled.topLeftCorner(ndim, ndim).transpose());
+        b = bMScaled.head(ndim);
+    }
 
 	/// <summary>
 	/// 滑窗优化中边缘化前端中标记为边缘化的关键帧
@@ -1333,68 +1263,16 @@ namespace dso
 		assert(EFDeltaValid);
 		assert(EFAdjointsValid);
 		assert(EFIndicesValid);
-
-		assert((int)fh->points.size() == 0);
+		assert(fh->points.empty());
 
 		// 1、惯导信息边缘化
 		if (setting_useImu)
 			marginalizeFrame_imu(fh);
 
 		// 2、视觉信息边缘化
-		int ndim = nFrames * 8 + CPARS - 8;		// 边缘化后视觉舒尔补信息矩阵维度
-		int odim = nFrames * 8 + CPARS;			// 边缘化前视觉舒尔补信息矩阵维度
+        schurHessianVisual(fh, HM_visual, bM_visual);
 
-		// 若需要marg的帧不是关键帧中最后一帧则需要将这帧数 据移到矩阵最后
-		if ((int)fh->idx != (int)frames.size() - 1)
-		{
-			int io = fh->idx * 8 + CPARS;
-			int ntail = 8 * (nFrames - fh->idx - 1);
-			assert((io + 8 + ntail) == nFrames * 8 + CPARS);
-
-			// bM中将待边缘化的信息放在矩阵尾部8行
-			Vec8 bTmp = bM_visual.segment<8>(io);
-			VecX tailTmp = bM_visual.tail(ntail);
-			bM_visual.segment(io, ntail) = tailTmp;
-			bM_visual.tail<8>() = bTmp;
-
-			MatXX HtmpCol = HM_visual.block(0, io, odim, 8);
-			MatXX rightColsTmp = HM_visual.rightCols(ntail);
-			HM_visual.block(0, io, odim, ntail) = rightColsTmp;
-			HM_visual.rightCols(8) = HtmpCol;
-
-			MatXX HtmpRow = HM_visual.block(io, 0, 8, odim);
-			MatXX botRowsTmp = HM_visual.bottomRows(ntail);
-			HM_visual.block(io, 0, ntail, odim) = botRowsTmp;
-			HM_visual.bottomRows(8) = HtmpRow;
-		}
-
-		// 边缘化关键帧之前，边缘化帧的先验信息需要加上去，否则后面这各信息就丢失了
-		HM_visual.bottomRightCorner<8, 8>().diagonal() += fh->prior;
-		bM_visual.tail<8>() += fh->prior.cwiseProduct(fh->delta_prior);
-
-		VecX SVec = (HM_visual.diagonal().cwiseAbs() + VecX::Constant(HM_visual.cols(), 10)).cwiseSqrt();
-		VecX SVecI = SVec.cwiseInverse();
-
-		MatXX HMScaled = SVecI.asDiagonal() * HM_visual * SVecI.asDiagonal();
-		VecX bMScaled = SVecI.asDiagonal() * bM_visual;
-
-		Mat88 hpi = HMScaled.bottomRightCorner<8, 8>();
-		hpi = 0.5f * (hpi + hpi);
-		hpi = hpi.inverse();
-		hpi = 0.5f * (hpi + hpi);
-		if (!std::isfinite(hpi(0, 0))) hpi = Mat88::Zero();
-
-		MatXX bli = HMScaled.bottomLeftCorner(8, ndim).transpose() * hpi;
-		HMScaled.topLeftCorner(ndim, ndim).noalias() -= bli * HMScaled.bottomLeftCorner(8, ndim);
-		bMScaled.head(ndim).noalias() -= bli * bMScaled.tail<8>();
-
-		HMScaled = SVec.asDiagonal() * HMScaled * SVec.asDiagonal();
-		bMScaled = SVec.asDiagonal() * bMScaled;
-
-		HM_visual = 0.5 * (HMScaled.topLeftCorner(ndim, ndim) + HMScaled.topLeftCorner(ndim, ndim).transpose());
-		bM_visual = bMScaled.head(ndim);
-
-		// 去除滑窗关键帧序列中的待边缘化的关键帧
+		// 3、去除滑窗关键帧序列中的待边缘化的关键帧
 		for (unsigned int it = fh->idx; it + 1 < frames.size(); it++)
 		{
 			frames[it] = frames[it + 1];
@@ -1831,12 +1709,30 @@ namespace dso
 			orthogonalize(&x_visual, 0);
 		}
 
-		// 检测数据是否存在异常，若存在异常则把相关数据保存出来
-		if (std::isnan(x_visual[0]) || std::isnan(x_visual[1]) || std::isnan(x_visual[2]) || std::isnan(x_visual[3]))
-		{
-			char buf[1000];
+        // 判断解是否有效，若解无效则Hessian数据保存出来
+        if (std::isnan(x_visual[0]) || std::isnan(x_visual[1]) ||
+        std::isnan(x_visual[2]) || std::isnan(x_visual[3]))
+        {
+            char bufVisual[100];
+			snprintf(bufVisual, 100, "./visual_hessian_%d.txt", nFrames * 8 + CPARS);
+			saveDataTxt(HFinal_visual, bufVisual, nFrames * 8 + CPARS, nFrames * 8 + CPARS);
+
+            char bufImu[100];
+			snprintf(bufImu, 100, "./imu_hessian_%d.txt", 7 + nFrames * 15);
+			saveDataTxt(H_imu, bufImu, 7 + nFrames * 15, 7 + nFrames * 15);
 			
-		}
+			char bufMImu[100];
+			snprintf(bufMImu, 100, "./marg_imu_hessian_%d.txt", 7 + nFrames * 15);
+			saveDataTxt(HM_imu, bufMImu, 7 + nFrames * 15, 7 + nFrames * 15);
+
+			char bufMBias[100];
+			snprintf(bufMBias, 100, "./marg_bias_hessian_%d.txt", 7 + nFrames * 15);
+			saveDataTxt(HM_bias, bufMBias, 7 + nFrames * 15, 7 + nFrames * 15);
+
+            char bufTotal[100];
+			snprintf(bufTotal, 100, "./total_hessian_%d.txt", 7 + nFrames * 17 + CPARS);
+			saveDataTxt(H_VisualAndImu, bufTotal, 7 + nFrames * 17 + CPARS, 7 + nFrames * 17 + CPARS);
+        }
 
 		lastX = x_visual;
 		currentLambda = lambda;

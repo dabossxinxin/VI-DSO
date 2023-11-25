@@ -22,6 +22,7 @@
 */
 #include <stdio.h>
 #include <iostream>
+#include <fstream>
 #include "util/globalCalib.h"
 
 namespace dso
@@ -125,4 +126,87 @@ namespace dso
 			imuStartStamp++;
 		}
 	}
+
+    void saveDataTxt(const VecX& data, const std::string path, const int row)
+    {
+        std::ofstream fout;
+        fout.open(path.c_str());
+
+        fout << std::endl << std::endl;
+        for (int it = 0; it < row; ++it)
+            fout << data[it] << std::endl;
+        fout << std::endl << std::endl;
+
+        fout.close();
+    }
+
+    void saveDataTxt(const MatXX& data, const std::string path, const int row, const int col)
+    {
+        std::ofstream fout;
+        fout.open(path.c_str());
+
+        fout << std::endl << std::endl;
+        for (int r = 0; r < row; ++r)
+        {
+			for (int c = 0; c < col; ++c)
+				fout << data(r, c) << "\t";
+            fout << std::endl;
+        }
+        fout << std::endl << std::endl;
+
+        fout.close();
+    }
+
+//    bool haveNanData(const Mat88& data)
+//    {
+//        for (int r = 0; r < 8; ++r)
+//        {
+//            for (int c = 0; c < 8; ++c)
+//            {
+//                if (std::isnan(data(r,c)))
+//                    return true;
+//            }
+//        }
+//
+//        return false;
+//    }
+
+//    bool haveNanData(const Mat1717& data)
+//    {
+//        for (int r = 0; r < 17; ++r)
+//        {
+//            for (int c = 0; c < 17; ++c)
+//            {
+//                if (std::isnan(data(r,c)))
+//                    return true;
+//            }
+//        }
+//
+//        return false;
+//    }
+
+//    bool haveNanData(const VecX& data, const int row)
+//    {
+//        for (int it = 0; it < row; ++it)
+//        {
+//            if (std::isnan(data[it]))
+//                return true;
+//        }
+//
+//        return false;
+//    }
+
+//    bool haveNanData(const MatXX& data, const int row, const int col)
+//    {
+//        for (int r = 0; r < row; ++r)
+//        {
+//            for (int c = 0; c < col; ++c)
+//            {
+//                if (std::isnan(data(r,c)))
+//                    return true;
+//            }
+//        }
+//
+//        return false;
+//    }
 }

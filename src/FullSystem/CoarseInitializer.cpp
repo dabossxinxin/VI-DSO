@@ -847,14 +847,14 @@ namespace dso
 
 			// 第零层金字塔按照PixelSelector类去选特征其他层金字塔按照另外的函数makePixelStatus选择特征
 			if (lvl == 0)
-				npts = sel.makeMaps(firstFrame, statusMap, densities[lvl] * w[0] * h[0], 1, true, 2);
+				npts = sel.makeMaps(firstFrame, statusMap, densities[lvl] * w[0] * h[0], 1, false, 2);
 			else
 			{
 				npts = makePixelStatus(firstFrame->dIp[lvl], statusMapB, w[lvl], h[lvl], densities[lvl] * w[0] * h[0]);
-				debugPlotFeatureDetect(firstFrame->dIp[lvl], lvl, statusMapB, w[lvl], h[lvl]);
+				//debugPlotFeatureDetect(firstFrame->dIp[lvl], lvl, statusMapB, w[lvl], h[lvl]);
 			}
 
-			SAFE_DELETE(points[lvl]);
+			SAFE_DELETE(points[lvl], true);
 			points[lvl] = new Pnt[npts];
 
 			// 初始化所有点的逆深度值为1

@@ -235,8 +235,8 @@ namespace dso
 	extern SE3 T_C1C0;
 	extern Mat33f K_right;
 	extern SE3 T_BC;
-	extern Mat33 GyrCov;
-	extern Mat33 AccCov;
+	extern Mat33 GyrCovariance;
+	extern Mat33 AccCovariance;
 	extern Mat33 GyrRandomWalkNoise;
 	extern Mat33 AccRandomWalkNoise;
 

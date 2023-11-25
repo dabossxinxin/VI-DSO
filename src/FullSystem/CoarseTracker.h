@@ -109,7 +109,7 @@ namespace dso
 
 		void makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians, FrameHessian* fhrRight, CalibHessian Hcalib);
 		
-		double calcIMUResAndGS(Mat66 &H_out, Vec6 &b_out, SE3 &refToNew, const IMUPreintegrator &IMU_preintegrator, Vec9 &res_PVPhi, double PointEnergy, double imu_track_weight);
+		Vec7 calcIMUResAndGS(Mat66 &H_out, Vec6 &b_out, SE3 &refToNew, const IMUPreintegrator &IMU_preintegrator, const int lvl, double trackWeight);
 		Vec6 calcRes(int lvl, const SE3 &refToNew, AffLight aff_g2l, float cutoffTH);
 		void calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
 

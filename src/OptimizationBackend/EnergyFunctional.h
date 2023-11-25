@@ -138,6 +138,9 @@ namespace dso
 
 		void calcLEnergyPt(int min, int max, Vec10* stats, int tid);
 
+        void schurHessianImu(EFFrame* fh, MatXX& H, VecX& b);
+        void schurHessianVisual(EFFrame* fh, MatXX& H, VecX& b);
+
 		void calcIMUHessian(MatXX &H, VecX &b);
 
 		void orthogonalize(VecX* b, MatXX* H);

@@ -58,4 +58,42 @@ namespace dso
 	/// <param name="timeEnd">惯导数据结束时间</param>
 	void preintergrate(IMUPreintegrator& handle, const Vec3& bg, const Vec3& ba,
 		const double timeStart, const double timeEnd);
+
+    /// <summary>
+    /// 保存矩阵数据到txt文件
+    /// </summary>
+    /// <param name="data">矩阵数据</param>
+    /// <param name="path">保存路径</param>
+    /// <param name="row">矩阵维度</param>
+	void saveDataTxt(const VecX& data, const std::string path, const int row);
+
+    /// <summary>
+    /// 保存矩阵数据到txt文件
+    /// </summary>
+    /// <param name="data">矩阵数据</param>
+    /// <param name="path">保存路径</param>
+    /// <param name="row">矩阵维度</param>
+    /// <param name="col">矩阵维度</param>
+    void saveDataTxt(const MatXX& data, const std::string path, const int row, const int col);
+
+    //bool haveNanData(const Mat88& data);
+
+    //bool haveNanData(const Mat1717& data);
+
+    //bool haveNanData(const VecX& data, const int row);
+
+    template <typename T>
+    bool haveNanData(const T& data, const int row, const int col)
+    {
+        for (int r = 0; r < row; ++r)
+        {
+            for (int c = 0; c < col; ++c)
+            {
+                if (std::isnan(data(r,c)))
+                    return true;
+            }
+        }
+
+        return false;
+    }
 }
