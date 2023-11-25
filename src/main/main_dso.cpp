@@ -70,7 +70,7 @@ void setArgument(const std::string folder)
 	setting_stereoWeight = 0;
     
 	setting_gravityNorm = 9.81;
-	setting_useImu = true;
+	setting_useImu = false;
 	setting_imuTrackFlag = true;
 	setting_imuTrackReady = true;
 	setting_useDynamicMargin = true;
@@ -82,7 +82,7 @@ int main(int argc, char** argv)
 {
 	//loadArgument(argc, argv);
 #if defined(_WIN_)
-	setArgument("E:/TumData/MH_01_easy");
+	setArgument("D:/Data/MH_01_easy");
 #elif defined(_OSX_)
     setArgument("/Users/liuxianxian/Desktop/Dataset/MH_01_easy");
 #endif

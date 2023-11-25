@@ -89,6 +89,7 @@ namespace dso
 		debugPrint = true;
 		w[0] = h[0] = 0;
 		refFrameID = -1;
+		imuHandle.reset();
 	}
 
 	/// <summary>
@@ -552,15 +553,7 @@ namespace dso
 		}
 	}
 
-	/// <summary>
-	/// 计算视觉部分Heesian和b
-	/// </summary>
-	/// <param name="lvl">输入金字塔层级</param>
-	/// <param name="H_out">输出当前层金字塔计算的H</param>
-	/// <param name="b_out">输出当前层金字塔计算的b</param>
-	/// <param name="refToNew">输入位姿变换参数</param>
-	/// <param name="aff_g2l">输入光度变换参数</param>
-	void CoarseTracker::calcGSSSE(int lvl, Mat88& H_out, Vec8& b_out, const SE3& refToNew, AffLight aff_g2l)
+	void CoarseTracker::calcGSVisual(int lvl, Mat88& H_out, Vec8& b_out, const SE3& refToNew, AffLight aff_g2l)
 	{
 		acc.initialize();
 
@@ -619,22 +612,7 @@ namespace dso
 		b_out.segment<1>(7) *= SCALE_B;
 	}
 
-	/// <summary>
-	/// 计算当前输入状态下的视觉残差以及特征在最新帧上的信息
-	/// </summary>
-	/// <param name="lvl">计算视觉残差的金字塔层级</param>
-	/// <param name="refToNew">输入参考帧到最新帧的位姿变换</param>
-	/// <param name="aff_g2l">输入光度变换参数</param>
-	/// <param name="cutoffTH">输入单个特征光度误差阈值</param>
-	/// <returns>
-	/// [0]：总的光度残差能量；
-	/// [1]：统计能量的特征数量；
-	/// [2]：仅考虑平移时特征在像素坐标下的移动距离；
-	/// [3]：固定为0；
-	/// [4]：考虑平移和旋转时特征在像素坐标下的移动距离；
-	/// [5]：计算总的光度残差时大于设定阈值的特征比例；
-	/// </returns>
-	Vec6 CoarseTracker::calcRes(int lvl, const SE3& refToNew, AffLight aff_g2l, float cutoffTH)
+	Vec6 CoarseTracker::calcResVisual(int lvl, const SE3& refToNew, AffLight aff_g2l, float cutoffTH)
 	{
 		float E = 0;
 		int numTermsInE = 0;		// 参与统计光度残差的点的个数
@@ -643,12 +621,12 @@ namespace dso
 
 		int wl = w[lvl];
 		int hl = h[lvl];
-		Eigen::Vector3f* dINewl = newFrame->dIp[lvl];
 		float fxl = fx[lvl];
 		float fyl = fy[lvl];
 		float cxl = cx[lvl];
 		float cyl = cy[lvl];
 
+		Eigen::Vector3f* dINewl = newFrame->dIp[lvl];
 		Mat33f RKi = (refToNew.rotationMatrix().cast<float>() * Ki[lvl]);
 		Vec3f t = (refToNew.translation()).cast<float>();
 		Vec2f affLL = AffLight::fromToVecExposure(lastRef->ab_exposure, newFrame->ab_exposure, lastRef_aff_g2l, aff_g2l).cast<float>();
@@ -672,11 +650,11 @@ namespace dso
 		float* lpc_idepth = pc_idepth[lvl];
 		float* lpc_color = pc_color[lvl];
 
-		for (int i = 0; i < nl; i++)
+		for (int it = 0; it < nl; ++it)
 		{
-			float id = lpc_idepth[i];
-			float x = lpc_u[i];
-			float y = lpc_v[i];
+			float id = lpc_idepth[it];
+			float x = lpc_u[it];
+			float y = lpc_v[it];
 
 			Vec3f pt = RKi * Vec3f(x, y, 1) + t * id;
 			float u = pt[0] / pt[2];
@@ -686,7 +664,7 @@ namespace dso
 			float new_idepth = id / pt[2];
 
 			// 在第0层金字塔中计算光流信息
-			if (lvl == 0 && i % 32 == 0)
+			if (lvl == 0 && it % 32 == 0)
 			{
 				// translation only (positive)
 				Vec3f ptT = Ki[lvl] * Vec3f(x, y, 1) + t * id;
@@ -720,7 +698,7 @@ namespace dso
 
 			if (!(Ku > 2 && Kv > 2 && Ku < wl - 3 && Kv < hl - 3 && new_idepth > 0)) continue;
 
-			float refColor = lpc_color[i];
+			float refColor = lpc_color[it];
 			Vec3f hitColor = getInterpolatedElement33(dINewl, Ku, Kv, wl);
 			if (!std::isfinite((float)hitColor[0])) continue;
 			float residual = hitColor[0] - (float)(affLL[0] * refColor + affLL[1]);
@@ -728,14 +706,14 @@ namespace dso
 
 			if (fabs(residual) > cutoffTH)
 			{
-				if (debugPlot) resImage->setPixel4(lpc_u[i], lpc_v[i], Vec3b(0, 0, 255));
+				if (debugPlot) resImage->setPixel4(lpc_u[it], lpc_v[it], Vec3b(0, 0, 255));
 				E += maxEnergy;
 				numTermsInE++;
 				numSaturated++;
 			}
 			else
 			{
-				if (debugPlot) resImage->setPixel4(lpc_u[i], lpc_v[i], Vec3b(residual + 128, residual + 128, residual + 128));
+				if (debugPlot) resImage->setPixel4(lpc_u[it], lpc_v[it], Vec3b(residual + 128, residual + 128, residual + 128));
 
 				E += hw * residual * residual * (2 - hw);
 				numTermsInE++;
@@ -747,12 +725,13 @@ namespace dso
 				buf_warped_dy[numTermsInWarped] = hitColor[2];
 				buf_warped_residual[numTermsInWarped] = residual;
 				buf_warped_weight[numTermsInWarped] = hw;
-				buf_warped_refColor[numTermsInWarped] = lpc_color[i];
+				buf_warped_refColor[numTermsInWarped] = lpc_color[it];
 				numTermsInWarped++;
 			}
 		}
 
-		// 为保证使用SSE计算时的性能将多余的数据去除
+		// 后面使用特征计算视觉Hessian信息时使用SSE加速计算,
+		// 因此这里先保证跟踪中的特征数量为4的倍数
 		while (numTermsInWarped % 4 != 0)
 		{
 			buf_warped_idepth[numTermsInWarped] = 0;
@@ -784,25 +763,15 @@ namespace dso
 		return rs;
 	}
 
-	/// <summary>
-	/// 计算惯导预积分数据的Hessian和b
-	/// </summary>
-	/// <param name="H_out">输出惯导数据H</param>
-	/// <param name="b_out">输出惯导数据b</param>
-	/// <param name="refToNew">输入位姿变换参数</param>
-	/// <param name="IMU_preintegrator">IMU预积分handle</param>
-	/// <param name="lvl">当前计算步骤的金字塔层级</param>
-	/// <param name="imu_track_weight">IMU信息的权重</param>
-	/// <returns>IMU信息残差：包含位置残差和姿态残差</returns>
-	Vec7 CoarseTracker::calcIMUResAndGS(Mat66& H_out, Vec6& b_out, SE3& refToNew, const IMUPreintegrator& IMU_preintegrator, const int lvl, double trackWeight)
+	void CoarseTracker::calcGSImu(int lvl, Mat66& H_out, Vec6& b_out, const SE3& refToNew, double imuWeight)
 	{
-        H_out = Mat66::Zero();
-        b_out = Vec6::Zero();
-        Vec7 residual = Vec7::Zero();
-        double dt = IMU_preintegrator.getDeltaTime();
+		H_out = Mat66::Zero();
+		b_out = Vec6::Zero();
+		imuWeight = std::pow(imuWeight, 2);
+		double dt = imuHandle.getDeltaTime();
 
-        if (lvl != 0) return residual;
-        if (dt > 0.5) return residual;
+		if (lvl != 0) return;
+		if (dt > 0.5) return;
 
 		Mat44 M_WD = T_WD.matrix();
 		SE3 newToRef = refToNew.inverse();
@@ -822,31 +791,37 @@ namespace dso
 		Vec3 g_w(0, 0, -setting_gravityNorm);
 
 		// 计算p、v、q残差
-		Mat33 R_temp = SO3::exp(IMU_preintegrator.getJRBiasg() * lastRef->delta_bias_g).matrix();
-		Vec3 res_phi = SO3((IMU_preintegrator.getDeltaR() * R_temp).transpose() * R_WB_i.transpose() * R_WB_j).log();
+		Mat33 R_temp = SO3::exp(imuHandle.getJRBiasg() * lastRef->delta_bias_g).matrix();
+		Vec3 res_phi = SO3((imuHandle.getDeltaR() * R_temp).transpose() * R_WB_i.transpose() * R_WB_j).log();
 
-		Vec3 delta_v = IMU_preintegrator.getDeltaV() + IMU_preintegrator.getJVBiasa() * lastRef->delta_bias_a +
-			IMU_preintegrator.getJVBiasg() * lastRef->delta_bias_g;
+		Vec3 delta_v = imuHandle.getDeltaV() + imuHandle.getJVBiasa() * lastRef->delta_bias_a +
+			imuHandle.getJVBiasg() * lastRef->delta_bias_g;
 		newFrame->velocity = R_WB_i * (R_WB_i.transpose() * (lastRef->velocity + g_w * dt) + delta_v);
 		Vec3 res_v = R_WB_i.transpose() * (newFrame->velocity - lastRef->velocity - g_w * dt) - delta_v;
 		newFrame->shell->velocity = newFrame->velocity;
 
-		Vec3 delta_p = IMU_preintegrator.getDeltaP() + IMU_preintegrator.getJPBiasa() * lastRef->delta_bias_a +
-			IMU_preintegrator.getJPBiasg() * lastRef->delta_bias_g;
+		Vec3 delta_p = imuHandle.getDeltaP() + imuHandle.getJPBiasa() * lastRef->delta_bias_a +
+			imuHandle.getJPBiasg() * lastRef->delta_bias_g;
 		Vec3 res_p = R_WB_i.transpose() * (t_WB_j - t_WB_i - lastRef->velocity * dt - 0.5 * g_w * dt * dt) - delta_p;
 
-		Mat99 Cov = IMU_preintegrator.getCovPVPhi();
-        Mat66 Weight = Mat66::Zero();
-        Weight.block(0, 0, 3, 3) = Cov.block(0, 0, 3, 3);
-        Weight.block(3, 3, 3, 3) = Cov.block(6, 6, 3, 3);
-        Weight.block(0, 3, 3, 3) = Cov.block(0, 6, 3, 3);
-        Weight.block(3, 0, 3, 3) = Cov.block(6, 0, 3, 3);
+		Mat66 weight = Mat66::Zero();
+		Mat66 weightTmp = Mat66::Zero();
 
-        residual.block(1, 0, 3, 1) = res_p;
-        residual.block(4, 0, 3, 1) = res_phi;
-        residual[0] = trackWeight * trackWeight * residual.tail<6>().transpose() * Weight.inverse() * residual.tail<6>();
+		Mat99 Cov = imuHandle.getCovPVPhi();
+		weight.block(0, 0, 3, 3) = Cov.block(0, 0, 3, 3);
+		weight.block(3, 3, 3, 3) = Cov.block(6, 6, 3, 3);
 
-		Mat33 J_resPhi_phi_j = IMU_preintegrator.JacobianRInv(res_phi);
+		for (int idx = 0; idx < 6; ++idx)
+			weightTmp(idx, idx) = weight(idx, idx);
+		weight = imuWeight * weightTmp.inverse();
+
+		if (haveNanData(weight, 6, 6))
+		{
+			printf("WARNING: imu data weight is nan!\n");
+			exit(-1);
+		}
+
+		Mat33 J_resPhi_phi_j = imuHandle.JacobianRInv(res_phi);
 		Mat33 J_resV_v_j = R_WB_i.transpose();
 		Mat33 J_resP_p_j = R_WB_i.transpose() * R_WB_j;
 
@@ -854,15 +829,148 @@ namespace dso
 		J_imu_j.block(0, 0, 3, 3) = J_resP_p_j;
 		J_imu_j.block(3, 3, 3, 3) = J_resPhi_phi_j;
 
-        Mat66 weightTmp = Mat66::Zero();
-        for (int idx = 0; idx < 6; ++idx)
-            weightTmp(idx, idx) = Weight(idx, idx);
-		Weight = trackWeight * trackWeight * weightTmp.inverse();
-        if (haveNanData(Weight, 6, 6))
-        {
-            printf("WARNING: imu data weight is nan!\n");
-            exit(-1);
-        }
+		Vec6 r_imu = Vec6::Zero();
+		r_imu.block(0, 0, 3, 1) = res_p;
+		r_imu.block(3, 0, 3, 1) = res_phi;
+
+		Mat44 T_tmp = T_BC.matrix() * T_WD.matrix() * M_DC_j.inverse();
+		Mat66 J_rel = (-1 * Sim3(T_tmp).Adj()).block(0, 0, 6, 6);
+		Mat66 J_xi_2_th = SE3(M_DC_i).Adj();				// 绝对位姿对相对位姿的雅可比
+		Mat66 J_xi_r_l = refToNew.Adj().inverse();			// 将右扰动转化为左扰动
+
+		Mat66 J_imu = Mat66::Zero();
+		J_imu = J_imu_j * J_rel * J_xi_2_th * J_xi_r_l;
+
+		H_out = J_imu.transpose() * weight * J_imu;
+		b_out = J_imu.transpose() * weight * r_imu;
+
+		H_out.block<6, 3>(0, 0) *= SCALE_XI_TRANS;
+		H_out.block<6, 3>(0, 3) *= SCALE_XI_ROT;
+		H_out.block<3, 6>(0, 0) *= SCALE_XI_TRANS;
+		H_out.block<3, 6>(3, 0) *= SCALE_XI_ROT;
+
+		b_out.segment<3>(0) *= SCALE_XI_TRANS;
+		b_out.segment<3>(3) *= SCALE_XI_ROT;
+	}
+
+	Vec7 CoarseTracker::calcResImu(int lvl, const SE3& refToNew, double imuWeight)
+	{
+		Vec7 rs = Vec7::Zero();
+		imuWeight = std::pow(imuWeight, 2);
+		double dt = imuHandle.getDeltaTime();
+
+		if (lvl != 0) return rs;
+		if (dt > 0.5) return rs;
+
+		Mat44 M_WD = T_WD.matrix();
+		SE3 newToRef = refToNew.inverse();
+
+		// 跟踪模块参考帧的位姿
+		Mat44 M_DC_i = lastRef->shell->camToWorld.matrix();
+		SE3 T_WB_i(M_WD * M_DC_i * M_WD.inverse() * T_BC.inverse().matrix());
+		Mat33 R_WB_i = T_WB_i.rotationMatrix();
+		Vec3 t_WB_i = T_WB_i.translation();
+
+		// 跟踪模块最新帧的位姿
+		Mat44 M_DC_j = (lastRef->shell->camToWorld * newToRef).matrix();
+		SE3 T_WB_j(M_WD * M_DC_j * M_WD.inverse() * T_BC.inverse().matrix());
+		Mat33 R_WB_j = T_WB_j.rotationMatrix();
+		Vec3 t_WB_j = T_WB_j.translation();
+
+		Vec3 g_w(0, 0, -setting_gravityNorm);
+
+		// 计算p、v、q残差
+		Mat33 R_temp = SO3::exp(imuHandle.getJRBiasg() * lastRef->delta_bias_g).matrix();
+		Vec3 res_phi = SO3((imuHandle.getDeltaR() * R_temp).transpose() * R_WB_i.transpose() * R_WB_j).log();
+
+		Vec3 delta_p = imuHandle.getDeltaP() + imuHandle.getJPBiasa() * lastRef->delta_bias_a +
+			imuHandle.getJPBiasg() * lastRef->delta_bias_g;
+		Vec3 res_p = R_WB_i.transpose() * (t_WB_j - t_WB_i - lastRef->velocity * dt - 0.5 * g_w * dt * dt) - delta_p;
+
+		Mat99 Cov = imuHandle.getCovPVPhi();
+		Mat66 weight = Mat66::Zero();
+		weight.block(0, 0, 3, 3) = Cov.block(0, 0, 3, 3);
+		weight.block(3, 3, 3, 3) = Cov.block(6, 6, 3, 3);
+		weight.block(0, 3, 3, 3) = Cov.block(0, 6, 3, 3);
+		weight.block(3, 0, 3, 3) = Cov.block(6, 0, 3, 3);
+
+		rs.block(1, 0, 3, 1) = res_p;
+		rs.block(4, 0, 3, 1) = res_phi;
+		rs[0] = imuWeight * rs.tail<6>().transpose() * weight.inverse() * rs.tail<6>();
+
+		return rs;
+	}
+
+	Vec7 CoarseTracker::calcIMUResAndGS(Mat66& H_out, Vec6& b_out, SE3& refToNew, const int lvl, double imuWeight)
+	{
+		H_out = Mat66::Zero();
+		b_out = Vec6::Zero();
+		Vec7 rs = Vec7::Zero();
+		imuWeight = std::pow(imuWeight, 2);
+		double dt = imuHandle.getDeltaTime();
+
+		if (lvl != 0) return rs;
+		if (dt > 0.5) return rs;
+
+		Mat44 M_WD = T_WD.matrix();
+		SE3 newToRef = refToNew.inverse();
+
+		// 跟踪模块参考帧的位姿
+		Mat44 M_DC_i = lastRef->shell->camToWorld.matrix();
+		SE3 T_WB_i(M_WD * M_DC_i * M_WD.inverse() * T_BC.inverse().matrix());
+		Mat33 R_WB_i = T_WB_i.rotationMatrix();
+		Vec3 t_WB_i = T_WB_i.translation();
+
+		// 跟踪模块最新帧的位姿
+		Mat44 M_DC_j = (lastRef->shell->camToWorld * newToRef).matrix();
+		SE3 T_WB_j(M_WD * M_DC_j * M_WD.inverse() * T_BC.inverse().matrix());
+		Mat33 R_WB_j = T_WB_j.rotationMatrix();
+		Vec3 t_WB_j = T_WB_j.translation();
+
+		Vec3 g_w(0, 0, -setting_gravityNorm);
+
+		// 计算p、v、q残差
+		Mat33 R_temp = SO3::exp(imuHandle.getJRBiasg() * lastRef->delta_bias_g).matrix();
+		Vec3 res_phi = SO3((imuHandle.getDeltaR() * R_temp).transpose() * R_WB_i.transpose() * R_WB_j).log();
+
+		Vec3 delta_v = imuHandle.getDeltaV() + imuHandle.getJVBiasa() * lastRef->delta_bias_a +
+			imuHandle.getJVBiasg() * lastRef->delta_bias_g;
+		newFrame->velocity = R_WB_i * (R_WB_i.transpose() * (lastRef->velocity + g_w * dt) + delta_v);
+		Vec3 res_v = R_WB_i.transpose() * (newFrame->velocity - lastRef->velocity - g_w * dt) - delta_v;
+		newFrame->shell->velocity = newFrame->velocity;
+
+		Vec3 delta_p = imuHandle.getDeltaP() + imuHandle.getJPBiasa() * lastRef->delta_bias_a +
+			imuHandle.getJPBiasg() * lastRef->delta_bias_g;
+		Vec3 res_p = R_WB_i.transpose() * (t_WB_j - t_WB_i - lastRef->velocity * dt - 0.5 * g_w * dt * dt) - delta_p;
+
+		Mat99 Cov = imuHandle.getCovPVPhi();
+		Mat66 Weight = Mat66::Zero();
+		Weight.block(0, 0, 3, 3) = Cov.block(0, 0, 3, 3);
+		Weight.block(3, 3, 3, 3) = Cov.block(6, 6, 3, 3);
+		Weight.block(0, 3, 3, 3) = Cov.block(0, 6, 3, 3);
+		Weight.block(3, 0, 3, 3) = Cov.block(6, 0, 3, 3);
+
+		rs.block(1, 0, 3, 1) = res_p;
+		rs.block(4, 0, 3, 1) = res_phi;
+		rs[0] = imuWeight * rs.tail<6>().transpose() * Weight.inverse() * rs.tail<6>();
+
+		Mat33 J_resPhi_phi_j = imuHandle.JacobianRInv(res_phi);
+		Mat33 J_resV_v_j = R_WB_i.transpose();
+		Mat33 J_resP_p_j = R_WB_i.transpose() * R_WB_j;
+
+		Mat66 J_imu_j = Mat66::Zero();
+		J_imu_j.block(0, 0, 3, 3) = J_resP_p_j;
+		J_imu_j.block(3, 3, 3, 3) = J_resPhi_phi_j;
+
+		Mat66 weightTmp = Mat66::Zero();
+		for (int idx = 0; idx < 6; ++idx)
+			weightTmp(idx, idx) = Weight(idx, idx);
+		Weight = imuWeight * weightTmp.inverse();
+		if (haveNanData(Weight, 6, 6))
+		{
+			printf("WARNING: imu data weight is nan!\n");
+			exit(-1);
+		}
 
 		Vec6 r_imu = Vec6::Zero();
 		r_imu.block(0, 0, 3, 1) = res_p;
@@ -887,7 +995,7 @@ namespace dso
 		b_out.segment<3>(0) *= SCALE_XI_TRANS;
 		b_out.segment<3>(3) *= SCALE_XI_ROT;
 
-		return residual;
+		return rs;
 	}
 
 	/// <summary>
@@ -946,42 +1054,43 @@ namespace dso
 		bool haveRepeated = false;
 
 		// 计算惯导对应的Hessian信息
-		IMUPreintegrator IMU_preintegrator;
-		IMU_preintegrator.reset();
+		imuHandle.reset();
 		double timeStart = input_picTimestampLeftList[lastRef->shell->incomingId];
 		double timeEnd = input_picTimestampLeftList[newFrame->shell->incomingId];
-		preintergrate(IMU_preintegrator, lastRef->bias_g, lastRef->bias_a, timeStart, timeEnd);
+		preintergrate(imuHandle, lastRef->bias_g, lastRef->bias_a, timeStart, timeEnd);
 
 		// TODO：为何随着金字塔层级增加，IMU数据的权重逐渐降低
-		std::vector<double> imuTrackWeight(coarsestLvl + 1, 0);
-		imuTrackWeight[0] = setting_imuWeightTracker;
-		imuTrackWeight[1] = imuTrackWeight[0] / 1.2;
-		imuTrackWeight[2] = imuTrackWeight[1] / 1.5;
-		imuTrackWeight[3] = imuTrackWeight[2] / 2;
-		imuTrackWeight[4] = imuTrackWeight[3] / 3;
+		std::vector<double> imuWeight(coarsestLvl + 1, 0);
+		imuWeight[0] = setting_imuWeightTracker;
+		imuWeight[1] = imuWeight[0] / 1.2;
+		imuWeight[2] = imuWeight[1] / 1.5;
+		imuWeight[3] = imuWeight[2] / 2;
+		imuWeight[4] = imuWeight[3] / 3;
 
 		// 自顶层向金字塔底层的视觉跟踪
 		for (int lvl = coarsestLvl; lvl >= 0; lvl--)
 		{
 			// 1、计算视觉部分的Hessian
-			Mat88 H_visual;
-			Vec8 b_visual;
 			float levelCutoffRepeat = 1;
-			Vec6 resVisualOld = calcRes(lvl, refToNew_current, aff_g2l_current, setting_coarseCutoffTH * levelCutoffRepeat);
+			Vec6 resVisualOld = calcResVisual(lvl, refToNew_current, aff_g2l_current, setting_coarseCutoffTH * levelCutoffRepeat);
 			while (resVisualOld[5] > 0.6 && levelCutoffRepeat < 50)
 			{
 				levelCutoffRepeat *= 2;
-                resVisualOld = calcRes(lvl, refToNew_current, aff_g2l_current, setting_coarseCutoffTH * levelCutoffRepeat);
+                resVisualOld = calcResVisual(lvl, refToNew_current, aff_g2l_current, setting_coarseCutoffTH * levelCutoffRepeat);
 
 				if (!setting_debugout_runquiet)
 					printf("INCREASING cutoff to %f (ratio is %f)!\n", setting_coarseCutoffTH * levelCutoffRepeat, resVisualOld[5]);
 			}
-			calcGSSSE(lvl, H_visual, b_visual, refToNew_current, aff_g2l_current);
+
+			Mat88 H_visual;
+			Vec8 b_visual;
+			calcGSVisual(lvl, H_visual, b_visual, refToNew_current, aff_g2l_current);
 
 			// 2、计算惯导部分的Hessian
 			Mat66 H_imu; 
 			Vec6 b_imu;
-            Vec7 resImuOld = calcIMUResAndGS(H_imu, b_imu, refToNew_current, IMU_preintegrator, lvl, imuTrackWeight[lvl]);
+			Vec7 resImuOld = calcResImu(lvl, refToNew_current, imuWeight[lvl]);
+			calcGSImu(lvl, H_imu, b_imu, refToNew_current, imuWeight[lvl]);
 
 			float lambda = 0.01;
 
@@ -1058,8 +1167,8 @@ namespace dso
 				aff_g2l_new.a += incScaled[6];
 				aff_g2l_new.b += incScaled[7];
 
-				Vec6 resVisualNew = calcRes(lvl, refToNew_new, aff_g2l_new, setting_coarseCutoffTH * levelCutoffRepeat);
-                Vec7 resImuNew = calcIMUResAndGS(H_imu, b_imu, refToNew_new, IMU_preintegrator, lvl, imuTrackWeight[lvl]);
+				Vec6 resVisualNew = calcResVisual(lvl, refToNew_new, aff_g2l_new, setting_coarseCutoffTH * levelCutoffRepeat);
+				Vec7 resImuNew = calcResImu(lvl, refToNew_new, imuWeight[lvl]);;
 
 				// 计算能量值是否降低来判断此次迭代过程是否被接受
 				bool accept = (resVisualNew[0] / resVisualNew[1]) < (resVisualOld[0] / resVisualOld[1]);
@@ -1082,7 +1191,9 @@ namespace dso
 
 				if (accept)
 				{
-					calcGSSSE(lvl, H_visual, b_visual, refToNew_new, aff_g2l_new);
+					calcGSVisual(lvl, H_visual, b_visual, refToNew_new, aff_g2l_new);
+					calcGSImu(lvl, H_imu, b_imu, refToNew_new, imuWeight[lvl]);
+
 					resVisualOld = resVisualNew;
 					resImuOld = resImuNew;
 					aff_g2l_current = aff_g2l_new;

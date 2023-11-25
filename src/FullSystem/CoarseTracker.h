@@ -109,9 +109,46 @@ namespace dso
 
 		void makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians, FrameHessian* fhrRight, CalibHessian Hcalib);
 		
-		Vec7 calcIMUResAndGS(Mat66 &H_out, Vec6 &b_out, SE3 &refToNew, const IMUPreintegrator &IMU_preintegrator, const int lvl, double trackWeight);
-		Vec6 calcRes(int lvl, const SE3 &refToNew, AffLight aff_g2l, float cutoffTH);
-		void calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
+		/// <summary>
+		/// 计算惯导预积分数据的Hessian和b
+		/// </summary>
+		/// <param name="H_out">输出惯导数据H</param>
+		/// <param name="b_out">输出惯导数据b</param>
+		/// <param name="refToNew">输入位姿变换参数</param>
+		/// <param name="lvl">当前计算步骤的金字塔层级</param>
+		/// <param name="imu_track_weight">IMU信息的权重</param>
+		/// <returns>IMU信息残差：包含位置残差和姿态残差</returns>
+		Vec7 calcIMUResAndGS(Mat66 &H_out, Vec6 &b_out, SE3 &refToNew, const int lvl, double trackWeight);
+
+		void calcGSImu(int lvl, Mat66& H_out, Vec6& b_out, const SE3& refToNew, double imuWeight);
+		Vec7 calcResImu(int lvl, const SE3& refToNew, double imuWeight);
+
+		/// <summary>
+		/// 计算当前输入状态下的视觉残差以及特征在最新帧上的信息
+		/// </summary>
+		/// <param name="lvl">计算视觉残差的金字塔层级</param>
+		/// <param name="refToNew">输入参考帧到最新帧的位姿变换</param>
+		/// <param name="aff_g2l">输入光度变换参数</param>
+		/// <param name="cutoffTH">输入单个特征光度误差阈值</param>
+		/// <returns>
+		/// [0]：总的光度残差能量；
+		/// [1]：统计能量的特征数量；
+		/// [2]：仅考虑平移时特征在像素坐标下的移动距离；
+		/// [3]：固定为0；
+		/// [4]：考虑平移和旋转时特征在像素坐标下的移动距离；
+		/// [5]：计算总的光度残差时大于设定阈值的特征比例；
+		/// </returns>
+		Vec6 calcResVisual(int lvl, const SE3 &refToNew, AffLight aff_g2l, float cutoffTH);
+
+		/// <summary>
+		/// 计算视觉部分Heesian和b
+		/// </summary>
+		/// <param name="lvl">输入金字塔层级</param>
+		/// <param name="H_out">输出当前层金字塔计算的H</param>
+		/// <param name="b_out">输出当前层金字塔计算的b</param>
+		/// <param name="refToNew">输入位姿变换参数</param>
+		/// <param name="aff_g2l">输入光度变换参数</param>
+		void calcGSVisual(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
 
 		// 将所有特征向参考关键帧lastRef上投影，将出现不同特征投影到同一个像素上的情况，
 		// 此时记录每一个投影特征的Heesian逆作为权重用于计算特征逆深度的归一化积
@@ -139,6 +176,7 @@ namespace dso
 		std::vector<float*> ptrToDelete;
 
 		Accumulator9 acc;
+		IMUPreintegrator imuHandle;
 	};
 
 	/// <summary>
